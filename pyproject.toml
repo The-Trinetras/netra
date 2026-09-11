@@ -1,0 +1,62 @@
+[project]
+name = "netra-runtime"
+version = "0.1.0"
+description = "Shared Python runtime baseline for Netra API and worker"
+requires-python = ">=3.13.15,<3.14"
+
+dependencies = [
+    # API, validation and configuration
+    "fastapi>=0.141.1,<0.142",
+    "uvicorn[standard]>=0.52.4,<0.53",
+    "pydantic>=2.13.5,<2.14",
+    "pydantic-settings>=2.15.0,<2.16",
+    "python-multipart>=0.0.32,<0.1",
+
+    # Orchestration and PostgreSQL checkpointing
+    "langgraph==1.2.11",
+    "langchain-core==1.6.2",
+    "langgraph-checkpoint-postgres==3.1.2",
+
+    # Authoritative data, migrations and durable jobs
+    "SQLAlchemy[asyncio]>=2.0.52,<2.1",
+    "alembic>=1.19.2,<1.20",
+    "asyncpg>=0.31.0,<0.32",
+    "psycopg[binary]>=3.3.5,<3.4",
+    "psycopg-pool>=3.3.1,<3.4",
+
+    # Shared transports; Gemini requires websockets below 17
+    "httpx>=0.28.1,<0.29",
+    "websockets>=16.1.1,<17",
+
+    # Provider adapters
+    "google-genai==2.21.0",
+    "groq==1.7.0",
+    "deepgram-sdk==7.8.1",
+    "elevenlabs==2.65.0",
+    "pinecone==9.1.0",
+    "neo4j==6.3.0",
+    "twelvelabs==1.3.4",
+    "tavily-python==0.7.27",
+
+    # LlamaParse official SDK and local OCR wrapper
+    "llama-cloud==2.14.1",
+    "pytesseract==0.3.13",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1,<9.2",
+    "pytest-asyncio>=1.4.0,<1.5",
+]
+
+[tool.uv]
+# This root manifest defines an environment, not a distributable package.
+package = false
+prerelease = "disallow"
+exclude-newer = "2026-09-12T00:00:00Z"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+asyncio_default_test_loop_scope = "function"
+testpaths = ["tests"]

@@ -1,0 +1,219 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://netra.local/contracts/agent/v1/coordinator_to_tutor.schema.json",
+  "title": "Coordinator To Tutor Handoff",
+  "type": "object",
+  "additionalProperties": false,
+
+  "required": [
+    "handoff_version",
+    "handoff_id",
+    "request_id",
+    "session_id",
+    "lesson_id",
+    "mode",
+    "learning_goal",
+    "original_utterance",
+    "target_concept_ids",
+    "explanation_level",
+    "evidence_refs",
+    "recent_dialogue",
+    "assessment_summaries",
+    "deadline_at"
+  ],
+
+  "properties": {
+    "handoff_version": {
+      "const": "1.0"
+    },
+
+    "handoff_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+
+    "request_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+
+    "session_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+
+    "lesson_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+
+    "mode": {
+      "enum": [
+        "explain",
+        "continue_lesson",
+        "check_understanding",
+        "evaluate_answer"
+      ]
+    },
+
+    "learning_goal": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2000
+    },
+
+    "original_utterance": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 8000
+    },
+
+    "target_concept_ids": {
+      "type": "array",
+      "maxItems": 12,
+      "uniqueItems": true,
+      "items": {
+        "type": "string"
+      }
+    },
+
+    "explanation_level": {
+      "enum": [
+        "brief",
+        "standard",
+        "detailed"
+      ]
+    },
+
+    "evidence_refs": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 12,
+      "items": {
+        "$ref": "#/$defs/EvidenceRef"
+      }
+    },
+
+    "recent_dialogue": {
+      "type": "array",
+      "maxItems": 8,
+      "items": {
+        "$ref": "#/$defs/DialogueTurn"
+      }
+    },
+
+    "assessment_summaries": {
+      "type": "array",
+      "maxItems": 12,
+      "items": {
+        "$ref": "#/$defs/AssessmentSummary"
+      }
+    },
+
+    "pending_question": {
+      "oneOf": [
+        { "$ref": "#/$defs/PendingQuestion" },
+        { "type": "null" }
+      ]
+    },
+
+    "deadline_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+
+  "$defs": {
+    "EvidenceRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "evidence_id",
+        "source_version_id",
+        "evidence_version"
+      ],
+      "properties": {
+        "evidence_id": {
+          "type": "string"
+        },
+        "source_version_id": {
+          "type": "string"
+        },
+        "evidence_version": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+
+    "DialogueTurn": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "role",
+        "content"
+      ],
+      "properties": {
+        "role": {
+          "enum": [
+            "student",
+            "tutor"
+          ]
+        },
+        "content": {
+          "type": "string",
+          "maxLength": 4000
+        }
+      }
+    },
+
+    "AssessmentSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "concept_id",
+        "status"
+      ],
+      "properties": {
+        "concept_id": {
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "not_assessed",
+            "needs_review",
+            "developing",
+            "demonstrated_recently"
+          ]
+        },
+        "last_assessed_at": {
+          "type": ["string", "null"],
+          "format": "date-time"
+        }
+      }
+    },
+
+    "PendingQuestion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "question_id",
+        "question_version",
+        "hints_used"
+      ],
+      "properties": {
+        "question_id": {
+          "type": "string"
+        },
+        "question_version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "hints_used": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    }
+  }
+}

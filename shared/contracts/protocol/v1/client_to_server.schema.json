@@ -1,0 +1,259 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://netra.local/contracts/protocol/v1/client_to_server.schema.json",
+  "title": "Netra Client To Server Message",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "protocol_version",
+    "message_id",
+    "session_id",
+    "request_id",
+    "sequence",
+    "type",
+    "payload"
+  ],
+  "properties": {
+    "protocol_version": {
+      "const": "1.0"
+    },
+    "message_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "session_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "request_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "sequence": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "type": {
+      "enum": [
+        "session.resume",
+        "turn.submit",
+        "navigation.command",
+        "response.cancel",
+        "playback.ack"
+      ]
+    },
+    "payload": {
+      "type": "object"
+    }
+  },
+
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "type": { "const": "session.resume" }
+        }
+      },
+      "then": {
+        "properties": {
+          "payload": { "$ref": "#/$defs/SessionResume" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": { "const": "turn.submit" }
+        }
+      },
+      "then": {
+        "properties": {
+          "payload": { "$ref": "#/$defs/TurnSubmit" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": { "const": "navigation.command" }
+        }
+      },
+      "then": {
+        "properties": {
+          "payload": { "$ref": "#/$defs/NavigationCommand" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": { "const": "response.cancel" }
+        }
+      },
+      "then": {
+        "properties": {
+          "payload": { "$ref": "#/$defs/ResponseCancel" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": { "const": "playback.ack" }
+        }
+      },
+      "then": {
+        "properties": {
+          "payload": { "$ref": "#/$defs/PlaybackAck" }
+        }
+      }
+    }
+  ],
+
+  "$defs": {
+    "SessionResume": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "last_known_session_version"
+      ],
+      "properties": {
+        "last_known_session_version": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "last_acknowledged_sentence_id": {
+          "type": ["string", "null"]
+        }
+      }
+    },
+
+    "TurnSubmit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "utterance",
+        "input_mode",
+        "transcript_status",
+        "expected_session_version"
+      ],
+      "properties": {
+        "utterance": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 8000
+        },
+        "input_mode": {
+          "enum": ["keyboard", "voice"]
+        },
+        "transcript_status": {
+          "const": "final"
+        },
+        "expected_session_version": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "client_timestamp": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+
+    "NavigationCommand": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "command",
+        "expected_session_version"
+      ],
+      "properties": {
+        "command": {
+          "enum": [
+            "stop",
+            "pause",
+            "continue",
+            "next",
+            "previous",
+            "repeat",
+            "where_am_i",
+            "back_to_reading",
+            "undo_jump",
+            "return_to_question"
+          ]
+        },
+        "navigation_unit": {
+          "enum": [
+            "sentence",
+            "block",
+            "heading",
+            "figure",
+            "equation"
+          ]
+        },
+        "expected_session_version": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+
+    "ResponseCancel": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "cancel_request_id"
+      ],
+      "properties": {
+        "cancel_request_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "generation_id": {
+          "type": ["string", "null"]
+        },
+        "reason": {
+          "enum": [
+            "user_stop",
+            "new_turn",
+            "navigation",
+            "client_shutdown"
+          ]
+        }
+      }
+    },
+
+    "PlaybackAck": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "generation_id",
+        "segment_id",
+        "sentence_id",
+        "status"
+      ],
+      "properties": {
+        "generation_id": {
+          "type": "string"
+        },
+        "segment_id": {
+          "type": "string"
+        },
+        "sentence_id": {
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "started",
+            "progress",
+            "completed"
+          ]
+        },
+        "played_ms": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    }
+  }
+}

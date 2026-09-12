@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <RootNamespace>Netra.Desktop.Tests</RootNamespace>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <!--
+    TODO: no NuGet lock is committed for the client yet (see
+    docs/architecture/runtime-baseline.md, "Committed NuGet declarations and
+    lockfiles define desktop package versions"). These versions are explicit
+    pins chosen for this scaffold and have NOT been restored or verified in
+    this environment (no network access; restore was not requested). Verify
+    and lock before first real restore.
+  -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
+    <PackageReference Include="xunit" Version="2.9.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Netra.Desktop\Netra.Desktop.csproj" />
+  </ItemGroup>
+
+</Project>

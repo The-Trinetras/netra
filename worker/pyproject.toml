@@ -1,0 +1,38 @@
+# Netra worker deployable — metadata and ownership only.
+#
+# Authority split (docs/architecture/runtime-baseline.md, "Dependency
+# authority"):
+#   - The ROOT pyproject.toml owns every approved dependency constraint,
+#     the shared CPython version, and the pytest configuration for the
+#     whole monorepo. Do not restate a dependency version here.
+#   - The committed uv.lock (not yet present) owns exact resolved
+#     versions.
+#   - This file owns the worker deployable's own identity and documents
+#     how it is installed and run.
+#
+# Installation: the worker and the API deliberately share ONE environment
+# and ONE lock, because the baseline requires both processes to share the
+# Python version, base image and dependency lock. Install from the
+# repository root, not from this directory.
+#
+# The worker imports nothing from netra_api at runtime, so the two stay
+# separately deployable even though they resolve from one lock.
+#
+# This manifest declares no build backend on purpose. Whether the worker
+# should become a distributable wheel — rather than source copied into
+# infrastructure/docker/worker.Dockerfile — is an unmade packaging
+# decision; it is recorded here rather than guessed at.
+
+[project]
+name = "netra-worker"
+version = "0.1.0"
+description = "Netra background worker: leased PostgreSQL jobs, ingestion, projections and scheduling"
+
+# Must stay identical to the root manifest and to the runtime baseline.
+requires-python = ">=3.13.15,<3.14"
+
+# Intentionally empty. See the authority split above.
+dependencies = []
+
+[tool.uv]
+package = false

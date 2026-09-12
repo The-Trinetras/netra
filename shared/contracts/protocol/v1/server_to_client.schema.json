@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://netra.local/contracts/protocol/v1/server_to_client.schema.json",
+  "title": "Netra Server To Client Message",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "protocol_version",
+    "message_id",
+    "session_id",
+    "request_id",
+    "sequence",
+    "type",
+    "payload"
+  ],
+  "properties": {
+    "protocol_version": { "const": "1.0" },
+    "message_id": { "type": "string", "format": "uuid" },
+    "session_id": { "type": "string", "format": "uuid" },
+    "request_id": { "type": "string", "format": "uuid" },
+    "sequence": { "type": "integer", "minimum": 0 },
+    "type": {
+      "enum": [
+        "session.snapshot",
+        "response.segment",
+        "quiz.question",
+        "error"
+      ]
+    },
+    "payload": {
+      "type": "object"
+    }
+  },
+
+  "$comment": "Only response.segment has a payload sub-schema so far. session.snapshot, quiz.question and error are still untyped here: their field sets require a coordinated M1/M4/M5 decision (notably the interaction_mode vocabulary and the representation of the last stable result set), and inventing one inside a schema would make it authoritative by accident. Consumers must keep reading those payloads as opaque objects until a sub-schema exists; see client/src/Netra.Desktop/Protocol/Dto/ServerPayloads.cs.",
+
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "type": { "const": "response.segment" }
+        }
+      },
+      "then": {
+        "properties": {
+          "payload": { "$ref": "#/$defs/ResponseSegment" }
+        }
+      }
+    }
+  ],
+
+  "$defs": {
+    "ResponseSegment": {
+      "$comment": "Transcribed from the committed example at shared/contracts/examples/server/response_segment.json and the C# record that already parses it. No field is introduced here that did not already exist in both. kind reuses the segment vocabulary from agent/v1/tutor_to_coordinator.schema.json rather than defining a second one.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "generation_id",
+        "segment_id",
+        "sentence_id",
+        "text",
+        "final"
+      ],
+      "properties": {
+        "generation_id": {
+          "type": "string"
+        },
+        "segment_id": {
+          "type": "string"
+        },
+        "sentence_id": {
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "explanation",
+            "hint",
+            "question",
+            "correction"
+          ]
+        },
+        "text": {
+          "type": "string",
+          "maxLength": 8000
+        },
+        "final": {
+          "type": "boolean"
+        },
+        "evidence_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

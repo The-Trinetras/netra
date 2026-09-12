@@ -1,0 +1,21 @@
+{
+  "handoff_version": "1.0",
+  "handoff_id": "8a1e2f3b-2222-4a2b-9c3d-000000000010",
+  "status": "completed",
+  "public_segments": [
+    {
+      "kind": "explanation",
+      "text": "Congestion control protects the network rather than only the receiver."
+    }
+  ],
+  "pending_question_id": null,
+  "evidence_ids": ["ev-27"],
+  "proposed_learning_events": [
+    {
+      "event_type": "concept_exposed",
+      "concept_id": "concept-congestion-control",
+      "attempt_id": null
+    }
+  ],
+  "decision_summary": "Explained congestion control using retrieved evidence ev-27."
+}

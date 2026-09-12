@@ -1,0 +1,13 @@
+{
+  "protocol_version": "1.0",
+  "message_id": "5f1b2c3d-1111-4a2b-9c3d-000000000002",
+  "session_id": "cbfbf24a-eaf7-4a56-9ea9-1abbf160d88f",
+  "request_id": "46f2550a-c2b7-489a-99e7-cd9d219e5f70",
+  "sequence": 13,
+  "type": "navigation.command",
+  "payload": {
+    "command": "repeat",
+    "navigation_unit": "sentence",
+    "expected_session_version": 8
+  }
+}

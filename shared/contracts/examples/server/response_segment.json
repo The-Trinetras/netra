@@ -1,0 +1,17 @@
+{
+  "protocol_version": "1.0",
+  "message_id": "c94a66e1-f415-4340-bb37-a35d43bb54ef",
+  "session_id": "cbfbf24a-eaf7-4a56-9ea9-1abbf160d88f",
+  "request_id": "46f2550a-c2b7-489a-99e7-cd9d219e5f69",
+  "sequence": 14,
+  "type": "response.segment",
+  "payload": {
+    "generation_id": "gen-93",
+    "segment_id": "seg-2",
+    "sentence_id": "sentence-483",
+    "kind": "explanation",
+    "text": "Congestion control protects the network rather than only the receiver.",
+    "final": false,
+    "evidence_ids": ["ev-27"]
+  }
+}

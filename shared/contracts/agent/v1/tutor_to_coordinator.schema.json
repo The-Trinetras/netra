@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://netra.local/contracts/agent/v1/tutor_to_coordinator.schema.json",
+  "title": "Tutor To Coordinator Result",
+  "type": "object",
+  "additionalProperties": false,
+
+  "required": [
+    "handoff_version",
+    "handoff_id",
+    "status",
+    "public_segments",
+    "evidence_ids",
+    "proposed_learning_events"
+  ],
+
+  "properties": {
+    "handoff_version": {
+      "const": "1.0"
+    },
+
+    "handoff_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+
+    "status": {
+      "enum": [
+        "completed",
+        "awaiting_student_answer",
+        "needs_more_evidence",
+        "failed"
+      ]
+    },
+
+    "public_segments": {
+      "type": "array",
+      "maxItems": 12,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "kind",
+          "text"
+        ],
+        "properties": {
+          "kind": {
+            "enum": [
+              "explanation",
+              "hint",
+              "question",
+              "correction"
+            ]
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 8000
+          }
+        }
+      }
+    },
+
+    "pending_question_id": {
+      "type": ["string", "null"]
+    },
+
+    "evidence_ids": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string"
+      }
+    },
+
+    "proposed_learning_events": {
+      "type": "array",
+      "maxItems": 12,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "event_type",
+          "concept_id"
+        ],
+        "properties": {
+          "event_type": {
+            "enum": [
+              "concept_exposed",
+              "hint_used",
+              "answer_evaluated",
+              "review_requested"
+            ]
+          },
+          "concept_id": {
+            "type": "string"
+          },
+          "attempt_id": {
+            "type": ["string", "null"]
+          }
+        }
+      }
+    },
+
+    "decision_summary": {
+      "type": ["string", "null"],
+      "maxLength": 1000
+    }
+  }
+}

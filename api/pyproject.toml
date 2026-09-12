@@ -1,0 +1,40 @@
+# Netra API deployable — metadata and ownership only.
+#
+# Authority split (docs/architecture/runtime-baseline.md, "Dependency
+# authority"):
+#   - The ROOT pyproject.toml owns every approved dependency constraint,
+#     the shared CPython version, and the pytest configuration for the
+#     whole monorepo. Do not restate a dependency version here; two
+#     sources of truth is exactly what that section forbids.
+#   - The committed uv.lock (not yet present) owns exact resolved
+#     versions.
+#   - This file owns the API deployable's own identity and documents how
+#     it is installed and run.
+#
+# Installation: the API and the worker deliberately share ONE environment
+# and ONE lock, because the baseline requires both processes to share the
+# Python version, base image and dependency lock. Install from the
+# repository root, not from this directory.
+#
+# This manifest declares no build backend on purpose. Whether the API
+# should become a distributable wheel — rather than source copied into
+# infrastructure/docker/api.Dockerfile — is an unmade packaging decision;
+# it is recorded here rather than guessed at.
+
+[project]
+name = "netra-api"
+version = "0.1.0"
+description = "Netra API: Coordinator, session, identity, content, multimedia and learning services"
+
+# Must stay identical to the root manifest and to the runtime baseline.
+# Both processes share one interpreter version; a divergence here is a
+# baseline violation, not a local override.
+requires-python = ">=3.13.15,<3.14"
+
+# Intentionally empty. See the authority split above.
+dependencies = []
+
+[tool.uv]
+# Mirrors the root manifest: this is an environment member, not a
+# distributable package.
+package = false

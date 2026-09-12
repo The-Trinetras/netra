@@ -59,4 +59,24 @@ exclude-newer = "2026-09-12T00:00:00Z"
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 asyncio_default_test_loop_scope = "function"
-testpaths = ["tests"]
+
+# Every Python test root in the monorepo. "tests/" holds the cross-cutting
+# acceptance/contract/integration suites; the per-deployable suites live
+# beside the code they cover.
+testpaths = [
+    "api/tests",
+    "worker/tests",
+    "evaluation/scripts",
+    "tests",
+]
+
+# The root manifest declares an environment, not a distributable package
+# (see [tool.uv] above), so netra_api/netra_worker are not installed into
+# site-packages. Adding their src roots here is what makes `import
+# netra_api` resolve during a test run without an install step, which the
+# runtime baseline only permits when dependency setup is explicitly
+# requested.
+pythonpath = [
+    "api/src",
+    "worker/src",
+]

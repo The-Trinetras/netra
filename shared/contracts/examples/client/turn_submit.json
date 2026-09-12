@@ -1,0 +1,15 @@
+{
+  "protocol_version": "1.0",
+  "message_id": "5f1b2c3d-1111-4a2b-9c3d-000000000001",
+  "session_id": "cbfbf24a-eaf7-4a56-9ea9-1abbf160d88f",
+  "request_id": "46f2550a-c2b7-489a-99e7-cd9d219e5f69",
+  "sequence": 12,
+  "type": "turn.submit",
+  "payload": {
+    "utterance": "Can you explain congestion control?",
+    "input_mode": "voice",
+    "transcript_status": "final",
+    "expected_session_version": 7,
+    "client_timestamp": "2026-09-12T10:15:00Z"
+  }
+}

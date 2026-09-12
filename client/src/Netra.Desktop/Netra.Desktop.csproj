@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Runtime pinned per docs/architecture/runtime-baseline.md:
+    net10.0-windows, .NET SDK 10.0.401 (see ../../global.json).
+    WPF is the only desktop UI framework for Netra; do not add a second one.
+
+    No LangVersion property on purpose. The target framework and the
+    pinned SDK determine the language version, so there is one source of
+    truth. An explicit "latest" would float with whatever SDK happens to
+    be installed, which the baseline forbids ("Never use 'latest' ... as
+    version recommendations"), and it is also how preview features get
+    enabled by accident.
+  -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>Netra.Desktop</RootNamespace>
+    <AssemblyName>Netra.Desktop</AssemblyName>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+</Project>

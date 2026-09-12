@@ -1,0 +1,34 @@
+{
+  "handoff_version": "1.0",
+  "handoff_id": "8a1e2f3b-2222-4a2b-9c3d-000000000010",
+  "request_id": "46f2550a-c2b7-489a-99e7-cd9d219e5f69",
+  "session_id": "cbfbf24a-eaf7-4a56-9ea9-1abbf160d88f",
+  "lesson_id": "3d4e5f6a-3333-4a2b-9c3d-000000000020",
+  "mode": "explain",
+  "learning_goal": "Understand why congestion control protects the network, not just the receiver.",
+  "original_utterance": "Can you explain congestion control?",
+  "target_concept_ids": ["concept-congestion-control"],
+  "explanation_level": "standard",
+  "evidence_refs": [
+    {
+      "evidence_id": "ev-27",
+      "source_version_id": "src-ver-104",
+      "evidence_version": 1
+    }
+  ],
+  "recent_dialogue": [
+    {
+      "role": "student",
+      "content": "Can you explain congestion control?"
+    }
+  ],
+  "assessment_summaries": [
+    {
+      "concept_id": "concept-congestion-control",
+      "status": "not_assessed",
+      "last_assessed_at": null
+    }
+  ],
+  "pending_question": null,
+  "deadline_at": "2026-09-12T10:15:20Z"
+}

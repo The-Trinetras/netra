@@ -35,9 +35,93 @@ class DuplicateRequestError(NetraError):
         super().__init__(f"request_id {request_id} has already been processed")
 
 
+class IdempotencyConflictError(NetraError):
+    """Raised when a request_id is reused for a different logical action.
+
+    A retransmission of the SAME action must replay its prior result
+    regardless of payload identity; a request_id reused for a DIFFERENT
+    payload is a client bug (or a collision) and must fail closed rather
+    than execute either interpretation or overwrite the original replay
+    record (see the idempotent-retry-ordering execution clarification).
+    """
+
+    def __init__(self, request_id: str) -> None:
+        self.request_id = request_id
+        super().__init__(f"request_id {request_id} was already used for a different request")
+
+
 class TurnBudgetExceededError(NetraError):
     """Raised when a Coordinator turn exceeds its model-decision, tool-call, or deadline budget."""
 
 
 class UnsupportedProtocolVersionError(NetraError):
     """Raised when a message declares a protocol_version this server does not support."""
+
+
+class ErrorCode:
+    """Namespace of wire-safe error codes for the server_to_client `error` payload.
+
+    Each code maps to exactly one NetraError subclass (or an
+    authentication/internal condition with no dedicated exception yet)
+    so the client can distinguish failure kinds without ever seeing an
+    exception message, a stack trace, or database detail. See
+    docs/architecture/message-flow.md and shared/contracts/protocol/v1/error.schema.json.
+    """
+
+    AUTH_REQUIRED = "AUTH_REQUIRED"
+    AUTHORIZATION_DENIED = "AUTHORIZATION_DENIED"
+    SESSION_VERSION_CONFLICT = "SESSION_VERSION_CONFLICT"
+    REQUEST_ID_CONFLICT = "REQUEST_ID_CONFLICT"
+    INVALID_REQUEST = "INVALID_REQUEST"
+    UNSUPPORTED_PROTOCOL_VERSION = "UNSUPPORTED_PROTOCOL_VERSION"
+    STALE_REQUEST = "STALE_REQUEST"
+    RESOURCE_UNAVAILABLE = "RESOURCE_UNAVAILABLE"
+    PROVIDER_UNAVAILABLE = "PROVIDER_UNAVAILABLE"
+    INTERNAL_ERROR = "INTERNAL_ERROR"
+
+
+_RETRYABLE_CODES = frozenset(
+    {
+        ErrorCode.RESOURCE_UNAVAILABLE,
+        ErrorCode.PROVIDER_UNAVAILABLE,
+    }
+)
+
+_CODE_BY_EXCEPTION: dict[type[NetraError], str] = {
+    AuthorizationError: ErrorCode.AUTHORIZATION_DENIED,
+    SessionVersionConflictError: ErrorCode.SESSION_VERSION_CONFLICT,
+    IdempotencyConflictError: ErrorCode.REQUEST_ID_CONFLICT,
+    DuplicateRequestError: ErrorCode.REQUEST_ID_CONFLICT,
+    UnsupportedProtocolVersionError: ErrorCode.UNSUPPORTED_PROTOCOL_VERSION,
+}
+"""AUTHORIZATION_DENIED deliberately covers both "not found" and "not
+authorized": the evidence-resolution boundary (content/retrieval/evidence.py)
+already treats those as distinct *internal* rejection reasons that must
+never reach the wire, because telling them apart externally would let a
+caller probe for the existence of a resource they cannot access."""
+
+
+def error_code_for(exc: NetraError) -> str:
+    """Map a NetraError to its wire ErrorCode, defaulting to INTERNAL_ERROR.
+
+    Never derives the code from exc's message text: only the exception's
+    *type* selects a code, so nothing exception-specific (a stack trace,
+    a database detail, a provider payload) can leak into the wire value.
+    """
+
+    for exc_type, code in _CODE_BY_EXCEPTION.items():
+        if isinstance(exc, exc_type):
+            return code
+    return ErrorCode.INTERNAL_ERROR
+
+
+def is_retryable(code: str) -> bool:
+    """Whether a client may usefully resend the same request_id for this code.
+
+    A version conflict or a request-id conflict is not retryable as-is:
+    resending the identical payload would fail the same way. The caller
+    must first reconcile (fetch a snapshot, mint a new request_id) before
+    trying again.
+    """
+
+    return code in _RETRYABLE_CODES

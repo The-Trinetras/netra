@@ -88,20 +88,30 @@ class ApprovedQuestion(BaseModel):
 
 
 class StudentFacingQuestion(BaseModel):
-    """What is safe to send to the client: no answer_key, ever."""
+    """What is safe to send to the client: no answer_key, ever.
+
+    This is the quiz.question wire payload (session.snapshot decision B,
+    2026-09-12): every field here is exactly what
+    shared/contracts/protocol/v1/server_to_client.schema.json's
+    QuizQuestion $def carries. hints_used is not part of ApprovedQuestion
+    itself — it comes from the session's PendingQuestionRef, which tracks
+    per-attempt hint usage separately from the immutable question record.
+    """
 
     question_id: str
     question_version: int
     kind: QuestionKind
     prompt: str
     options: list[QuestionOption] = Field(default_factory=list)
+    hints_used: int = Field(default=0, ge=0)
 
     @classmethod
-    def from_approved(cls, question: ApprovedQuestion) -> "StudentFacingQuestion":
+    def from_approved(cls, question: ApprovedQuestion, hints_used: int = 0) -> "StudentFacingQuestion":
         return cls(
             question_id=question.question_id,
             question_version=question.question_version,
             kind=question.kind,
             prompt=question.prompt,
             options=question.options,
+            hints_used=hints_used,
         )

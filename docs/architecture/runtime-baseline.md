@@ -65,10 +65,19 @@ Provider pins:
 - twelvelabs==1.3.4
 - tavily-python==0.7.27
 - llama-cloud==2.14.1
+- boto3==1.43.92 (approved 2026-09-12; declared in pyproject.toml. uv.lock
+  regeneration is blocked because uv is not installed in this environment —
+  pip dry-run resolution confirmed the pin and its full dependency set
+  resolve cleanly, so the pin itself is not in question, only the lockfile
+  mechanics.)
 
 Use HTTPX for Jina Reader.
 LlamaParse remains the parsing provider; llama-cloud is its selected SDK.
 The Groq Tutor model remains openai/gpt-oss-120b.
+The Coordinator Gemini model is the approved configured pin gemini-3.8-flash
+(2026-09-12, api/src/netra_api/coordinator/providers/gemini.py) — a
+configuration decision, not an independently verified claim that this model
+id currently exists on the provider's API.
 
 ## Rules for Claude Code
 

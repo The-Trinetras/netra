@@ -70,9 +70,16 @@ class PendingQuestionRef(BaseModel):
 
 
 class ResultSetRef(BaseModel):
-    """Reference to the most recent retrieval/search result set, for follow-up turns."""
+    """Reference to the most recent retrieval/search result set, for follow-up turns.
 
-    result_set_id: str
+    result_set_id is a UUID, matching netra_api.session.result_sets.ResultSet
+    (the "last stable result set" design approved 2026-09-12, decision E):
+    the full ordered item list lives there, keyed by this id; this
+    reference is all SessionState — and the session.snapshot wire payload
+    built from it — ever carries.
+    """
+
+    result_set_id: UUID
     created_at: datetime
 
 

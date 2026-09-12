@@ -35,6 +35,17 @@ public partial class App : Application
         var interruptionController = new InterruptionController(playbackController, connectionManager);
         _playbackAcknowledger = new PlaybackAcknowledger(playbackController, connectionManager);
 
+        // Gates binary server->client audio frames (audio_frame_header
+        // schema) before anything downstream may treat them as playable.
+        // See Audio/BinaryAudioFrameProcessor.cs: turning admitted frames
+        // into actual MediaPlayer output is a separate, unimplemented
+        // integration step — WPF's MediaPlayer plays from a Uri/stream, not
+        // incremental byte chunks, and no response-delivery path exists yet
+        // to call AdmitGeneration when a new response starts speaking.
+        var binaryAudioFrameProcessor = new BinaryAudioFrameProcessor(interruptionController);
+        interruptionController.GenerationFenced += (_, _) => binaryAudioFrameProcessor.ClearActiveGeneration();
+        webSocketClient.BinaryMessageReceived += binaryAudioFrameProcessor.OnBinaryMessageReceived;
+
         var speechInputService = new MicrophoneCapture();
         var liveRegionAnnouncer = new LiveRegionAnnouncer();
 

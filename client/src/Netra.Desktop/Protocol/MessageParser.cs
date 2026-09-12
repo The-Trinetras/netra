@@ -30,15 +30,32 @@ public static class MessageParser
         return envelope;
     }
 
-    // Typed accessor for the one server payload shape currently confirmed by
-    // shared/contracts/examples/server/response_segment.json. See
-    // Protocol/Dto/ServerPayloads.cs for why session.snapshot and
-    // quiz.question do not have typed accessors yet.
     public static ResponseSegmentPayload ParseResponseSegment(ServerToClientEnvelope envelope)
     {
         EnsureType(envelope, ServerMessageType.ResponseSegment);
         return envelope.Payload.Deserialize<ResponseSegmentPayload>(NetraJsonSerialization.Options)
             ?? throw new ProtocolException("response.segment payload could not be parsed.");
+    }
+
+    public static SessionSnapshotPayload ParseSessionSnapshot(ServerToClientEnvelope envelope)
+    {
+        EnsureType(envelope, ServerMessageType.SessionSnapshot);
+        return envelope.Payload.Deserialize<SessionSnapshotPayload>(NetraJsonSerialization.Options)
+            ?? throw new ProtocolException("session.snapshot payload could not be parsed.");
+    }
+
+    public static QuizQuestionPayload ParseQuizQuestion(ServerToClientEnvelope envelope)
+    {
+        EnsureType(envelope, ServerMessageType.QuizQuestion);
+        return envelope.Payload.Deserialize<QuizQuestionPayload>(NetraJsonSerialization.Options)
+            ?? throw new ProtocolException("quiz.question payload could not be parsed.");
+    }
+
+    public static ErrorPayload ParseError(ServerToClientEnvelope envelope)
+    {
+        EnsureType(envelope, ServerMessageType.Error);
+        return envelope.Payload.Deserialize<ErrorPayload>(NetraJsonSerialization.Options)
+            ?? throw new ProtocolException("error payload could not be parsed.");
     }
 
     private static void EnsureType(ServerToClientEnvelope envelope, ServerMessageType expected)

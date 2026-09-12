@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://netra.local/contracts/protocol/v1/error.schema.json",
+  "title": "Netra Error Payload",
+  "$comment": "The server_to_client `error` message type's payload. Approved 2026-09-12 alongside session.snapshot and quiz.question (see docs/architecture/message-flow.md). request_id is deliberately NOT a field here: the envelope already carries request_id at the top level (both protocol schemas require it), and duplicating it in-payload would only create a second place the two values could disagree. code is drawn from a fixed, closed vocabulary so the client can branch on it without ever parsing message text; message is safe accessible wording only, never an exception's own text, a stack trace, SQL, or a provider payload.",
+
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "code",
+    "message",
+    "retryable"
+  ],
+  "properties": {
+    "code": {
+      "enum": [
+        "AUTH_REQUIRED",
+        "AUTHORIZATION_DENIED",
+        "SESSION_VERSION_CONFLICT",
+        "REQUEST_ID_CONFLICT",
+        "INVALID_REQUEST",
+        "UNSUPPORTED_PROTOCOL_VERSION",
+        "STALE_REQUEST",
+        "RESOURCE_UNAVAILABLE",
+        "PROVIDER_UNAVAILABLE",
+        "INTERNAL_ERROR"
+      ]
+    },
+    "message": {
+      "type": "string",
+      "maxLength": 500,
+      "$comment": "Safe, accessible wording only. Never exception text, a stack trace, SQL, provider response bodies, or another account's resource identifiers."
+    },
+    "retryable": {
+      "type": "boolean",
+      "$comment": "Whether resending the SAME request_id could succeed. SESSION_VERSION_CONFLICT and REQUEST_ID_CONFLICT are not retryable as-is: the client must reconcile (fetch session.snapshot, mint a new request_id) before trying again."
+    },
+    "current_session_version": {
+      "type": "integer",
+      "minimum": 0,
+      "$comment": "Present when code is SESSION_VERSION_CONFLICT, giving the client the actual version to reconcile against without a separate round trip. Absent otherwise."
+    },
+    "correlation_id": {
+      "type": "string",
+      "$comment": "Opaque server-side trace/log correlation id for support use. Not a resource identifier and never used by the client to infer existence of anything."
+    },
+    "details": {
+      "type": "object",
+      "$comment": "Optional, narrowly-constructed safe facts already known to the application (e.g. {\"field\": \"expected_session_version\"} for INVALID_REQUEST). Never an exception dictionary, provider response, stack trace, SQL error, or arbitrary validation internals. Omit entirely rather than serialize anything unvetted."
+    }
+  }
+}

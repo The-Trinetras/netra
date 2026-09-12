@@ -1,0 +1,14 @@
+{
+  "protocol_version": "1.0",
+  "message_id": "d3f4d5e6-0001-4a00-8000-000000000001",
+  "session_id": "d3f4d5e6-0000-4a00-8000-000000000000",
+  "request_id": "d3f4d5e6-0002-4a00-8000-000000000002",
+  "sequence": 6,
+  "type": "error",
+  "payload": {
+    "code": "SESSION_VERSION_CONFLICT",
+    "message": "Your view of this session is out of date. Reconnecting to refresh it.",
+    "retryable": false,
+    "current_session_version": 18
+  }
+}

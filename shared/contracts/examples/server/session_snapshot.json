@@ -1,0 +1,28 @@
+{
+  "protocol_version": "1.0",
+  "message_id": "b1f2b3c4-0001-4a00-8000-000000000001",
+  "session_id": "b1f2b3c4-0000-4a00-8000-000000000000",
+  "request_id": "b1f2b3c4-0002-4a00-8000-000000000002",
+  "sequence": 1,
+  "type": "session.snapshot",
+  "payload": {
+    "session_version": 20,
+    "interaction_mode": "quiz",
+    "active_source_version_id": "src-v-42",
+    "current_block_id": "block-17",
+    "current_sentence_id": "s-45",
+    "last_acknowledged_sentence_id": "s-45",
+    "active_lesson": {
+      "lesson_id": "b1f2b3c4-0003-4a00-8000-000000000003"
+    },
+    "pending_question": {
+      "question_id": "q-88",
+      "question_version": 1,
+      "hints_used": 1
+    },
+    "last_result_set": {
+      "result_set_id": "b1f2b3c4-0004-4a00-8000-000000000004",
+      "created_at": "2026-09-12T10:15:00Z"
+    }
+  }
+}

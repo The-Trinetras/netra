@@ -145,3 +145,86 @@ public enum PlaybackAckStatus
     [JsonStringEnumMemberName("completed")]
     Completed,
 }
+
+// Canonical interaction-mode vocabulary approved 2026-09-12 (see
+// docs/architecture/message-flow.md and data-ownership.md). This is a wire
+// enum: it appears in session.snapshot. Deliberately excludes "listening"
+// (client-local PlaybackStatus territory, not learning-flow state),
+// "answering"/"waiting_for_answer" (derivable from a non-null
+// PendingQuestion within TutorLesson/Quiz) and "navigation" (deterministic
+// commands complete synchronously; nothing persists a "navigating" mode).
+// ConnectionState is a SEPARATE, client-local-only concept — see
+// State/ClientSessionState.cs — and never appears on the wire, so it has no
+// enum here.
+[JsonConverter(typeof(JsonStringEnumConverter<SessionInteractionMode>))]
+public enum SessionInteractionMode
+{
+    [JsonStringEnumMemberName("idle")]
+    Idle,
+
+    [JsonStringEnumMemberName("reading")]
+    Reading,
+
+    [JsonStringEnumMemberName("tutor_lesson")]
+    TutorLesson,
+
+    [JsonStringEnumMemberName("quiz")]
+    Quiz,
+}
+
+// Wire error codes for the server_to_client `error` payload. Mirrors
+// shared/contracts/protocol/v1/error.schema.json and
+// api/src/netra_api/platform/errors.py's ErrorCode namespace exactly.
+[JsonConverter(typeof(JsonStringEnumConverter<ErrorCode>))]
+public enum ErrorCode
+{
+    [JsonStringEnumMemberName("AUTH_REQUIRED")]
+    AuthRequired,
+
+    [JsonStringEnumMemberName("AUTHORIZATION_DENIED")]
+    AuthorizationDenied,
+
+    [JsonStringEnumMemberName("SESSION_VERSION_CONFLICT")]
+    SessionVersionConflict,
+
+    [JsonStringEnumMemberName("REQUEST_ID_CONFLICT")]
+    RequestIdConflict,
+
+    [JsonStringEnumMemberName("INVALID_REQUEST")]
+    InvalidRequest,
+
+    [JsonStringEnumMemberName("UNSUPPORTED_PROTOCOL_VERSION")]
+    UnsupportedProtocolVersion,
+
+    [JsonStringEnumMemberName("STALE_REQUEST")]
+    StaleRequest,
+
+    [JsonStringEnumMemberName("RESOURCE_UNAVAILABLE")]
+    ResourceUnavailable,
+
+    [JsonStringEnumMemberName("PROVIDER_UNAVAILABLE")]
+    ProviderUnavailable,
+
+    [JsonStringEnumMemberName("INTERNAL_ERROR")]
+    InternalError,
+}
+
+// Quiz question kind, reused verbatim from the existing student-facing
+// vocabulary (client_to_server.schema.json's questions carry the same
+// values via netra_api.learning.quiz.models.QuestionKind) rather than a
+// second parallel enum.
+[JsonConverter(typeof(JsonStringEnumConverter<QuizQuestionKind>))]
+public enum QuizQuestionKind
+{
+    [JsonStringEnumMemberName("multiple_choice")]
+    MultipleChoice,
+
+    [JsonStringEnumMemberName("true_false")]
+    TrueFalse,
+
+    [JsonStringEnumMemberName("short_answer")]
+    ShortAnswer,
+
+    [JsonStringEnumMemberName("free_response")]
+    FreeResponse,
+}

@@ -25,10 +25,9 @@ public sealed record ClientToServerEnvelope
 }
 
 // Mirrors shared/contracts/protocol/v1/server_to_client.schema.json.
-// That schema (unlike client_to_server) does not define per-type payload
-// sub-schemas yet, so Payload stays a raw JsonElement here; MessageParser
-// exposes typed accessors only for message types whose shape is confirmed
-// (currently response.segment, from shared/contracts/examples/server/).
+// Payload stays a raw JsonElement at the envelope level for every type;
+// MessageParser exposes a typed accessor per message type
+// (ParseResponseSegment, ParseSessionSnapshot, ParseQuizQuestion, ParseError).
 public sealed record ServerToClientEnvelope
 {
     public string ProtocolVersion { get; init; } = NetraProtocol.Version;

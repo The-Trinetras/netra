@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://netra.local/contracts/protocol/v1/audio_frame_header.schema.json",
+  "title": "Netra Binary Audio Frame Header (server to client only)",
+  "$comment": "Approved 2026-09-12. Applies ONLY to server-to-client synthesized/playback audio frames sent as WebSocket binary messages. Microphone (client-to-server) audio upload is governed by its own approved protocol and MUST NOT be silently reinterpreted as this format. Wire layout of one binary WebSocket message: [4-byte unsigned big-endian header length][UTF-8 JSON header, matching this schema][raw audio bytes]. The header length field itself is not part of this JSON schema (it precedes the JSON); receivers must validate it against actual available frame bytes BEFORE attempting to parse the header. No base64 fallback exists or may be introduced — CLAUDE.md: audio is not transported as base64 JSON.",
+
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "generation_id",
+    "segment_id",
+    "sequence",
+    "end_of_segment",
+    "end_of_generation",
+    "media_type"
+  ],
+  "properties": {
+    "version": {
+      "const": 1,
+      "$comment": "Unsupported/unknown versions must be rejected, not guessed at."
+    },
+    "generation_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "segment_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "sequence": {
+      "type": "integer",
+      "minimum": 0,
+      "$comment": "Per-generation frame ordering key. Must be strictly increasing within one generation_id: duplicate or decreasing sequence numbers are rejected. Gaps are permitted — transport/recovery must not assume every frame arrives."
+    },
+    "end_of_segment": {
+      "type": "boolean"
+    },
+    "end_of_generation": {
+      "type": "boolean"
+    },
+    "media_type": {
+      "type": "string",
+      "minLength": 1,
+      "$comment": "e.g. audio/mpeg. Identifies the raw-byte encoding that follows the header; this schema does not enumerate a fixed provider-format list."
+    }
+  },
+
+  "maxHeaderBytes": 16384,
+  "$commentMaxHeaderBytes": "The 16 KiB figure above is a structural constant of this schema (custom keyword, not JSON-Schema-enforced automatically): implementations MUST reject a declared header length exceeding it before attempting to parse. This bounds header size only; no authoritative total-binary-message size limit exists yet in the runtime baseline or any committed contract (see docs/architecture/message-flow.md's unresolved-decisions table) — that remains an explicit open transport-hardening decision, not something this schema invents."
+}

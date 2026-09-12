@@ -41,6 +41,10 @@ dependencies = [
     # LlamaParse official SDK and local OCR wrapper
     "llama-cloud==2.14.1",
     "pytesseract==0.3.13",
+
+    # S3 object storage (approved pin, 2026-09-12; see runtime-baseline.md
+    # "exact... S3 SDK selection" — this is that decision)
+    "boto3==1.43.92",
 ]
 
 [dependency-groups]

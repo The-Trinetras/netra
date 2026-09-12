@@ -1,0 +1,19 @@
+{
+  "protocol_version": "1.0",
+  "message_id": "c2f3c4d5-0001-4a00-8000-000000000001",
+  "session_id": "c2f3c4d5-0000-4a00-8000-000000000000",
+  "request_id": "c2f3c4d5-0002-4a00-8000-000000000002",
+  "sequence": 4,
+  "type": "quiz.question",
+  "payload": {
+    "question_id": "q-88",
+    "question_version": 1,
+    "kind": "multiple_choice",
+    "prompt": "Which protocol is connection-oriented?",
+    "options": [
+      { "option_id": "opt-1", "text": "UDP" },
+      { "option_id": "opt-2", "text": "TCP" }
+    ],
+    "hints_used": 0
+  }
+}

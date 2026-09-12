@@ -22,6 +22,19 @@ class GeminiModelConfig(BaseModel):
     max_output_tokens: int = 1024
 
 
+COORDINATOR_MODEL_ID = "gemini-3.8-flash"
+"""Approved configured pin (2026-09-12), not an independently verified
+provider availability claim: no live Gemini call has been made to confirm
+this model id currently exists on the provider's API. runtime-baseline.md
+previously left "exact Coordinator Gemini model ID" as
+Pending approved contract/policy decision; this is that decision,
+recorded as configuration rather than hardcoded at each call site so a
+future change stays a one-line edit here."""
+
+
+DEFAULT_COORDINATOR_MODEL_CONFIG = GeminiModelConfig(model_id=COORDINATOR_MODEL_ID)
+
+
 class ToolCallRequest(BaseModel):
     """A tool the model asked to call. A request, never an execution.
 

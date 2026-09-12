@@ -36,7 +36,15 @@ public sealed class InterruptionController
     {
         _playbackController = playbackController;
         _connectionManager = connectionManager;
+        _connectionManager.Disconnected += OnDisconnected;
     }
+
+    // Raised whenever a generation is fenced (by StopAsync or by
+    // disconnect), naming the generation id that was fenced. A subscriber
+    // such as BinaryAudioFrameProcessor uses this to stop admitting frames
+    // for it — see the audio-framing rule "disconnect fences the current
+    // generation."
+    public event EventHandler<string>? GenerationFenced;
 
     public bool IsCancelled(string generationId)
     {
@@ -70,6 +78,23 @@ public sealed class InterruptionController
             cancellationToken).ConfigureAwait(false);
     }
 
+    // A disconnect fences whatever generation was active, exactly like a
+    // local STOP, but never sends response.cancel — there is no connection
+    // to send it on, and CLAUDE.md already treats "reconnection cannot
+    // restore cancelled output" as the governing rule: this is what makes
+    // that true rather than merely stated.
+    private void OnDisconnected(object? sender, EventArgs e)
+    {
+        var activeGenerationId = _playbackController.CurrentSnapshot.GenerationId;
+
+        _playbackController.StopImmediately();
+
+        if (activeGenerationId is not null)
+        {
+            Fence(activeGenerationId);
+        }
+    }
+
     private void Fence(string generationId)
     {
         lock (_lock)
@@ -86,5 +111,7 @@ public sealed class InterruptionController
                 _cancelledGenerationIds.Remove(_cancellationOrder.Dequeue());
             }
         }
+
+        GenerationFenced?.Invoke(this, generationId);
     }
 }

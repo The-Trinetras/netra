@@ -32,7 +32,7 @@
     }
   },
 
-  "$comment": "Only response.segment has a payload sub-schema so far. session.snapshot, quiz.question and error are still untyped here: their field sets require a coordinated M1/M4/M5 decision (notably the interaction_mode vocabulary and the representation of the last stable result set), and inventing one inside a schema would make it authoritative by accident. Consumers must keep reading those payloads as opaque objects until a sub-schema exists; see client/src/Netra.Desktop/Protocol/Dto/ServerPayloads.cs.",
+  "$comment": "session.snapshot, quiz.question and error were approved 2026-09-12 alongside the canonical interaction_mode vocabulary and the last-stable-result-set design (see docs/architecture/message-flow.md and data-ownership.md). All four server message types are now typed.",
 
   "allOf": [
     {
@@ -46,10 +46,196 @@
           "payload": { "$ref": "#/$defs/ResponseSegment" }
         }
       }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": { "const": "session.snapshot" }
+        }
+      },
+      "then": {
+        "properties": {
+          "payload": { "$ref": "#/$defs/SessionSnapshot" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": { "const": "quiz.question" }
+        }
+      },
+      "then": {
+        "properties": {
+          "payload": { "$ref": "#/$defs/QuizQuestion" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": { "const": "error" }
+        }
+      },
+      "then": {
+        "properties": {
+          "payload": { "$ref": "error.schema.json" }
+        }
+      }
     }
   ],
 
   "$defs": {
+    "SessionSnapshot": {
+      "$comment": "Reference-only by design: it is not a dump of session history. A pending question is a reference here (question_id/version/hints_used, matching agent/v1/coordinator_to_tutor.schema.json's PendingQuestion shape) because the server also re-sends a fresh quiz.question message with the full persisted question immediately after this snapshot whenever pending_question is non-null — see docs/architecture/message-flow.md flow 11. last_result_set is likewise a reference into the session's stored result set, never the result list itself. connection_state, per-generation playback detail and any return-navigation position are deliberately absent: see message-flow.md's session.snapshot field table for why each was excluded.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "session_version",
+        "interaction_mode",
+        "active_source_version_id",
+        "current_block_id",
+        "current_sentence_id",
+        "last_acknowledged_sentence_id",
+        "active_lesson",
+        "pending_question",
+        "last_result_set"
+      ],
+      "properties": {
+        "session_version": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "interaction_mode": {
+          "enum": ["idle", "reading", "tutor_lesson", "quiz"]
+        },
+        "active_source_version_id": {
+          "type": ["string", "null"],
+          "$comment": "Null for a session that has never opened a source yet (interaction_mode idle). Present and non-null from the point a source is opened onward."
+        },
+        "current_block_id": {
+          "type": ["string", "null"]
+        },
+        "current_sentence_id": {
+          "type": ["string", "null"]
+        },
+        "last_acknowledged_sentence_id": {
+          "type": ["string", "null"]
+        },
+        "active_lesson": {
+          "oneOf": [
+            { "$ref": "#/$defs/ActiveLessonRef" },
+            { "type": "null" }
+          ]
+        },
+        "pending_question": {
+          "oneOf": [
+            { "$ref": "#/$defs/PendingQuestionRef" },
+            { "type": "null" }
+          ]
+        },
+        "last_result_set": {
+          "oneOf": [
+            { "$ref": "#/$defs/ResultSetRef" },
+            { "type": "null" }
+          ]
+        }
+      }
+    },
+
+    "ActiveLessonRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["lesson_id"],
+      "properties": {
+        "lesson_id": {
+          "type": "string",
+          "format": "uuid"
+        }
+      }
+    },
+
+    "PendingQuestionRef": {
+      "$comment": "Field-for-field identical to agent/v1/coordinator_to_tutor.schema.json's PendingQuestion $def by design, not by accident. Duplicated rather than cross-referenced because the protocol and agent contract families are versioned independently.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["question_id", "question_version", "hints_used"],
+      "properties": {
+        "question_id": {
+          "type": "string"
+        },
+        "question_version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "hints_used": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+
+    "ResultSetRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["result_set_id", "created_at"],
+      "properties": {
+        "result_set_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+
+    "QuizQuestion": {
+      "$comment": "Wire form of StudentFacingQuestion (api/src/netra_api/learning/quiz/models.py). Structurally cannot carry answer_key, rubric or grading notes: those exist only on the server-side-only ApprovedQuestion type. A spoken/typed answer to this question is an ordinary turn.submit, not a separate message type; routing to grading is driven by pending_question being non-null.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["question_id", "question_version", "kind", "prompt", "options"],
+      "properties": {
+        "question_id": {
+          "type": "string"
+        },
+        "question_version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "kind": {
+          "enum": ["multiple_choice", "true_false", "short_answer", "free_response"]
+        },
+        "prompt": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "options": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/QuestionOption" }
+        },
+        "hints_used": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+
+    "QuestionOption": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["option_id", "text"],
+      "properties": {
+        "option_id": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        }
+      }
+    },
+
     "ResponseSegment": {
       "$comment": "Transcribed from the committed example at shared/contracts/examples/server/response_segment.json and the C# record that already parses it. No field is introduced here that did not already exist in both. kind reuses the segment vocabulary from agent/v1/tutor_to_coordinator.schema.json rather than defining a second one.",
       "type": "object",

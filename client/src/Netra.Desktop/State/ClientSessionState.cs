@@ -1,11 +1,17 @@
+using Netra.Desktop.Protocol.Dto;
+
 namespace Netra.Desktop.State;
 
-public enum InteractionMode
+// Client-local transport state, deliberately separate from
+// SessionInteractionMode (Protocol/Dto/Enums.cs): a disconnected student
+// may still read cached content, so connection state must never be folded
+// into learning-flow mode, and this enum therefore never appears on the
+// wire (approved 2026-09-12; see docs/architecture/data-ownership.md).
+public enum ConnectionState
 {
-    Reading,
-    Listening,
-    Conversing,
-    Quiz,
+    Connected,
+    Reconnecting,
+    Disconnected,
 }
 
 // Client-side mirror of the fields CLAUDE.md's "Session rules" require a
@@ -30,10 +36,22 @@ public sealed class ClientSessionState
     public string? CurrentBlockId { get; set; }
     public string? CurrentSentenceId { get; set; }
     public string? LastAcknowledgedSentenceId { get; set; }
-    public InteractionMode InteractionMode { get; set; } = InteractionMode.Reading;
+
+    // Canonical vocabulary (Protocol/Dto/Enums.cs), approved 2026-09-12.
+    // Reconciled from session.snapshot on connect/reconnect.
+    public SessionInteractionMode InteractionMode { get; set; } = SessionInteractionMode.Idle;
+
+    // Transport-local; never derived from or sent to the server. Owned by
+    // whatever drives ConnectionManager's connect/reconnect lifecycle.
+    public ConnectionState ConnectionState { get; set; } = ConnectionState.Disconnected;
+
     public string? ActiveTutorLessonId { get; set; }
     public string? PendingQuestionId { get; set; }
-    public IReadOnlyList<string> LastResultSetIds { get; set; } = Array.Empty<string>();
+
+    // Reference only, matching the server's ResultSetRef design (decision
+    // E, 2026-09-12): the ordered result list itself lives server-side,
+    // resolved by result_set_id when the student says "open the third one".
+    public Guid? LastResultSetId { get; set; }
 
     // "Client must track request/generation identifiers."
     public Guid? LastRequestId { get; set; }

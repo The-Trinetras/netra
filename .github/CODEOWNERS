@@ -1,0 +1,66 @@
+# Netra code owners
+#
+# Mirrors the ownership table in CLAUDE.md and the `paths:` frontmatter in
+# .claude/rules/*.md. Do not add ownership here that those sources do not
+# already state — this file routes review, it does not define new
+# boundaries.
+#
+# GitHub evaluates rules top-to-bottom and the LAST matching pattern wins,
+# so this file goes from most general (default fallback) to most specific
+# (per-service overrides), matching the order the rule files themselves
+# apply: coordinator.md > backend-data.md/learning.md/multimedia.md for
+# their respective worker-job subpaths.
+#
+#   M1 System Lead      Arshad-nr
+#   M2 Backend/Data     ashlinthishya10a
+#   M3 Multimedia       Arun-N-M-07
+#   M4 Learning         DhanishkaV
+#   M5 Client           sumedhaavijayakumar07
+
+# Default: M1 (System Lead) owns anything not claimed by a more specific
+# rule below, including root config, CI, docs and shared contracts that
+# are not agent/protocol-specific.
+*                                                       @Arshad-nr
+
+# Repo-wide governance and architecture authority (M1).
+CLAUDE.md                                               @Arshad-nr
+.claude/**                                              @Arshad-nr
+.github/**                                              @Arshad-nr
+docs/architecture/**                                    @Arshad-nr
+shared/contracts/**                                     @Arshad-nr
+
+# M5 Client — client.md
+client/**                                               @sumedhaavijayakumar07
+
+# M2 Backend/Data — backend-data.md (worker-wide default; M3/M4 override
+# their specific worker job subpaths below)
+worker/**                                                @ashlinthishya10a
+api/**/content/**                                        @ashlinthishya10a
+api/**/ingestion/**                                       @ashlinthishya10a
+api/**/retrieval/**                                       @ashlinthishya10a
+api/**/db/**                                              @ashlinthishya10a
+api/**/repositories/**                                    @ashlinthishya10a
+**/migrations/**                                          @ashlinthishya10a
+
+# M3 Multimedia — multimedia.md (overrides worker/** for these subpaths)
+api/**/multimedia/**                                      @Arun-N-M-07
+worker/src/netra_worker/jobs/multimedia/**                @Arun-N-M-07
+**/adapters/twelvelabs/**                                 @Arun-N-M-07
+
+# M4 Learning — learning.md (overrides worker/** for these subpaths)
+api/**/learning/**                                        @DhanishkaV
+api/**/tutor/**                                           @DhanishkaV
+worker/src/netra_worker/jobs/learning_projection/**       @DhanishkaV
+worker/src/netra_worker/jobs/review_scheduler/**          @DhanishkaV
+evaluation/**                                             @DhanishkaV
+
+# M1 System Lead — coordinator.md (also overrides the shared/contracts/**
+# default above with the same owner, kept explicit for traceability)
+api/**/coordinator/**                                     @Arshad-nr
+api/**/session/**                                         @Arshad-nr
+api/**/identity/**                                        @Arshad-nr
+api/**/platform/**                                        @Arshad-nr
+api/**/transport/**                                       @Arshad-nr
+api/**/speech/**                                          @Arshad-nr
+shared/contracts/agent/**                                 @Arshad-nr
+shared/contracts/protocol/**                              @Arshad-nr

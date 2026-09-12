@@ -85,9 +85,9 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
 
     private bool CanSubmit() => !string.IsNullOrWhiteSpace(InputText);
 
-    private Task SubmitAsync() => SubmitAsync(InputMode.Keyboard);
+    private Task SubmitAsync() => SubmitAsync(Protocol.Dto.InputMode.Keyboard);
 
-    private async Task SubmitAsync(InputMode inputMode)
+    private async Task SubmitAsync(Protocol.Dto.InputMode inputMode)
     {
         var utterance = InputText.Trim();
         if (utterance.Length == 0)
@@ -159,7 +159,7 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
 
         InterimTranscript = string.Empty;
         InputText = e.Text;
-        FireAndForget(() => SubmitAsync(InputMode.Voice));
+        FireAndForget(() => SubmitAsync(Protocol.Dto.InputMode.Voice));
     }
 
     private void OnServerMessageReceived(object? sender, ServerToClientEnvelope envelope)

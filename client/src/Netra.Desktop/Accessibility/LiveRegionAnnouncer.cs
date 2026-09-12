@@ -21,8 +21,7 @@ public sealed class LiveRegionAnnouncer : ILiveRegionAnnouncer
         AutomationProperties.SetLiveSetting(liveRegionHost, politeness);
         liveRegionHost.Text = message;
 
-        var peer = AutomationPeer.FromElement(liveRegionHost)
-            ?? UIElementAutomationPeer.CreatePeerForElement(liveRegionHost);
+        var peer = UIElementAutomationPeer.CreatePeerForElement(liveRegionHost);
         peer?.RaiseAutomationEvent(AutomationEvents.LiveRegionChanged);
     }
 }

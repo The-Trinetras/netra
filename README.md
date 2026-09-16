@@ -4,6 +4,9 @@ Netra targets independent study on Windows through PDF and lecture exploration,
 source-grounded tutoring, keyboard/NVDA access and optional speech. Exactly two
 agents, Coordinator and Tutor, use bounded services and preserve the reading position.
 
+For parallel implementation, use the [five paste-ready teammate prompts](docs/team/prompts/README.md)
+in separate checkouts or worktrees from the same published baseline.
+
 Start with the [current product scope](docs/architecture/current-scope.md), then
 the [architecture overview](docs/architecture/overview.md) and
 [M1–M5 workstream guides](docs/team/ownership.md). Coding agents read

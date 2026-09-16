@@ -6,6 +6,9 @@ The original Engineering Plan's P1–P5 assignments are historical; use these M1
 guides for current work. Ownership identifies responsibility, not permission to
 edit unrelated work or bypass contract review.
 
+Use the [M1–M5 implementation prompts](prompts/README.md) to start parallel coding.
+Each prompt includes its role's deliverables and reads a shared coordination agreement.
+
 | Workstream | Owns | Implementation guide / domain rule |
 |---|---|---|
 | M1 | Coordinator, identity/session context, routing, tool policy, handoffs, cancellation/version semantics; server speech/transport | [M1](M1.md) / [coordinator](../../.claude/rules/coordinator.md) |

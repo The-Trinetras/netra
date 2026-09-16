@@ -19,6 +19,9 @@ call providers unless the task explicitly authorizes that action. Missing requir
 sources or genuine decisions block only dependent work. Report exact checks and
 limitations. Historical plans and audit claims are not current acceptance evidence.
 
-For this documentation migration, edit documentation only; application prompt
-Markdown under `api/src` is runtime material and remains unchanged. Do not change
-code, tests, schemas, migrations, configuration, dependencies or deployment files.
+The completed documentation migration changed documentation only; application
+prompt Markdown under `api/src` is runtime material and was left unchanged.
+Subsequent explicitly requested implementation may edit the assigned code/tests
+under the same ownership, contract, runtime and review controls. Read the
+[role prompts](docs/team/prompts/README.md) when starting M1–M5 implementation;
+they do not turn pending decisions into approvals.

@@ -5,7 +5,9 @@ Review cutoff: 11 September 2026.
 Status: Release and declared dependency metadata checked.
 Full dependency locking, installation and integration tests remain pending.
 
-The existing Netra engineering plan is the architectural source of truth.
+Read [current scope](current-scope.md) for product authority and the active
+[architecture overview](overview.md) for preserved boundaries. The original
+Engineering Plan is historical where its product requirements are superseded.
 This document constrains runtimes and dependencies; it does not authorize
 architecture changes or provider replacement.
 
@@ -43,9 +45,11 @@ Record the Tesseract binary build and OCR language-data versions.
 ## Dependency authority
 
 pyproject.toml defines approved constraints.
-The committed uv.lock defines exact direct and transitive Python versions.
+A committed uv.lock must define exact direct and transitive Python versions;
+no uv.lock exists in this checkout. Full locking remains pending.
 global.json defines the .NET SDK.
-Committed NuGet declarations and lockfiles define desktop package versions.
+Committed NuGet declarations and lockfiles govern desktop package versions
+when present; no NuGet lockfile exists in this checkout.
 
 Do not overwrite existing monorepo package metadata to apply this baseline.
 If repository files disagree, report the conflict before changing versions.
@@ -71,7 +75,8 @@ Provider pins:
   resolve cleanly, so the pin itself is not in question, only the lockfile
   mechanics.)
 
-Use HTTPX for Jina Reader.
+Jina Reader/HTTPX is a historical general-web integration choice; general web
+ingestion is deferred. Tavily discovery remains relevant to in-scope YouTube search.
 LlamaParse remains the parsing provider; llama-cloud is its selected SDK.
 The Groq Tutor model remains openai/gpt-oss-120b.
 The Coordinator Gemini model is the approved configured pin gemini-3.8-flash
@@ -79,7 +84,7 @@ The Coordinator Gemini model is the approved configured pin gemini-3.8-flash
 configuration decision, not an independently verified claim that this model
 id currently exists on the provider's API.
 
-## Rules for Claude Code
+## Rules for coding tools
 
 1. Never use "latest", floating Git branches, wildcard image tags,
    or unbounded dependency declarations as version recommendations.
@@ -127,9 +132,23 @@ When dependency setup is explicitly requested:
 - Build and test the WPF client on Windows.
 - Record the tested versions and results.
 
+The historical metadata check above was not rerun during the documentation
+migration; configured pins do not prove provider availability.
+
 Until these checks pass, describe this baseline as metadata-checked,
 not installation-tested or production-validated.
 
 Subsequent approved installs must use the committed lock without upgrades.
 Prefer --locked for uv synchronization so manifest/lock disagreement fails.
 When installation is not authorized, avoid implicit synchronization or restore.
+## Execution policy and deployment alignment
+
+Existing approved answer-turn limits remain 4 attempted model decisions, 6 tool
+invocations and 20 seconds; see [current scope](current-scope.md) for code evidence
+and the separate, unapproved 8/12/45 and two-revision proposals. Shared accounting
+across retries, fallback and delegation remains mandatory.
+
+The AgentSpec targets PostgreSQL on RDS via PgBouncer; the historical plan places
+PostgreSQL in Compose. The current Compose file is empty. Preserve the established
+EC2/Compose API-worker boundary; database placement/pooling requires M1/M2 review,
+not an implicit infrastructure migration. See [deployment notes](../../infrastructure/aws/README.md).

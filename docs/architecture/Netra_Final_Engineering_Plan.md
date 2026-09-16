@@ -1,3 +1,12 @@
+> **Historical plan — product scope superseded on 16 September 2026.**
+> The original text below is preserved unchanged for recovery and rationale.
+> Read [current scope](current-scope.md), [runtime baseline](runtime-baseline.md),
+> [architecture overview](overview.md) and [M1–M5 guides](../team/ownership.md) first.
+> Old learning labels, review intervals, Drive/web ingestion, braille, hands-free
+> interruption, sonification and specialist features are not current assignments.
+> Existing architecture/security boundaries survive unless explicitly superseded;
+> historical examples never override committed contracts.
+
 # Netra engineering plan and team handbook 
 
 ### A practical guide to building an accessible learning assistant and understanding the engineering behind it 

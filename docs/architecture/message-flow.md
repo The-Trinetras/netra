@@ -2,13 +2,13 @@
 
 ## Authority and common boundaries
 
-Sources: [Engineering Plan](Netra_Final_Engineering_Plan.md) §§7–20 and Appendices A–C, [runtime baseline](runtime-baseline.md), [shared contracts](../../shared/contracts/), [CLAUDE.md](../../CLAUDE.md) and [domain rules](../../.claude/rules/). The [Phase 10 report](../audits/phase-10-repair-report.md) identifies pending work; it is not architecture authority or evidence that all flows are implemented.
+Sources: [current scope](current-scope.md), historical [Engineering Plan](Netra_Final_Engineering_Plan.md) §§7–20 and Appendices A–C, [runtime baseline](runtime-baseline.md), [shared contracts](../../shared/contracts/), [CLAUDE.md](../../CLAUDE.md) and [domain rules](../../.claude/rules/). The [migration report](../audits/documentation-migration-report.md) identifies current pending work; the [Phase 10 report](../audits/phase-10-repair-report.md) is historical; it is not architecture authority or evidence that all flows are implemented.
 
 **2026-09-12 protocol decisions** (session.snapshot / quiz.question / error payloads, canonical interaction-mode vocabulary, last-stable-result-set design, stable client request identity, and binary synthesized-audio framing) are approved and typed as of this pass. See the field/schema tables inline below and `shared/contracts/protocol/v1/{server_to_client,error,audio_frame_header}.schema.json`. Downstream endpoint/dispatcher wiring for these payloads is not yet implemented — the types exist for that wiring to consume next.
 
 The System Lead clarified on 12 September 2026 that **Identity service owns identity verification, device access and the account–session security/lifecycle binding; Session service owns canonical mutable session state and its versioned mutations**. Identity establishes whether a principal may access the session. Session service then validates and applies permitted state changes. Both use authoritative PostgreSQL records. The word “session” does not grant Identity ownership of reading, navigation or learning interaction state.
 
-All flows enforce authorization at service boundaries. Wire definitions belong to shared/contracts; schema examples in the plan do not replace committed contracts. Versioned mutations use replay-safe operation identity and expected-version checks where applicable. Read-only operations do not imply a state write. Agent/tool work is bounded by permissions, cancellation and the originating budget. Pending payloads below are described semantically only.
+The flows below specify approved target behaviour unless an explicit implementation note says otherwise; they are not runtime verification. All flows enforce authorization at service boundaries. Wire definitions belong to shared/contracts; schema examples in the plan do not replace committed contracts. Versioned mutations use replay-safe operation identity and expected-version checks where applicable. Read-only operations do not imply a state write. Agent/tool work is bounded by permissions, cancellation and the originating budget. Pending payloads below are described semantically only.
 
 ## 1. Authenticated session establishment
 
@@ -37,7 +37,7 @@ All flows enforce authorization at service boundaries. Wire definitions belong t
 ## 4. Coordinator → Tutor handoff
 
 - **Initiator/path:** Coordinator requests `delegate_to_tutor`; application validates the Coordinator-to-Tutor schema before Tutor execution.
-- **Authoritative checks:** Validate authorized lesson context, target concepts and evidence references; resolve source text server-side. Pass original utterance, bounded dialogue and relevant assessment summaries, not unrestricted history or private reasoning.
+- **Authoritative checks:** Validate authorized lesson context, target concepts and evidence references; resolve source text server-side. Pass original utterance, bounded dialogue and the existing `assessment_summaries` field (legacy status-shaped items; factual history requires coordinated contract work), not unrestricted history or private reasoning.
 - **Version/idempotency:** Preserve contract handoff/request/session/lesson correlation, source/evidence versions and deadline. Handoff/delegated work shares the originating counters and deadline; no fresh budget on replay.
 - **Agents/writes:** Both agents participate through the typed boundary only. Application-managed checkpoints retain execution continuity; Session service owns active lesson/return context, not the model.
 - **Destination:** Tutor receives the validated handoff. The contract's teaching modes do not define the pending session interaction-mode vocabulary.
@@ -47,8 +47,8 @@ All flows enforce authorization at service boundaries. Wire definitions belong t
 - **Initiator/path:** Tutor returns the approved result schema: bounded public segments, evidence references, optional pending-question reference and learning-event proposals.
 - **Authoritative checks:** Validate handoff correlation, current authorized context and evidence. Learning service verifies proposal/question/attempt/rubric/finality before committing. Public response formatting excludes private answers and grading material.
 - **Version/idempotency:** Preserve question/evidence versions and replay-safe operation identity. Replayed proposals must not append another attempt. Persist the pending question before delivery.
-- **Agents/writes:** Tutor proposes; Coordinator receives. Learning service commits validated assessment history and outbox atomically; Session service owns pending session context. Derived status follows approved policy, never Tutor-assigned mastery.
-- **Destination:** Coordinator/application delivery receives public content; Learning service receives proposals. Client `quiz.question` payload (approved 2026-09-12) is the wire form of `StudentFacingQuestion` — question_id, question_version, kind, prompt, options, hints_used; structurally excludes answer_key/rubric/grading notes, which exist only server-side. A spoken/typed answer is an ordinary `turn.submit`, not a separate message type. Grounding criteria and learning-policy values: **Pending approved contract/policy decision.**
+- **Agents/writes:** Tutor proposes; Coordinator receives. Learning service commits validated assessment history and outbox atomically; Session service owns pending session context. No automatic learning-status derivation or review scheduling is required. Record delivered activity, stated reasoning, feedback and assistance through validated services; complete representation is an integration gap.
+- **Destination:** Coordinator/application delivery receives public content; Learning service receives proposals. Client `quiz.question` payload (approved 2026-09-12) is the wire form of `StudentFacingQuestion` — question_id, question_version, kind, prompt, options, hints_used; structurally excludes answer_key/rubric/grading notes, which exist only server-side. A spoken/typed answer is an ordinary `turn.submit`, not a separate message type. Optional-check grounding criteria: **Pending decision.** Learning-label thresholds and review intervals are removed requirements, not pending values.
 
 ## 6. Response streaming to client
 
@@ -60,7 +60,7 @@ All flows enforce authorization at service boundaries. Wire definitions belong t
 
 ## 7. Cancellation / STOP fencing
 
-- **Initiator/path:** Local STOP input immediately halts and flushes playback and invalidates current output, then sends `response.cancel`. Local VAD may stop playback in the permitted microphone mode without treating interim recognition as a command. New turns may supersede current output.
+- **Initiator/path:** Local STOP input immediately halts and flushes playback and invalidates current output, then sends `response.cancel`. Push-to-talk/press-to-interrupt pauses current speech; hands-free VAD interruption and echo cancellation are deferred. New turns may supersede current output.
 - **Authoritative checks:** Backend validates caller/session and cancellation target. Service dispatch and response delivery check cancellation. Local stopping never waits for the network or a model.
 - **Version/idempotency:** Cancelled/superseded generations remain ineligible for playback, including late arrivals and reconnect. Cancellation propagates to generation, TTS and queued work where supported; replay cannot restore output. Binary frame-to-generation binding (approved 2026-09-12): a frame is eligible only for the generation the client has *explicitly admitted* (never a side effect of merely receiving a frame with that generation_id); admission is fenced by the same cancellation set STOP uses, and disconnect fences whatever generation was active exactly as STOP does, without sending `response.cancel` (no connection to send it on). Per-generation sequence numbers must strictly increase — duplicates/decreases rejected, gaps permitted.
 - **Agents/writes:** No reasoning is needed to stop. Application records cancellation/turn state and retains acknowledged position through Session service; providers may already have consumed quota.
@@ -72,7 +72,7 @@ All flows enforce authorization at service boundaries. Wire definitions belong t
 - **Authoritative checks:** Validate session access and that generation, segment and sentence refer to eligible delivered content. Download completion is not playback evidence.
 - **Version/idempotency:** Correlate and deduplicate acknowledgements; prevent stale output from moving position. Session service serializes applicable position changes under canonical version semantics; do not add an expected-version field absent from the acknowledgement contract.
 - **Agents/writes:** No agent. Session service persists acknowledged playback/reading progress and applicable session revision in PostgreSQL.
-- **Destination:** Authoritative position supports later resume; client state reconciliation uses the session response. Snapshot representation: **Pending approved contract definition**.
+- **Destination:** Authoritative position supports later resume; client state reconciliation uses the session response. Snapshot representation is the approved reference-only `session.snapshot` in `server_to_client.schema.json`; endpoint wiring remains pending.
 
 ## 9. Ingestion job flow
 
@@ -100,7 +100,9 @@ All flows enforce authorization at service boundaries. Wire definitions belong t
 
 ## Last stable result set (approved 2026-09-12)
 
-`SessionState.last_result_set` and the `session.snapshot` field of the same name carry only `{result_set_id, created_at}` — a reference, never the result list itself. The ordered list (bounded, e.g. at most 10 items, each `{ordinal, evidence_id, label}`) lives in a new table under the Session service's existing ownership of "stable last result set." "Open the third one" resolves `result_set_id` → stored row → `items[2].evidence_id` → the normal evidence-authorization path (flow 3), which independently re-checks access, deletion and source-version compatibility every time — a result set surviving longer than the evidence it points to must not bypass that check. A newer completed search replaces the session's reference; referencing an expired or superseded result set returns the typed `error` payload (`STALE_REQUEST`/`RESOURCE_UNAVAILABLE`), never a silent resolution against a different list.
+`SessionState.last_result_set` and the `session.snapshot` field of the same name carry only `{result_set_id, created_at}` — a reference, never the result list itself. The approved design places the ordered list (bounded to 10 items by `session/result_sets.py`, each `{ordinal, evidence_id, label}`) in a new table under the Session service's existing ownership of "stable last result set." "Open the third one" resolves `result_set_id` → stored row → `items[2].evidence_id` → the normal evidence-authorization path (flow 3), which independently re-checks access, deletion and source-version compatibility every time — a result set surviving longer than the evidence it points to must not bypass that check. A newer completed search replaces the session's reference; referencing an expired or superseded result set returns the typed `error` payload (`STALE_REQUEST`/`RESOURCE_UNAVAILABLE`), never a silent resolution against a different list.
+
+The result-set model/repository protocol exists in [result_sets.py](../../api/src/netra_api/session/result_sets.py); the concrete PostgreSQL repository/table migration remains pending.
 
 ## Resolved 2026-09-12
 
@@ -120,9 +122,27 @@ All flows enforce authorization at service boundaries. Wire definitions belong t
 |---|---|
 | Python/C# contract mirror package location | Pending approved contract/policy decision. |
 | Need for, and shape of, external job contract; current job schema is empty | Pending approved contract/policy decision. |
-| Learning-status thresholds, review intervals and sufficient quiz-grounding criteria (now held as required versioned policy objects, but their approved numeric values are not set) | Pending approved contract/policy decision. |
+| Optional-check grounding criteria and factual activity/answer/reasoning/assistance representation | M4 with M1/M2: define validation and coordinate any contract/schema migration; no automatic labels or review intervals. |
+| AgentSpec 8/12/45 budget and two-revision proposal | M1 with M3/M4: pending alignment; existing 4/6/20 remains approved. |
 | Authoritative total binary-message size limit (the 16 KiB *header* bound is set; no total-frame limit exists anywhere in the runtime baseline or committed contracts) | Pending approved contract/policy decision. |
 | Downstream endpoint/dispatcher wiring for the newly-typed server payloads | Pending implementation. |
-| Payload implementation sequencing/coordination and other unapproved product/retention values | Pending approved contract/policy decision. |
+| Retention values | Pending product decision; payload wiring is implementation coordination, not an undefined-schema blocker. |
 
 This document does not settle the still-pending decisions through examples, enum choices, adapter implementations or existing stubs. No wire fields, endpoints or message types beyond what is now committed in shared/contracts/ are defined here.
+
+## Current study journey integration gaps
+
+Coordinator must inspect evidence, record gaps, change retrieval strategy where useful
+and validate the result before Tutor explanation. Sufficient first evidence needs
+no repair; unresolved evidence produces clarification or a stated limitation.
+This is target behaviour, not proof that the stubbed loops execute it.
+
+The v1 handoffs still carry legacy assessment status and review event vocabulary.
+Do not rename it or encode untested study as a new enum. M1/M4 own contract alignment;
+M2 owns persistence mechanics and M5 consumes the reviewed public representation.
+Optional questions retain the existing pending-question/reconnect semantics above.
+
+M3/M5 must integrate selected-video playback identity and actual time with evidence
+resolution, then separately validate playback access and analysis permission/ability.
+Existing timestamp models do not establish a client playback-control protocol.
+The web-view dependency and any missing shared payload need coordinated approval.

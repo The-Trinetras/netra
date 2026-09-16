@@ -6,6 +6,9 @@ paths:
 # WPF client rules
 
 Owner: M5 Client.
+Read [current scope](../../docs/architecture/current-scope.md), [ownership](../../docs/team/ownership.md)
+and the corresponding M1–M5 guide before implementation. These rules share the
+canonical authorities used by root AGENTS.md and CLAUDE.md.
 Apply CLAUDE.md and the approved .NET/WPF runtime baseline.
 Use the existing project structure and dependency declarations.
 Do not replace WPF, add a frontend framework or move backend policy into the client.
@@ -42,8 +45,8 @@ Expose real progress, failure and reduced modes without misleading reassurance.
 
 Render multimedia structures supplied through contracts.
 Do not regenerate authoritative figure labels or equation structure in the client.
-Coordinate math/braille integration with M3.
-Do not claim tactile usability without the necessary device/user validation.
+Coordinate basic-equation and table exploration with M3. Braille integration is
+deferred; sonification and specialized code navigation are removed requirements.
 
 ## Input and deterministic commands
 
@@ -59,8 +62,9 @@ Interim transcripts may support UI feedback but must never move position,
 submit a quiz answer or trigger a deterministic command.
 Deduplicate repeated final events according to protocol identity.
 
-Microphone access follows the plan's explicit modes and user control.
-Local voice-activity interruption is a playback safety signal, not a transcript turn.
+Activation focuses Netra without opening the microphone. Support push-to-talk,
+press-to-interrupt and immediate local STOP. Hands-free interruption and echo
+cancellation are deferred; interim speech recognition cannot trigger commands.
 Do not silently capture or retain microphone audio outside the selected mode.
 
 ## Playback and cancellation
@@ -78,9 +82,9 @@ Allow only one active speaking response per session.
 Use bounded queues and backpressure; do not buffer unbounded audio.
 Do not run network waits or long processing on the WPF UI thread.
 
-Use the approved binary audio framing when defined by the protocol.
+Use the approved binary audio framing in shared/contracts/protocol/v1/audio_frame_header.schema.json.
 Do not invent large base64 audio envelopes or a competing audio protocol.
-If required framing is absent, report the contract gap.
+A total binary-frame size limit remains pending; do not invent it.
 Acknowledge actual playback at the prescribed sentence/progress boundaries.
 Distinguish downloaded, played, completed and durably acknowledged positions.
 Do not skip unheard content by acknowledging receipt as completion.
@@ -106,5 +110,14 @@ Run available Windows checks without implicit NuGet restore or package download.
 Check keyboard-only reading, focus, NVDA output, immediate STOP and stale audio.
 Check pause/continue, duplicate final transcripts, reconnect and position recovery.
 Use deterministic playback/protocol fixtures for scaffold and interface work.
-Report whether tests used real audio, NVDA, braille hardware or only fixtures.
+Report whether tests used real audio, NVDA or only fixtures. A blindfolded sighted
+interaction exercise does not establish usability for blind students.
 Do not claim Windows accessibility tests passed from a Linux-only environment.
+
+## Video integration target
+
+Provide accessible source selection and YouTube search/selection. Pause the player
+for a question, capture actual time, keep it paused during explanation and restore
+that position on continue. Playback access and analysis readiness are separate.
+M3/M5 must review missing playback-control payloads and the proposed desktop web-view
+dependency before implementation; do not install it from AgentSpec prose alone.

@@ -8,6 +8,9 @@ paths:
 # Multimedia rules
 
 Owner: M3 Multimedia.
+Read [current scope](../../docs/architecture/current-scope.md), [ownership](../../docs/team/ownership.md)
+and the corresponding M1–M5 guide before implementation. These rules share the
+canonical authorities used by root AGENTS.md and CLAUDE.md.
 Apply CLAUDE.md and backend-data.md for shared worker/persistence mechanics.
 Multimedia components are bounded tools, services, adapters and workflows.
 Do not create a visual, video, math or extraction agent.
@@ -57,8 +60,8 @@ Check signs, exponents, fractions, grouping and units against the source.
 Unverified extraction must not become a confident authoritative derivation.
 
 Math-part navigation follows a deterministic structure.
-Raw LaTeX is not automatically accessible mathematical braille.
-Do not claim braille compatibility without the tested client/reader/device path.
+Braille integration is deferred. Current work targets basic-equation exploration
+with keyboard/NVDA; sonification and specialized code navigation are removed.
 Do not add a conversion framework or runtime absent from approved dependencies.
 
 Represent table cells with their headers, spans and source mapping.
@@ -88,3 +91,9 @@ Include malformed responses, unreadable assets, timeout and replay cases.
 Coordinate accessible exploration review with M5 and factual teaching review with M4.
 Do not substitute text-only evaluation for inspection of the original visual.
 Scaffold tasks use fixtures/stubs; live media/provider calls require explicit request.
+
+Playback permission/availability and analysis permission/ingestibility must be
+checked separately for each selected upload/YouTube video. Capture actual player
+time with M5; transcript-only evidence cannot establish visual understanding.
+YouTube discovery stays in scope despite deferred general web/Drive ingestion.
+M3 validates table extraction; M2 owns source/table storage and version identity.

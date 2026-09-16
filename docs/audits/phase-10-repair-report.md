@@ -1,3 +1,12 @@
+> **Historical audit, not current verification.** The original 12 September report
+> is preserved below, including its contemporaneous test claims and pending items.
+> Those tests were not rerun during this migration; the claims do not establish
+> working persistence, providers, accessibility or an integrated study journey.
+> Several protocol decisions were subsequently resolved; removed learning policies
+> are no longer pending product requirements. Use the [migration report](documentation-migration-report.md),
+> [current scope](../architecture/current-scope.md) and [message flow](../architecture/message-flow.md)
+> for current work. Old paths and commands below are historical, not active guidance.
+
 # Phase 10 Final Integration Audit: Repair Report
 
 **Date:** 2026-09-12  

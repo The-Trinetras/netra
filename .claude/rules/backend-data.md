@@ -12,6 +12,9 @@ paths:
 # Backend and data rules
 
 Owner: M2 Backend/Data.
+Read [current scope](../../docs/architecture/current-scope.md), [ownership](../../docs/team/ownership.md)
+and the corresponding M1–M5 guide before implementation. These rules share the
+canonical authorities used by root AGENTS.md and CLAUDE.md.
 Apply CLAUDE.md and task-relevant domain rules for individual worker jobs.
 Worker-wide matching covers shared persistence/job mechanics, not ownership
 of multimedia algorithms or Learning service policy.
@@ -22,7 +25,7 @@ PostgreSQL is authoritative for structured records, access and source identity.
 S3 stores durable source bytes; PostgreSQL links objects to immutable versions.
 Pinecone is a rebuildable semantic-search projection.
 Neo4j is M4's rebuildable learning/concept projection.
-Do not implement learning derivation or Tutor behaviour in data infrastructure.
+Do not implement Tutor behaviour or invent learning labels in data infrastructure.
 Owning database infrastructure does not mean owning every domain write policy.
 
 Expose typed repository/service interfaces, never database handles to agents.
@@ -55,7 +58,7 @@ Keep navigation reading blocks distinct from retrieval search chunks.
 Preserve mappings between chunks, reading blocks, pages and source versions.
 Never fabricate a page, heading, locator or successful extraction result.
 
-Activate a new source version only after the plan's validation/indexing gates.
+Activate a new source version only after the preserved validation/indexing gates.
 Retain prior versions needed by pinned sessions.
 Never silently migrate an active reading session to a newly indexed version.
 Deletion/access revocation must prevent new authorized delivery of removed content.
@@ -101,3 +104,11 @@ duplicate job delivery, lease loss, worker crashes and outbox replay.
 Check source pinning, unauthorized vector IDs and stale projection events.
 Do not run migrations against an unspecified/shared database.
 Network, dependency installation and destructive cleanup require explicit scope.
+
+## Current source scope
+
+Target PDF and uploaded lectures plus selected, supported YouTube sources. Drive,
+general web ingestion and additional formats are deferred. M3 owns visual/table
+extraction semantics; M2 owns storage, source versions and reading-block mappings.
+Removing automatic learning labels/review does not authorize dropping databases,
+projections, schemas or existing code. Factual history needs M4/M2 schema review.

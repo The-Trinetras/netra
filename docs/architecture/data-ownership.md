@@ -2,7 +2,7 @@
 
 ## Authority and the meaning of session
 
-Sources: [Engineering Plan](Netra_Final_Engineering_Plan.md) §9 and Appendix A, [CLAUDE.md](../../CLAUDE.md), [domain rules](../../.claude/rules/), [contracts](../../shared/contracts/) and [runtime baseline](runtime-baseline.md).
+Sources: [current scope](current-scope.md), historical [Engineering Plan](Netra_Final_Engineering_Plan.md) §9 and Appendix A, [CLAUDE.md](../../CLAUDE.md), [domain rules](../../.claude/rules/), [contracts](../../shared/contracts/) and [runtime baseline](runtime-baseline.md).
 
 The System Lead approved this clarification on 12 September 2026:
 
@@ -11,7 +11,7 @@ The System Lead approved this clarification on 12 September 2026:
 
 The phrase “users, sessions and device access” in Engineering Plan §9.1 refers to Identity's security/lifecycle responsibility. It does not transfer mutable learning/navigation session state to Identity. Appendix A, CLAUDE.md and coordinator.md govern mutable session-state ownership. Both categories persist authoritatively in PostgreSQL. This clarification adds no new service or ownership boundary.
 
-## Ownership table
+## Ownership table (approved target; persistence integration remains pending)
 
 Service ownership identifies the validator/writer for a record category, not exclusive access to an entire database. M2 owns persistence infrastructure; domain owners retain their write policies.
 
@@ -23,14 +23,15 @@ Service ownership identifies the validator/writer for a record category, not exc
 | Source identity, immutable source versions, reading blocks and mapped search chunks | Ingestion service; PostgreSQL | Pinecone contains search projections; S3 stores original bytes. Existing sessions remain pinned to their version. |
 | Source-linked visual structures and video evidence | Content/ingestion persistence in PostgreSQL; M3 owns multimedia production/validation | Preserve source/version, locations and observed vs generated/uncertain content. Provider assets do not replace canonical provenance. |
 | Questions, private rubrics and assessment attempts | Learning service; PostgreSQL | Attempts are authoritative history. Question versions remain traceable; public delivery excludes private answer fields. |
-| Current learning status and review schedule | Learning service derives from canonical evidence and approved versioned policy; PostgreSQL | Status is rebuildable, not independent truth. Neo4j copies cannot create or revise an assessment. |
+| Delivered study activity, stated reasoning, feedback and assistance | Learning service; PostgreSQL target | Complete representation/commit path remains an integration gap. Preserve factual records, not automatic learning labels. |
+| Legacy learning-status/review artifacts | Existing code/schema retained; outside current requirements | Removal of product requirements does not authorize deleting records, databases or projections. |
 | Concepts and prerequisites | Content curation service; PostgreSQL | Neo4j relationships are projections. Tutor does not silently create concepts or prerequisite policy. |
 | Session summaries and covered topics | Session service; PostgreSQL | Summaries reference events; exposure/coverage is not assessment or mastery. |
 | Tutor lesson execution state | Tutor through application-managed LangGraph checkpointing in PostgreSQL | Private lesson continuity; Session service owns active-lesson/return context and Learning service owns committed assessment evidence. |
 | Jobs and outbox | Job service/runtime; PostgreSQL | No independent queue truth. Outbox creation shares the canonical mutation transaction. |
 | Audio metadata, cache identity and reservations | Speech service; PostgreSQL | S3 audio and bounded local completed-audio cache; quota reservations are not refunded merely because playback stops. |
 | Raw source bytes | Private S3 (boto3==1.43.92, approved 2026-09-12) | PostgreSQL owns access and object/version mapping. Provider copies and local caches are not source authority. |
-| Last stable result set | Session service; PostgreSQL (approved 2026-09-12) | `SessionState.last_result_set` holds only a `{result_set_id, created_at}` reference; the ordered evidence-id list lives in a new Session-service-owned table, resolved through the same PostgreSQL-backed evidence authorization as any other reference. |
+| Last stable result set | Session service; PostgreSQL (approved 2026-09-12) | `SessionState.last_result_set` holds only a `{result_set_id, created_at}` reference; the approved design places the ordered evidence-id list in a Session-service-owned table (concrete repository/migration pending), resolved through the same PostgreSQL-backed evidence authorization as any other reference. |
 | Semantic vectors | Pinecone derived projection | Rebuild from canonical content and compatible embedding configuration; search-only authority. |
 | Graph projection | Neo4j derived projection; M4 owns projection behavior | Rebuild from PostgreSQL concepts, prerequisites, assessments and covered-topic records. |
 
@@ -44,7 +45,7 @@ Session mutations use expected-version checks and committed replay identity/resu
 
 ## Canonical history and derived state
 
-Only Learning service validates and commits Tutor proposals. The initial learning labels are `not_assessed`, `needs_review`, `developing` and `demonstrated_recently`; none is a calibrated probability of mastery. Derivation and review-interval thresholds are now required, explicit, versioned policy objects (`StatusDerivationPolicy`, `ReviewIntervalPolicy`) rather than hidden constants — but their approved numeric values and grounding criteria remain **Pending approved contract/policy decision.** Assessment history remains authoritative regardless of projection availability.
+Only Learning service validates and commits Tutor proposals. Retain delivered activity, each answer, student-stated reasoning, feedback and assistance as factual history. “Studied — understanding not tested” is an activity description, not a status enum. Automatic labels and review schedules are removed requirements; existing `StatusDerivationPolicy`, `ReviewIntervalPolicy` and legacy contract labels remain compatibility artifacts, not policies to complete. Optional-check grounding criteria and complete factual-history representation still require work. History remains authoritative regardless of projection availability. Exact facts remain outside compacted dialogue summaries.
 
 Pinecone and Neo4j are derived and rebuildable. Projections cannot overwrite PostgreSQL truth. Apply projection updates idempotently with source/event-version ordering so older retries cannot overwrite newer results. Resolve vector references against PostgreSQL for access, deletion and source-version compatibility before using them as evidence. A pinned older source version is not automatically invalid merely because a newer one exists.
 

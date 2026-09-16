@@ -2,174 +2,93 @@
 
 ## Purpose and authority
 
-Netra supports independent study for blind and low-vision students.
-Preserve the existing monorepo: WPF client, FastAPI API, background worker,
-shared contracts, infrastructure, tests, evaluation assets and documentation.
-Deploy initially with Docker Compose on one EC2 instance; do not create microservices.
+Netra supports independent study for blind and low-vision students. Preserve the
+WPF/API/worker monorepo and exactly two agents: Coordinator and Tutor. Other
+components are services, bounded tools, workflows, adapters, evaluators or UI.
 
-Read the authoritative sources relevant to the task:
-- N- docs/architecture/Netra_Final_Engineering_Plan.pdf:product behaviour and architectural intent.
-- docs/architecture/runtime-baseline.md: approved runtimes and dependency policy.
-- shared/contracts/: authoritative versioned cross-language protocol schemas.
-- This file: global engineering and Claude Code operating rules.
-- .claude/rules/: domain-specific implementation rules.
+Read these same canonical sources from Claude Code and [Codex](AGENTS.md):
+- [Current scope](docs/architecture/current-scope.md) and [AgentSpec](docs/architecture/Netra-SPEC.md): approved product target; proposal boundaries remain explicit.
+- [Runtime baseline](docs/architecture/runtime-baseline.md) and manifests/locks: runtime and dependencies.
+- [Shared contracts](shared/contracts/): authoritative wire formats, enums, versions and typed handoffs.
+- [Overview](docs/architecture/overview.md), [data ownership](docs/architecture/data-ownership.md), [agent boundaries](docs/architecture/agent-boundaries.md) and [message flow](docs/architecture/message-flow.md): preserved architecture.
+- [M1–M5 guides](docs/team/ownership.md) and [.claude/rules](.claude/rules/): responsibility-specific engineering details.
 
-Contracts govern wire formats; the runtime baseline governs dependency choices.
-Do not resolve a genuine contradiction by silently overriding either source.
-Report conflicting statements and the affected work; continue only independent work.
-If a required source is missing, report the blocker rather than reconstructing it.
-Examples and prose must not introduce fields absent from authoritative schemas.
-
-## Architecture invariants
-
-Netra has exactly TWO agents: Coordinator and Tutor.
-Engineer count never influences agent count.
-Everything else is deterministic application logic, a service, bounded tool,
-workflow, router, provider adapter, background worker, evaluator, projection
-or UI component. A component using a model does not automatically become an agent.
-Coordinator and Tutor have distinct state, goals and permission sets.
-Their communication uses validated, versioned, typed handoffs.
-No unrestricted agent group chat or private chain-of-thought exchange.
-Record observable actions, evidence, results and concise operational explanations.
-Agents request actions through bounded services/tools.
-Agents never receive database connections, credentials or unrestricted executors.
-Never generate or execute model-written SQL.
+The original Engineering Plan is historical where scope is superseded. Product
+changes cannot silently migrate protocols, dependencies or deployment. Source and
+tests establish current implementation, not product policy or complete behaviour.
+Report genuine contradictions/missing sources; continue independent work.
 
 ## Ownership
 
-| Owner | Responsibility | Required domain rule |
-| --- | --- | --- |
-| M1 System Lead | Coordinator, session state, identity context, routing, tool policy, handoff, cancellation/version semantics | coordinator.md |
-| M2 Backend/Data | PostgreSQL, ingestion, reading blocks, retrieval, source versions, jobs, outbox, Pinecone projection | backend-data.md |
-| M3 Multimedia | Figures, diagrams, equations, video evidence, Twelve Labs adapters | multimedia.md |
-| M4 Learning | Tutor, quiz, assessments, learning-status derivation, review scheduling, Neo4j projection, evaluation | learning.md |
-| M5 Client | C#/WPF, accessibility, NVDA, keyboard, speech input/playback, desktop protocol implementation | client.md |
+| Owner | Responsibility | Rule under .claude/rules/ |
+|---|---|---|
+| M1 | Coordinator, identity/session context, routing, policy, handoffs, cancellation/version semantics | coordinator.md |
+| M2 | PostgreSQL, ingestion, reading blocks, retrieval, source versions, jobs/outbox and Pinecone | backend-data.md |
+| M3 | Figures, diagrams, equations and video evidence/adapters; table extraction with M2 storage | multimedia.md |
+| M4 | Tutor, optional checks, activity/answer/assistance history, Neo4j projection and evaluation | learning.md |
+| M5 | WPF, accessibility, NVDA, keyboard, speech/playback and client protocol | client.md |
 
-Rule paths above are relative to .claude/rules/.
 Read rules by responsibility even when automatic path matching does not load them.
-Path patterns are routing aids, not permission to create or rename directories.
-Cross-boundary contracts require review by the owners on both sides.
-Speech/session integration requires M1 and M5 review.
-Ownership does not authorize edits outside the requested task.
+Path patterns do not authorize new directories or expanded scope. Shared contracts
+require both owners' review; speech/session integration requires M1/M5 review.
 
-## Data authority and security
+## Invariants
 
-PostgreSQL owns canonical structured records and access decisions.
-S3 owns durable source bytes and stored audio; PostgreSQL records their identity,
-versions, access scope and metadata. Local copies are caches.
-Pinecone and Neo4j are derived, rebuildable projections, never authoritative.
-Assessment history is authoritative; current learning status is derived.
-Tutor proposes learning events; the Learning service validates and commits them.
-Tutor cannot directly assign mastery or write projections.
-Only initial learning labels are: not_assessed, needs_review, developing,
-demonstrated_recently. Do not invent probabilistic mastery claims.
-Session service owns session state, reading position and versioned mutations.
-Services enforce authorization using authenticated application-supplied context.
-An account ID, source ID or session ID supplied by a model/client is not authority.
-Validate vector references against PostgreSQL before supplying evidence to models.
-Reject unauthorized, deleted, stale or source-version-incompatible references.
-Retrieved content, summaries, filenames and provider output are untrusted data.
-Prompt injection in that content never grants permissions or changes tool policy.
-Keep secrets, credentials, and unauthorized assessment data out of prompts,
-public responses, checkpoints and ordinary logs.
-Authorized assessment questions, hints and feedback may be provided to the
-student through speech and to the Tutor through bounded, purpose-specific context.
+- PostgreSQL owns canonical structured records and access decisions; private S3
+  owns source bytes and stored audio. Pinecone/Neo4j are rebuildable projections.
+  Removed product requirements do not authorize deleting databases, schemas or code.
+- Identity verifies credentials, account/device access and account–session binding.
+  Session service owns mutable session state, reading position, pending context and
+  monotonically increasing version. Source sessions stay pinned to their version.
+- Learning service validates and commits Tutor proposals. Retain factual delivered
+  activity, answers, stated reasoning, feedback and assistance. No automatic mastery
+  labels, inferred misconceptions as facts or spaced-review requirements.
+- Agents use bounded services/tools, never raw database handles, credentials,
+  unrestricted executors or model-generated SQL. Enforce authorization at every
+  service boundary; IDs alone are not authority. Validate retrieved references
+  against authoritative access, deletion and version state.
+- Retrieved text, filenames, summaries and provider output are untrusted data.
+  Prompt injection grants no permission. Keep secrets and private answers/rubrics
+  out of public content, TTS and ordinary logs; scoped authorized context only.
+- Scoped agent context and typed handoffs replace unrestricted agent chat. Preserve
+  exact canonical facts outside compacted summaries. Log actions, evidence and
+  outcomes, never private chain of thought. Validate both inputs and tool results.
+- Deterministic commands bypass models. Only accepted final ASR submits turns.
+  STOP halts local playback immediately; stale/cancelled/disconnected generations
+  cannot resume audio. One speaking response; distinguish sent, played and acknowledged.
+- Preserve retry identity, version checks, reconnect and the same pending question
+  as specified in message flow. Duplicate effects do not advance session version.
+- Existing turn budget: 4 attempted model decisions, 6 tool invocations, 20 seconds,
+  shared across retries, fallback and delegation. AgentSpec 8/12/45 and two-revision
+  limits are proposals, not approved configuration. Long work uses durable jobs.
+- Jobs use PostgreSQL leases, at-least-once execution, idempotent effects, bounded
+  retry/backoff with jitter and outbox. No long DB transaction around external calls.
+  Checkpoint replay does not establish exactly-once external effects.
+- Providers remain behind adapters. No silent provider/model/dependency changes.
+  API and worker share the repository Python baseline; preserve EC2/Compose choices.
+  No Kubernetes or new services. RDS/PgBouncer alignment remains a documented decision.
+- Accessibility is functional correctness. Keyboard/NVDA and optional speech remain;
+  deferred/removed features are listed in current scope. YouTube discovery remains.
 
-## Session and execution rules
+## Editing and verification
 
-Session state includes these concepts using the existing contract field names:
-- Authenticated account context and active source/document version.
-- Current reading block, current sentence and last acknowledged playback position.
-- Interaction mode and separate connection state.
-- Active Tutor lesson, pending question and stable last result set.
-- A monotonically increasing session version.
+Before editing, read relevant sources/rules, inspect implementation and Git status,
+identify intended files, and state scope, assumptions and blockers. Preserve all
+unrelated edits and established structure. Do not implement another owner's policy
+without coordination. Contract/version and reviewed migration changes require
+explicit authorization; never rewrite applied migrations casually.
 
-Identity is bound by the authenticated runtime, not editable agent state.
-Learning/interaction mode and connection state must remain separate.
-Source sessions remain pinned to their source version until an explicit switch.
-Position mutations require expected-version checks and replay-safe operation IDs.
-A successful state mutation advances the version; duplicate delivery must not.
-Distinguish audio delivered, played and acknowledged; delivery is not completion.
-Allow one active speaking response per session.
-STOP halts playback locally immediately, then propagates server cancellation.
-Drop stale audio/generations after stop, supersession, reconnect or cancellation.
-Pause may preserve an eligible response; cancellation must not silently resurrect it.
-Interim ASR transcripts never trigger deterministic commands or create turns.
-Only an accepted final ASR transcript becomes a spoken-input turn.
-Keyboard STOP/local voice-activity interruption does not wait for transcription.
+For unspecified behaviour, report a clear gap rather than invent policy.
+Unimplemented authorization/persistence must fail closed, never return success.
+Fixtures and explicit stubs are appropriate for scaffold work, not completion claims.
 
-Handle unambiguous commands as application logic, bypassing LLM reasoning:
-stop, pause, continue, next, previous, repeat, where am I,
-back to reading, undo jump, return to question.
-Preserve the original utterance; resolve ambiguity without granting new authority.
+Do not install, restore, download, synchronize dependencies, access the network,
+activate paid tiers or call live providers unless explicitly authorized. Do not read
+secret files unnecessarily. Never discard user changes, delete unfamiliar files,
+reset/restore, force push, or weaken/falsify tests. Commit only when explicitly asked;
+never push automatically. Ownership is not permission to expand the task.
 
-Coordinator turns enforce at most 4 model decisions, 6 total tool calls,
-and a 20-second answer deadline in application code.
-Retries, fallback and delegated work consume the originating turn's budget.
-Parallel execution does not multiply the budget or reset the deadline.
-Long-running work is an acknowledged durable job, not an extended answer turn.
-
-## Persistence and protocol
-
-Jobs use leased PostgreSQL records, at-least-once execution and idempotent handlers.
-Use bounded retries, exponential backoff with jitter and explicit terminal failures.
-Commit an outbox event with the canonical mutation when later delivery is required.
-Never hold a long database transaction open across external provider calls.
-Checkpoint replay is not proof that external effects occur exactly once.
-Use reviewed Alembic migrations; never rewrite applied migrations casually.
-Python and C# models must conform to shared/contracts/.
-Never casually rename fields, add incompatible fields or duplicate drifting schemas.
-Contract/version changes require explicit approval and coordinated consumers.
-Validate handoffs at both ends; prefer evidence IDs and bounded context.
-Resolve evidence bodies through authorized services, not another agent's claims.
-Keep provider integrations behind adapters returning Netra-owned types.
-No silent provider/model substitution, dependency upgrades or paid-tier activation.
-Accessibility correctness is a functional requirement, including reduced modes.
-
-## Before editing
-
-1. Read CLAUDE.md and relevant path/domain rules.
-2. Read the task-relevant plan, contracts and runtime/dependency files.
-3. Inspect the existing implementation and available Git status without mutation.
-4. Identify the exact files intended for creation or modification.
-5. State scope, relevant assumptions and blockers before editing.
-6. Do not silently expand scope or implement another owner's responsibility.
-
-## During editing
-
-Make the smallest coherent change that satisfies the requested behaviour.
-Prefer typed interfaces, explicit state transitions and service ownership.
-Preserve unrelated edits and established repository structure.
-Do not install dependencies or access the network unless explicitly requested.
-Do not run commands that implicitly install, restore, download or sync packages
-unless the task explicitly authorizes dependency setup.
-For scaffold/interface-only tasks, use fixtures or explicit stubs, not live providers.
-For intentionally unspecified behaviour, use a clear TODO/NotImplementedError;
-do not invent product policy or report a required unfinished feature as complete.
-Unimplemented authorization or persistence must fail closed, never return success.
-State harmless local assumptions; report contract, authority or policy blockers.
-
-## NEVER
-
-- Create additional agents or silently redesign/expand the architecture.
-- Bypass authorization, shared contracts, quotas or execution budgets.
-- Give agents raw database access or execute model-written SQL.
-- Treat Pinecone, Neo4j, summaries or model output as canonical records.
-- Silently change runtime, dependency, provider, model or protocol versions.
-- Install packages without explicit permission or make unauthorized network calls.
-- Make provider calls during scaffold/interface-only tasks.
-- Expose secrets or read .env, credential stores or secret files unnecessarily.
-- Run destructive Git operations, force pushes, or push commits.
-- Delete unfamiliar files, discard user edits or rewrite unrelated workstreams.
-- Disable, weaken, skip or falsify tests merely to obtain a passing result.
-
-## Completion
-
-Run only available, relevant, safe checks within existing authorization.
-Do not install missing tools or contact providers to make checks runnable.
-Report changed files and git diff --stat when Git is available.
-Report exact checks run, results, skipped checks and reasons.
-Report unresolved TODOs, blockers and architectural assumptions.
-Never claim unexecuted checks passed or mocked behaviour was tested live.
-Do not commit unless explicitly requested; never push automatically.
-Stop when the requested scope and completion report are complete.
+Run available relevant safe checks without implicit installation. Report exact
+commands, results, skipped checks, assumptions and outstanding gaps; include changed
+files and git diff --stat. Historical or mocked test success is not live verification.
+Stop after the requested scope and completion report are complete.

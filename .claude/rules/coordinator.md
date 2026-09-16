@@ -13,6 +13,9 @@ paths:
 # Coordinator and session rules
 
 Owner: M1 System Lead.
+Read [current scope](../../docs/architecture/current-scope.md), [ownership](../../docs/team/ownership.md)
+and the corresponding M1–M5 guide before implementation. These rules share the
+canonical authorities used by root AGENTS.md and CLAUDE.md.
 Apply CLAUDE.md and the authoritative runtime baseline and contracts.
 These patterns do not define new repository directories or authorize scope expansion.
 
@@ -110,3 +113,14 @@ stale output rejection and cancellation.
 Include pending-question restoration and source-version pinning.
 Live provider calls require explicit authorization.
 Report any missing contract needed to implement these behaviours.
+
+## Evidence repair and context
+
+Inspect retrieved evidence for the actual question. When insufficient, record the
+gap and change strategy; validate new evidence before answering. A sufficient first
+result needs no extra retrieval. If repair cannot help, clarify or state the gap.
+Select relevant evidence/history for each agent; compact dialogue without losing
+exact canonical positions, pending questions, versions or assistance records.
+The AgentSpec 8/12/45 and two-revision limits are proposals; preserve 4/6/20 until
+reviewed alignment. Legacy learning-status/review handoff fields need M1/M4 contract
+coordination; product changes do not authorize altering schemas or inventing enums.

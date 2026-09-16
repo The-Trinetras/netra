@@ -10,14 +10,18 @@ paths:
 # Tutor and learning rules
 
 Owner: M4 Learning.
+Read [current scope](../../docs/architecture/current-scope.md), [ownership](../../docs/team/ownership.md)
+and the corresponding M1–M5 guide before implementation. These rules share the
+canonical authorities used by root AGENTS.md and CLAUDE.md.
 Apply CLAUDE.md and backend-data.md for shared persistence/job mechanics.
 Tutor is Netra's second and only other agent.
-Quizzes, grading validation, scheduling, projections and evaluators are not agents.
+Optional checks, grading validation, projections and evaluators are not agents.
+Legacy scheduling code is retained but outside current product requirements.
 
 ## Tutor boundaries
 
 Tutor owns the teaching objective, explanation, hints and pedagogical adaptation.
-Learning service owns validated assessment commits and learning-status derivation.
+Learning service owns validated factual activity/answer/assistance commits.
 Tutor cannot assign mastery, grant access, change identity or mutate Neo4j.
 Do not duplicate Coordinator routing or Session service state ownership.
 
@@ -53,18 +57,15 @@ Learning service validates ownership, question identity, evidence, rubric,
 response finality and replay identity before committing.
 Do not interpret a proposed model grade as a successful database write.
 
-Current learning status is derived using an explicit versioned application policy.
-Only these initial labels are permitted:
-- not_assessed
-- needs_review
-- developing
-- demonstrated_recently
-
-Do not invent probabilities, mastery scores, confidence thresholds or new labels.
-Discussing a topic, reading a summary or generating a quiz is not an assessment.
-An unavailable history service is not evidence of not_assessed.
-If derivation/scheduling policy is unspecified, report it and leave an explicit stub.
-Do not turn illustrative handbook intervals or thresholds into hidden product policy.
+Record delivered study activity, each answer, student-stated reasoning, feedback
+and assistance separately. Adapt to observed responses; never store an inferred
+misconception as an established fact. Discussing a topic or generating a question
+is not an assessment. An unavailable history service is not evidence of no history.
+“Studied — understanding not tested” is factual activity wording, not a new enum.
+Automatic learning labels and spaced-review scheduling are removed requirements.
+Existing legacy status enums, policy classes and review code remain untouched;
+do not complete old thresholds/intervals or fabricate labels to fit a handoff.
+Coordinate missing factual-history schemas with M1/M2; report the gap.
 
 ## Quiz privacy and persistence
 
@@ -76,11 +77,11 @@ Do not leak reference answers before the student's answer is finalized.
 Use approved feedback policy for any later explanation or answer disclosure.
 Duplicate submission/replay must not create another assessment attempt.
 
-## Review and Neo4j projection
+## History and Neo4j projection
 
-Keep exposure, assessment and review-due records semantically separate.
-Derive review scheduling from the approved versioned policy.
-Respect explicit student skip/defer choices.
+Keep delivered activity, answers and assistance semantically separate.
+Respect a declined optional check; do not create a grade for it.
+Do not schedule spaced review or delete existing legacy review artifacts.
 Do not silently create concepts or prerequisite relationships from Tutor output.
 
 Project committed canonical records through the PostgreSQL outbox/job mechanism.
@@ -92,7 +93,11 @@ Use canonical PostgreSQL records when the existing reduced-mode path permits it.
 ## Evaluation
 
 Keep evaluation outside the live student response path.
-Use human/source-checked references and explicit scoring rubrics.
+Prioritize deterministic source/evidence checks, original-media review, state and
+recovery tests and accessibility tasks. Ragas and Prometheus-2 are secondary
+evaluators; their integration remains pending. Use source-checked references and
+explicit scoring rubrics. Blindfolded sighted testing is an interaction exercise,
+not proof of blind-student usability.
 Distinguish factual support, teaching quality and observed learning outcomes.
 Model-judge scores are not ground truth or probabilities of correctness.
 Preserve held-out cases; do not tune prompts against them and call them unseen.
@@ -102,5 +107,6 @@ No evaluator network calls or model downloads without explicit authorization.
 ## Verification focus
 
 Check answer-key isolation, persisted pending questions, transcript correction,
-assisted attempts, duplicate submissions, derivation policy and projection replay.
+assisted attempts, untested study, stated reasoning, duplicate submissions and
+projection replay. Check that adaptation uses observed evidence without mastery claims.
 Report missing policy, unavailable checks and limitations explicitly.

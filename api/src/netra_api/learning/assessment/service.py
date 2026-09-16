@@ -9,15 +9,34 @@ written through — the Tutor calls propose_event as a bounded tool call
 
 derive_status_from_history is pure, deterministic local computation
 (like netra_worker.runtime.retries's backoff formula), so it is
-implemented in full rather than stubbed; propose_event's actual
-PostgreSQL commit is not, pending a concrete
-AssessmentHistoryRepository implementation.
+implemented in full rather than stubbed. propose_event's commit path is
+now implemented against the AssessmentHistoryRepository/
+PendingQuestionRepository Protocols (no concrete PostgreSQL-backed
+implementation exists yet, matching every other repository-backed
+service in this codebase — see netra_api.coordinator.router.route_turn
+for the same "implement the logic against the Protocol, not the
+driver" pattern).
+
+propose_event only ever commits event_type == "answer_evaluated": that
+is the only LearningEventType AssessmentAttempt (question_id/
+question_version/answer/outcome all required, non-optional) can
+represent. concept_exposed/hint_used/review_requested describe activity
+AssessmentAttempt has no fields for — learning.md: "Record delivered
+study activity, each answer, student-stated reasoning, feedback and
+assistance separately" describes a richer record than this model
+carries (see docs/team/M4.md "Current source evidence"). Rather than
+force those event types into an answer-shaped row (fabricating a
+question_id/answer that was never asked), propose_event fails closed
+with UnrepresentableLearningEventError — see docs/team/handoffs/M4.md
+for the schema-gap proposal this blocks on (M1/M2/M5 review, CLAUDE.md
+"Prepare the minimum factual-history schema/handoff proposal").
 """
 
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 from typing import Optional
+from uuid import UUID, uuid5
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -29,6 +48,7 @@ from netra_api.learning.assessment.models import (
     LearningStatus,
 )
 from netra_api.learning.assessment.repository import AssessmentHistoryRepository
+from netra_api.learning.quiz.repository import PendingQuestionRepository
 from netra_api.platform.auth_context import AuthContext
 from netra_api.platform.errors import NetraError
 
@@ -69,15 +89,99 @@ class InvalidLearningEventProposalError(NetraError):
     """Raised when a LearningEventProposal is missing fields its event_type requires."""
 
 
+class UnrepresentableLearningEventError(NetraError):
+    """Raised for an event_type AssessmentAttempt has no fields to record.
+
+    Fails closed rather than fabricating a question_id/answer that was
+    never asked (CLAUDE.md: "Unimplemented ... persistence must fail
+    closed, never return success"). See the module docstring and
+    docs/team/handoffs/M4.md for the schema-gap proposal this blocks on.
+    """
+
+    def __init__(self, event_type: str) -> None:
+        self.event_type = event_type
+        super().__init__(
+            f"event_type {event_type!r} cannot be committed as an AssessmentAttempt yet "
+            "(question_id/question_version/answer/outcome are required fields with no "
+            "representation for non-answer activity); see docs/team/handoffs/M4.md"
+        )
+
+
+class QuestionNotPendingError(NetraError):
+    """Raised when an answer_evaluated proposal targets a question that is
+    not (or no longer) pending for this account.
+
+    Covers both "never persisted"/"belongs to someone else" (get_pending
+    returns None) and "already answered" (mark_answered already cleared
+    it) — learning.md "finality" check: only a still-pending question may
+    be finalized, so a duplicate grade of the same question is rejected
+    here rather than silently re-graded.
+    """
+
+    def __init__(self, question_id: str) -> None:
+        self.question_id = question_id
+        super().__init__(f"question_id {question_id!r} is not currently pending for this account")
+
+
+class QuestionVersionMismatchError(NetraError):
+    """Raised when a proposal's question_version does not match the
+    persisted pending question's version — stale client state must not
+    be graded against a version the student was not actually shown."""
+
+    def __init__(self, question_id: str, expected: int, actual: int) -> None:
+        self.question_id = question_id
+        self.expected = expected
+        self.actual = actual
+        super().__init__(
+            f"question_id {question_id!r} is pending at version {expected}, "
+            f"but the proposal targets version {actual}"
+        )
+
+
 def _validate_proposal(proposal: LearningEventProposal) -> None:
     if proposal.event_type == "answer_evaluated" and (
-        proposal.answer is None or proposal.outcome is None or proposal.question_id is None
+        proposal.answer is None
+        or proposal.outcome is None
+        or proposal.question_id is None
+        or proposal.question_version is None
+        or proposal.evaluated_by is None
     ):
         raise InvalidLearningEventProposalError(
-            "answer_evaluated proposals require question_id, answer, and outcome"
+            "answer_evaluated proposals require question_id, question_version, "
+            "answer, outcome, and evaluated_by"
         )
     if proposal.event_type == "hint_used" and proposal.hints_used < 1:
         raise InvalidLearningEventProposalError("hint_used proposals require hints_used >= 1")
+
+
+_ATTEMPT_ID_NAMESPACE = UUID("2f1a8a3e-8c1a-4c7a-9c3d-9d9f6b4b7a10")
+"""Fixed namespace for deriving replay-safe AssessmentAttempt IDs.
+
+Not a secret and not a schema value — an arbitrary, fixed constant so
+uuid5 derivation is reproducible from source alone (any value works;
+this one only needs to never change once committed, or previously
+derived attempt_ids would stop matching on replay).
+"""
+
+
+def _derive_attempt_id(request_id: UUID, question_id: str, question_version: int) -> UUID:
+    """Deterministic, replay-safe attempt_id for one answer_evaluated commit.
+
+    message-flow.md: "request_id is minted once per logical user action
+    ... and reused verbatim if that same action must be retransmitted."
+    AuthContext.request_id is already that stable per-turn identifier
+    (platform/auth_context.py), supplied by the application layer, never
+    the model — so deriving attempt_id from it means a retried turn.submit
+    (same request_id, same question) reproduces the exact same attempt_id
+    without any new wire field or LearningEventProposal change.
+    AssessmentHistoryRepository.append is documented idempotent by
+    attempt_id: "appending an already-known attempt_id returns the
+    existing record rather than duplicating it" — this is what makes that
+    idempotency actually reachable for a duplicate submission, rather
+    than only for a caller that already knows an ID to retry with.
+    """
+
+    return uuid5(_ATTEMPT_ID_NAMESPACE, f"{request_id}:{question_id}:{question_version}")
 
 
 def derive_status_from_history(
@@ -129,23 +233,80 @@ class LearningService:
         self,
         repository: AssessmentHistoryRepository,
         status_derivation_policy: StatusDerivationPolicy,
+        pending_question_repository: PendingQuestionRepository,
     ) -> None:
         self._repository = repository
         self._status_derivation_policy = status_derivation_policy
+        self._pending_question_repository = pending_question_repository
 
     def propose_event(self, auth: AuthContext, proposal: LearningEventProposal) -> AssessmentAttempt:
         """Validate a Tutor-proposed learning event and commit it as an AssessmentAttempt.
 
-        TODO: build the AssessmentAttempt and call
-        self._repository.append(...) once a concrete
-        AssessmentHistoryRepository exists. The checks below (account
-        ownership, proposal shape) are the boundary every commit path
-        must pass through first.
+        Only event_type == "answer_evaluated" can be committed today — see
+        the module docstring for why the other LearningEventType values
+        fail closed with UnrepresentableLearningEventError instead.
+
+        Validation order mirrors learning.md "Learning service validates
+        ownership, question identity, evidence, rubric, response finality
+        and replay identity before committing":
+        1. account ownership (auth.assert_owns_account)
+        2. proposal shape (_validate_proposal)
+        3. representability (event_type)
+        4. question identity + finality: the target question must still
+           be pending for this account (QuestionNotPendingError otherwise
+           — covers both "never asked"/"not yours" and "already answered")
+        5. version: the proposal must target the version actually shown
+           (QuestionVersionMismatchError otherwise)
+        6. replay: attempt_id is derived deterministically from
+           auth.request_id (see _derive_attempt_id), so a retried commit
+           of the same turn reaches repository.append with the same ID
+           instead of minting a new attempt.
+
+        Evidence/rubric grounding is not checked here: ApprovedQuestion
+        carries no evidence_refs today (see
+        netra_api.learning.quiz.validator.validate_draft_is_grounded,
+        deliberately unimplemented pending the same evidence-grounding
+        product decision) — a gap, not something this method can enforce
+        against a model that does not carry the data.
         """
 
         auth.assert_owns_account(proposal.account_id)
         _validate_proposal(proposal)
-        raise NotImplementedError("learning event commit is not yet implemented")
+
+        if proposal.event_type != "answer_evaluated":
+            raise UnrepresentableLearningEventError(proposal.event_type)
+
+        assert proposal.question_id is not None
+        assert proposal.question_version is not None
+        assert proposal.answer is not None
+        assert proposal.outcome is not None
+        assert proposal.evaluated_by is not None
+
+        pending = self._pending_question_repository.get_pending(auth, proposal.question_id)
+        if pending is None:
+            raise QuestionNotPendingError(proposal.question_id)
+        if pending.question_version != proposal.question_version:
+            raise QuestionVersionMismatchError(
+                proposal.question_id, pending.question_version, proposal.question_version
+            )
+
+        attempt = AssessmentAttempt(
+            attempt_id=_derive_attempt_id(auth.request_id, proposal.question_id, proposal.question_version),
+            account_id=proposal.account_id,
+            concept_id=proposal.concept_id,
+            question_id=proposal.question_id,
+            question_version=proposal.question_version,
+            answer=proposal.answer,
+            outcome=proposal.outcome,
+            hints_used=proposal.hints_used,
+            evaluated_by=proposal.evaluated_by,
+            created_at=datetime.now(timezone.utc),
+        )
+        committed = self._repository.append(auth, attempt)
+        self._pending_question_repository.mark_answered(
+            auth, proposal.question_id, proposal.question_version
+        )
+        return committed
 
     def derive_current_status(self, auth: AuthContext, concept_id: str) -> CurrentLearningStatus:
         """Read history for concept_id and derive its current LearningStatus."""

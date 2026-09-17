@@ -159,6 +159,25 @@ Status (2026-09-17): the Ragas package is not approved and must not be added.
   Installation, model downloads, account setup and live deployment remain separate
   execution actions. An unavailable judge leaves its evaluation milestone incomplete.
 
+## Arize AX dependency review — 18 September 2026
+
+The [AX integration decision](arize-ax-integration.md) approves the architecture,
+not an unreviewed package set. No telemetry dependencies are added by this revision.
+M1/M2 must review minimal OpenTelemetry API/SDK, the selected OTLP exporter and
+any necessary OpenInference components against Python 3.13.15 and the existing
+shared API/worker constraints. Prefer controlled service-boundary instrumentation;
+do not install every framework/provider instrumentor or duplicate span exporters.
+Record exact direct/transitive pins and test async context, sanitization, bounded
+export/shutdown and compatibility before accepting a lock change. Current pins and
+installation-tested compatibility remain pending; do not invent versions.
+
+M4's AX dataset/experiment SDK belongs in a separately pinned offline evaluation
+environment, alongside the HTTP caller as needed, not the application import path.
+The Modal GPU image remains separately pinned. Keep AX SDK types behind adapters
+and select APIs matching the reviewed SDK major. Vendor examples do not authorize
+OpenAI/full-LangChain dependencies, provider substitution or runtime upgrades.
+Dependency setup/install/live access retains the explicit execution controls above.
+
 ## Completing the freeze
 
 When dependency setup is explicitly requested:

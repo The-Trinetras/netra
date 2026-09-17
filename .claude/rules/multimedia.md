@@ -97,3 +97,12 @@ checked separately for each selected upload/YouTube video. Capture actual player
 time with M5; transcript-only evidence cannot establish visual understanding.
 YouTube discovery stays in scope despite deferred general web/Drive ingestion.
 M3 validates table extraction; M2 owns source/table storage and version identity.
+
+## Arize AX integration
+
+Follow the [AX plan](../../docs/architecture/arize-ax-integration.md). Use M1's
+tracing boundary for permitted media provenance, attempts, uncertainty and failures;
+do not export raw media or signed URLs by default. Give M4 original-media-reviewed
+references and error labels, and M5 source/time correlation. AX/Alyx suggestions
+and text-judge scores do not validate unseen pixels. Preserve cancellation, source
+checks and providers while completing trace-linked comparison coverage.

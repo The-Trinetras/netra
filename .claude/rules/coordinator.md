@@ -124,3 +124,13 @@ exact canonical positions, pending questions, versions or assistance records.
 The AgentSpec 8/12/45 and two-revision limits are proposals; preserve 4/6/20 until
 reviewed alignment. Legacy learning-status/review handoff fields need M1/M4 contract
 coordination; product changes do not authorize altering schemas or inventing enums.
+
+## Arize AX integration
+
+Follow the [AX plan](../../docs/architecture/arize-ax-integration.md). M1 owns the
+common tracing interface, composition, allowlist/redaction, context isolation,
+bounded background export and shutdown. Preserve response/cancellation/budget
+semantics during AX failure; expose dropped spans and reconcile evaluation traces
+with M4. Review pins/job links with M2 and real client overhead with M5. No per-turn
+network export/flush, duplicate tracing stack or third product agent. Alyx is an
+engineering assistant. Complete reliability gates without high-volume machinery.

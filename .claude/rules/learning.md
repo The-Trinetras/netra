@@ -115,6 +115,16 @@ Preserve held-out cases; do not tune prompts against them and call them unseen.
 Do not claim causal learning improvement from unsupported comparisons.
 No evaluator network calls or model downloads without explicit authorization.
 
+Follow the [AX integration plan](../../docs/architecture/arize-ax-integration.md).
+M4 owns immutable dataset/output/result artifacts, the external judge workflow and
+AX experiment adapter. Trace Tutor/learning through M1's sanitized boundary; never
+export private student content or grading fields. Persist before uploading, reconcile
+uncertain creation, and resume uploads without rerunning the producer or judge.
+Compare frozen paired cases with identical rubrics/judge configuration; report
+missing outcomes, regressions, human disagreement and trace completeness. AX views
+are derived; Alyx suggestions require review. Full quality/recovery gates apply,
+not a quick-pilot completion bar. Keep SDKs isolated and avoid high-volume machinery.
+
 ## Verification focus
 
 Check answer-key isolation, persisted pending questions, transcript correction,

@@ -195,6 +195,20 @@ The second encounter changes the next action, not just the greeting. A fresh con
 
 **Secondary evaluation (Modal revision, 17 September 2026):** Prometheus-2 7B hosted on Modal/A100 40 GB is the primary model judge, alongside deterministic checks, source review and human calibration. Follow the [model/evaluation plan](model-evaluation-plan.md) for authenticated hosting, bounded credits, grading format and reference answers. Custom Ragas-style scripts remain separate from the dependency-blocked Ragas package. AWS GPU access is not required; Lightning AI and Kaggle are alternative evaluation hosts. Original-media and client tests establish visual fidelity, NVDA focus, STOP and return behaviour. Evaluation stays outside student turns; report checkpoint/rubric/case versions, scores, unscored cases, costs and disagreements. Hosted evaluation remains incomplete until verified, even if the student demo works.
 
+**Observability and experiments (approved 18 September 2026):** Follow the
+[Arize AX integration plan](arize-ax-integration.md). AX replaces historical
+LangSmith tracing and provides datasets, experiments and comparison views. Alyx
+helps engineers investigate and propose improvements; it is not a product agent.
+Netra owns sanitized OpenTelemetry instrumentation, bounded background export and
+an offline runner that calls Modal Prometheus-2, persists outputs/results, then
+publishes AX experiments. Require complete correlated traces, measured low response
+overhead, reviewed reference datasets, human error analysis, named evaluations,
+calibrated rubrics and reproducible paired comparisons. Track missing outcomes and
+recover uploads without repeating producer/judge work. Keep independent artifacts
+outside AX retention and keep student execution independent of AX/Modal availability.
+Free-tier capacity is adequate for the expected workload; avoid high-volume
+infrastructure without reducing correctness, recovery or evaluation quality.
+
 ## 11. What this deliberately does not do
 
 1. **Cover every source format.** Defer Drive, general web ingestion and additional document formats; test PDF structure and lecture evidence first. YouTube search, selected-video playback and supported analysis remain in scope.
@@ -209,6 +223,13 @@ Exactly two agents remain. MCP is not required for these bounded integrations.
 ## 12. Build order
 
 **Two-day target:** One supported chapter-and-lecture journey, from accessible selection through explanation and optional tutoring to interruption and return. Five engineers have **80 team person-hours** at eight focused hours each per day. This is a work allocation, not a claim that every integration will pass.
+
+**Quality requirement, 18 September:** the time allocation below is a sequencing
+estimate, not a quick-pilot completion bar. Add domain tracing as each path lands;
+complete the AX reliability, dataset/judge and before/after comparison gates in the
+[integration checklist](../team/integration-checklist.md). A single trace/scored
+case checks connectivity only. Report incomplete gates rather than weakening them
+to fit the schedule; no long-term scaling work is required.
 
 M1 owns routing/session integration; M2 owns source preparation and retrieval; M3 owns visual/video evidence; M4 owns Tutor, history and evaluation; M5 owns the accessible desktop. Use agreed interfaces and labelled fixed responses to connect the journey before depending on live model output. Test real provider and player access early; tune prompts after the path works.
 
@@ -255,6 +276,7 @@ The next team inherits source-linked history, shared contracts, provider adapter
 | Insufficient tool evidence changes the next action | Inject a transcript without axes; verify the recorded gap triggers graph retrieval, validate the returned axes/values and inspect the bounded stop for unreadable evidence | Design reviewed; runtime acceptance test required |
 | Supporting infrastructure and evaluation work together | Verify database/storage and deterministic/source checks; separately verify authenticated Prometheus-2 on Modal, calibrated grading, credit limits, interruption recovery and shutdown without student-path coupling | End-to-end checks required; hosted scoring pending until executed |
 | The implementation supports the complete journey | Run the application through the prepared scenario | Full integration test required |
+| AX tracing and experiment comparison are reliable | Check sanitized complete traces, measured background-export overhead, outage/recovery, versioned datasets, calibrated external scores and matched before/after experiments backed by independent artifacts | Approved target; implementation and live AX evidence pending |
 | Selected providers, models and quotas support the inputs | Check pinned adapters and run authorized smoke tests with representative sources | Account/runtime tests required |
 | YouTube playback and analysis are both available | Verify player behaviour, then actual visual/audio analysis on the same selected video | Separate integration gates; URL access not assumed |
 | Keyboard, NVDA and speech controls work together | Test launch, file selection, focus, shortcut conflicts and interruption on Windows | Acceptance tests required |
@@ -271,6 +293,13 @@ The next team inherits source-linked history, shared contracts, provider adapter
 ## Appendix A. Supporting implementation details
 
 These retain the existing implementation choices; the evidence-driven behaviour and acceptance checks above are the focus of the AgentSpec.
+
+**Engineering observability:** M1 owns shared tracing/export to AX; each domain
+owns its spans. M4 owns dataset snapshots, the external evaluation runner, AX
+adapter and paired comparison artifacts. M2 reviews telemetry pins/job links and
+Modal image isolation; M3 supplies original-media truth and M5 real client measures.
+Keep domain logic independent of AX SDKs and Alyx suggestions under human review.
+The [AX plan](arize-ax-integration.md) governs architecture and completion.
 
 **Models and supporting services:** Gemini for Coordinator; Groq for Tutor; model-based content interpretation through provider adapters. An adapter contains the code for one provider so its API details do not spread through business logic. LangGraph runs the bounded agent loops. Deepgram/ElevenLabs handle speech; LlamaParse/Tesseract handle document extraction; Marengo/Pegasus handle video retrieval/analysis. Tavily remains behind discovery; general web extraction is deferred. These calls stay behind adapters with named operations, instructions and budgets. Gemini video analysis remains an evaluation candidate.
 

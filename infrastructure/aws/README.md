@@ -14,11 +14,20 @@ EC2/Compose and database-placement decisions below remain unchanged.
 
 ## Application deployment
 
+The [18 September AX plan](../../docs/architecture/arize-ax-integration.md) selects
+Arize AX as a managed engineering destination for sanitized background tracing,
+datasets and experiments. AX replaces historical LangSmith tracing; retain
+operational logs. Keep credentials server/evaluation-side, export bounded and
+nonblocking, and outages independent of application readiness. No collector,
+Phoenix server or high-volume infrastructure is required. Alyx is an engineering
+assistant; Prometheus remains on Modal. No AX configuration/deployment is performed
+here, and compatible telemetry dependency pins remain pending review.
+
 The [runtime baseline](../../docs/architecture/runtime-baseline.md) retains Docker
 Compose on one EC2 instance for API and worker, with the same Python baseline.
 PostgreSQL remains authoritative; private S3 owns stored source bytes; Pinecone and
 Neo4j are derived. No Kubernetes or additional production services are introduced;
-the isolated external evaluator is the documented exception above.
+the external evaluator and AX engineering integration are the approved boundaries above.
 
 The [AgentSpec](../../docs/architecture/Netra-SPEC.md) describes RDS and PgBouncer
 as its target database connection setup. The historical plan describes a Compose

@@ -19,6 +19,35 @@ worktrees and role branches. Do not run five agents against one mutable checkout
 
 ## Shared implementation agreement
 
+### Arize AX integration update — 18 September 2026
+
+All members must read the [AX integration plan](../../architecture/arize-ax-integration.md)
+and their ARIZE AX INTEGRATION UPDATE section. Use a common agreed commit containing
+this revision; members already working apply it incrementally without resets or
+discarding changes. The historical prompt-pack baseline alone is insufficient.
+
+AX replaces historical LangSmith tracing and provides datasets, experiments and
+comparison views. Netra owns controlled tracing and a resumable offline runner;
+Prometheus-2 on Modal remains the external judge. Alyx is an engineering assistant,
+not a third product agent. Keep auto-accept off and review its suggestions/labels.
+Preserve operational logs and canonical stores; keep independent evaluation artifacts.
+
+M1 owns the shared tracing adapter/lifecycle, M2 ingestion/retrieval/jobs and dependency
+review, M3 media/provenance, M4 Tutor spans and the dataset/judge/AX comparison workflow,
+and M5 actual client measurements. No student response waits on AX or evaluation.
+Implement bounded background export, sanitization, context isolation, visible loss,
+shutdown/recovery and trace reconciliation. Use all required spans for the expected
+Free-tier evaluation workload; no sampling or high-volume architecture is needed.
+Roughly 2,500 requests is a sizing estimate, not a reason to remove needed traces.
+
+Complete the five-step evaluation workflow and all reliability/calibration/comparison
+gates. A quick pilot, one trace or one scored case is not sufficient. Frozen paired
+cases, versioned judge settings, persisted outputs/results, recoverable uploads and
+honest missing-case counts are required. Account features, compatible dependency
+pins and live checks remain explicitly pending, not inferred from this approval.
+This revision changes documentation; invoked role prompts authorize owned code under
+the execution controls below, not automatic installation, credentials or deployment.
+
 ### Model and evaluation update — 17 September 2026
 
 All five prompts include the [model/evaluation decision](../../architecture/model-evaluation-plan.md).
@@ -88,7 +117,8 @@ historical plans/audits are not active requirements or current pass evidence.
 - Exactly two product agents, Coordinator and Tutor. No extra agent, unrestricted
   agent chat, raw database handles for agents, model-generated SQL, new framework,
   MCP integration, production microservice or Kubernetes. The isolated external
-  Prometheus-2 evaluator follows the explicitly selected Modal plan above.
+  Prometheus-2 evaluator and managed AX integration follow the approved plans above;
+  they do not add an application microservice or product agent.
 - PostgreSQL is authoritative; private S3 stores source bytes; Pinecone/Neo4j are
   rebuildable. Enforce service-boundary authorization and authoritative evidence
   access/deletion/version checks. Source sessions stay pinned. Retrieved content

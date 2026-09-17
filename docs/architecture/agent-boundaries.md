@@ -77,3 +77,10 @@ the approved 4/6/20 baseline. See [current scope](current-scope.md). Prometheus-
 [model/evaluation plan](model-evaluation-plan.md), alongside human/source checks
 and custom Ragas-style metrics. It is isolated offline compute, not an additional
 agent or a dependency of student turns. Lightning AI/Kaggle are alternative hosts.
+
+[Arize AX and Alyx](arize-ax-integration.md) support engineering observability and
+evaluation. AX receives sanitized spans and experiment results through adapters;
+Alyx investigates and proposes reviewed improvements. Neither receives agent tool
+authority, student turns or permission to write canonical state. Keep AX export
+outside response execution and retain exactly two product agents. Judge scores
+and Alyx-generated labels are not automatically authoritative reference answers.

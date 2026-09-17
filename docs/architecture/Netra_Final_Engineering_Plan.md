@@ -12,6 +12,13 @@
 > longer required. Prometheus-2 7B on Modal/A100 40 GB is the selected primary
 > model judge, with human calibration and custom Ragas-style metrics. Lightning
 > AI and Kaggle are alternative evaluation hosts; production remains on EC2/Compose.
+>
+> **Observability superseded on 18 September 2026:** follow the
+> [Arize AX integration plan](arize-ax-integration.md). AX replaces the historical
+> LangSmith tracing choice and manages datasets/experiments; Prometheus-2 remains
+> the external judge. Alyx assists engineers, not student agents. Require reliable
+> background tracing and reproducible comparisons; the old schedule is not a
+> reason to reduce quality. No high-volume scaling infrastructure is required.
 
 # Netra engineering plan and team handbook 
 

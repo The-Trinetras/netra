@@ -1,9 +1,13 @@
 # Model and evaluation plan
 
-Decision date: 17 September 2026, revised at the user's request. **Prometheus-2
+Decision date: 18 September 2026, including the approved AX integration. **Prometheus-2
 7B on Modal is the selected primary model evaluator.** This supersedes the
 earlier Gemini-judge/deferred-Prometheus plan in commit `f9ef024`.
 Implementation, account eligibility and deployment are not yet verified.
+The [Arize AX integration plan](arize-ax-integration.md) governs tracing, dataset
+snapshots, experiments, upload recovery and reproducible before/after comparisons.
+Correctness and full acceptance take priority over a quick pilot; no high-volume
+infrastructure is required for the expected Free-tier workload.
 
 ## Selected configuration
 
@@ -12,6 +16,8 @@ Implementation, account eligibility and deployment are not yet verified.
 | Coordinator / M1 | Retain Gemini `gemini-3.8-flash`. |
 | Tutor / M4 | Retain Groq `openai/gpt-oss-120b`. |
 | Primary model evaluator / M4 | `prometheus-eval/prometheus-7b-v2.0`, hosted on Modal using one A100 40 GB. |
+| Traces, datasets and experiments / M1 + M4 | Arize AX; Netra owns instrumentation, external evaluation and durable result artifacts. |
+| Engineering assistance / all owners | Alyx for investigation and reviewed evaluation suggestions, outside product-agent execution. |
 | Acceptance evidence / all owners | Deterministic tests, original-source review, calibrated judge results and human adjudication; scores alone do not establish correctness. |
 | Alternative evaluation hosts | Lightning AI for the same isolated scorer; Kaggle for resumable notebook batches. Neither is an automatic fallback. |
 | GLM-5.2 | OpenRouter's `z-ai/glm-5.2:free` is a verified public free listing; comparison candidate, not a replacement for the selected evaluator or live agents. |
@@ -41,7 +47,7 @@ compute on Starter and A100 40 GB at $0.000583/second. Calculations:
 
 CPU, RAM, startup/model loading, idle scale-down time and applicable storage
 charges reduce available inference time. The 12-hour envelope is provisional:
-measure total cost during a small pilot and shorten it if necessary. Fourteen
+measure total cost during a sizing check and shorten it if necessary. Fourteen
 hours is not a guaranteed continuous session. Credits may already be partly
 consumed by other workloads; use the actual remaining balance.
 
@@ -100,8 +106,9 @@ with additional runtime/KV-cache memory. Fit and throughput must be measured.
 Quantization is a separately calibrated alternative, not the default shortcut.
 
 Start with one case at a time and a conservative 4,096-token total sequence
-ceiling, reserving up to 512 generated tokens within that total. These are pilot
-caps, not advertised checkpoint maxima. Validate tokenization/template and
+ceiling, reserving up to 512 generated tokens within that total. These are initial
+sizing limits, not advertised checkpoint maxima or a reason to weaken rubrics.
+Validate tokenization/template and
 measured memory before increasing batching/context. Reject oversized input or
 prepare a reviewed shorter case; never silently truncate the reference/rubric.
 Treat truncated output as unscored. No endpoint URL, image pin or running
@@ -133,7 +140,8 @@ deployment is claimed by this documentation.
    aggregate scores. Record per-criterion exact/within-one agreement, absolute
    score error and human disagreements, especially unsupported answers receiving
    high scores. Freeze a separate held-out set before tuning. Ten cases are a
-   pilot, not proof of statistical reliability; report sample size and coverage.
+   starting floor, not proof of statistical reliability; report sample size and
+   coverage and expand calibration when intended failure modes are not assessed.
    Human reviewers adjudicate errors; do not invent a universal passing threshold.
 6. For pairwise comparisons, use the documented separate format, anonymize model
    names, swap A/B ordering and flag inconsistent preferences for human review.
@@ -152,6 +160,12 @@ deployment is claimed by this documentation.
    cases and report remaining cases unscored. Continue deterministic/human checks,
    but mark the requested Prometheus evaluation milestone incomplete. No silent
    Gemini/GLM replacement and no paid overage.
+10. Publish reviewed dataset snapshots, frozen outputs and structured results to
+    AX through M4's adapter, outside student execution. Persist before uploading;
+    reconcile uncertain uploads without rerunning Netra or the judge. Compare
+    baseline/candidate on the same held-out cases, rubric and judge configuration,
+    showing per-case regressions, missing outcomes and trace completeness. Follow
+    the [AX recovery/comparison requirements](arize-ax-integration.md#reproducible-datasets-experiments-and-recovery).
 
 The scaffold in `evaluation/scripts/interfaces.py` is not an implemented runner.
 Keep ordinal scores, provenance and skipped/error outcomes in evaluation-owned
@@ -203,19 +217,22 @@ No OpenRouter dependency, account setup or automatic model fallback is introduce
 
 | Owner | Required work |
 |---|---|
-| M1 | Retain live models/budgets; keep evaluator outside routing, boot/readiness and student turns; supply sanitized traces and review isolation with M4. |
-| M2 | Review isolated Modal image/pins, credit cap, authentication and stop/resume controls with M4; provide source/version/relevance fixtures. Keep AWS GPUs and evaluator SDKs out of production. |
-| M3 | Supply original-media checked labels/values/timestamps, unreadable variants and source-checked references; preserve Twelve Labs roles. |
-| M4 | Own Prometheus-2 runner, Modal deployment source/HTTP adapter, rubric parser, calibration, result persistence and cost report. Document Lightning/Kaggle portability. |
-| M5 | Verify accessible errors, STOP, reconnect and exact return; demonstrate evaluator outage has no student-path impact; no judge credentials or controls in WPF. |
+| M1 | Own safe shared tracing, background AX export, context/lifecycle, loss reporting and measured overhead; retain live models/budgets and evaluator isolation. |
+| M2 | Trace ingestion/retrieval/jobs and authoritative checks; provide source/relevance fixtures. Review tracing dependencies with M1 and isolated Modal image, credit/authentication/stop controls with M4. |
+| M3 | Trace media operations/provenance; supply original-media checked labels/values/timestamps, unreadable variants and source-checked references; preserve Twelve Labs roles. |
+| M4 | Own Prometheus runner, deployment/HTTP adapter, rubric parser/calibration, snapshots/results, AX experiment adapter, recoverable uploads and paired comparisons. Record cost/shutdown and host portability. |
+| M5 | Measure STOP/playback/return and accessible errors; correlate permitted client artifacts with traces through reviewed identities; demonstrate AX/judge outages have no student-path impact. No AX/judge keys in WPF. |
 
 Use the [updated member prompts](../team/prompts/README.md). Finish local fixture
 checks and deployment preparation independently; only account/deployment/live
 checks await execution authorization. Acceptance of hosted evaluation requires an
 authorized authenticated smoke run, calibration report, measured cost and verified
 shutdown. Documentation alone does not satisfy those gates.
+AX acceptance additionally requires complete correlated traces, recovery tests,
+confirmed dataset/experiment ingestion and a reproducible paired comparison;
+an authenticated smoke run alone is insufficient.
 
-This request updates documents only. It selects Modal hosting and the evaluator
+This request updates documents only. It selects Modal hosting and AX integration
 architecture, but does not deploy, install dependencies, download weights, enter
 payment details, spend credits or call providers. No application code, runtime
 prompt, manifest, lock or public schema changes are made here.

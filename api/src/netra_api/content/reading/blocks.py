@@ -12,7 +12,7 @@ referenced here by locator only, never inlined.
 from __future__ import annotations
 
 from enum import Enum
-from typing import List, Optional
+from typing import Any, List, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -46,3 +46,6 @@ class ReadingBlock(BaseModel):
     sentences: List[Sentence] = Field(default_factory=list)
     locator: Optional[str] = None
     """Page/timestamp/section locator used for evidence citation, when available."""
+    page_index: int | None = None
+    printed_page: str | None = None
+    structured_location: dict[str, Any] = Field(default_factory=dict)

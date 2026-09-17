@@ -93,6 +93,8 @@ class EvidenceResolver(Protocol):
         auth: AuthContext,
         evidence_ids: List[str],
         pinned_source_version_id: Optional[UUID] = None,
+        allowed_source_version_ids: Optional[List[UUID]] = None,
+        require_active: bool = False,
     ) -> List[EvidenceResolution]:
         """Resolve and authorize evidence ids.
 

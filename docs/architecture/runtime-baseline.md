@@ -131,18 +131,22 @@ Status (2026-09-17): the Ragas package is not approved and must not be added.
 - Ragas 0.2.3 through 0.4.3 are reported as affected by an unfixed SSRF advisory
   (the advisory was reported during dependency review, not re-verified here).
   Ragas 0.4.3 would also downgrade the resolved rich 15.0.0 to 14.3.4.
-- No existing pin changes. The selected optional offline judge is Gemini
-  `gemini-3.8-flash` through an evaluation-owned adapter using the existing
-  `google-genai==2.21.0` pin. The adapter/runner is pending implementation;
-  this is not authorization for installation or live calls.
-- Prometheus-2 is deferred, not an AWS GPU requirement. If separately authorized
-  later, its HTTP adapter can use existing httpx; vLLM, prometheus-eval, torch and
-  transformers stay outside the shared API/worker dependencies.
+- The selected primary model judge is `prometheus-eval/prometheus-7b-v2.0` on
+  Modal, one A100 40 GB. The evaluation-owned HTTP adapter uses existing httpx;
+  no API/worker dependency pin changes are required. Gemini is no longer the
+  selected judge. Runner/deployment integration remains pending.
+- Modal SDK, torch, transformers and any inference-engine dependencies belong
+  to an isolated evaluator environment/image. M4/M2 must record compatible exact
+  versions, model/tokenizer revisions and image digest before deployment; these
+  pins are pending, not permission for floating installs. API/worker runtime and
+  locks remain unchanged. Lightning AI/Kaggle use separately validated evaluator
+  environments, not production dependency changes.
 - Until an exception is approved, implement the secondary retrieval-and-answer
   metrics (for example faithfulness, context precision/recall and answer
   relevance) as M4 evaluation scripts. Use Ragas metric definitions as reference
-  only. Run deterministic/source and human checks first, with optional Gemini
-  rubric scoring. Report custom metrics as Ragas-style, not an executed Ragas run.
+  only. Run deterministic/source and human checks alongside calibrated Prometheus-2
+  scoring. Report custom metrics as Ragas-style, not an executed Ragas run; ordinal
+  judge scores do not automatically implement those metrics.
 - Reopening requires explicit approval of one of these: a patched Ragas release
   without mandatory OpenAI/full-LangChain dependencies, or an explicit exception
   for a named version and its transitive set. With that exception, OpenAI must
@@ -150,8 +154,10 @@ Status (2026-09-17): the Ragas package is not approved and must not be added.
 - The user reports AWS Free Plan instance eligibility prevents `g5.xlarge` use;
   this is not a quota-only blocker. No AWS GPU provisioning or paid-plan upgrade
   is required. See the [17 September model/evaluation decision](model-evaluation-plan.md)
-  for the selected models, free-tier evidence, quota/privacy controls and optional
-  later hardware comparison. Deterministic/human evaluation needs no judge API.
+  for Modal credit/cost controls, authentication, calibration and alternative hosts.
+  This selects external offline evaluator hosting, not another production service.
+  Installation, model downloads, account setup and live deployment remain separate
+  execution actions. An unavailable judge leaves its evaluation milestone incomplete.
 
 ## Completing the freeze
 

@@ -41,15 +41,20 @@ runtime, fixture/source versions, actual result, limitations and owner for every
   exploration, lecture question, STOP, return and reduced speech mode without help.
   Test shortcut conflicts and focus loss. Record blind-participant feedback separately;
   blindfolded sighted testing cannot establish blind-student usability.
-- [ ] M4: run deterministic/source/human checks before optional Gemini rubric scoring
+- [ ] M4: run deterministic/source/human checks alongside Prometheus-2 7B scoring
   and custom Ragas-style metrics under the [model/evaluation plan](../architecture/model-evaluation-plan.md).
-  Record producer/judge/rubric/test-set versions, failures, skips, self-evaluation
-  and human disagreements. Judges stay outside the student's deadline.
-- [ ] M1/M4: simulate exhausted free quota, timeout and malformed judge output;
-  scoring is explicitly skipped/failed without paid fallback or student-turn impact.
-  Schedule offline scoring outside demonstrations; shared project quota still applies.
-- [ ] M2/M4: required evaluation runs without AWS GPU access, Prometheus-2 or Ragas
-  installed; optional judge unavailability leaves deterministic/human review usable.
+  Record checkpoint/tokenizer/rubric/test-set/host versions and calibrated agreement,
+  failures, unscored cases and human disagreements. Judges stay outside student turns.
+- [ ] M1/M4: simulate exhausted credits, timeout, OOM and malformed/truncated judge
+  output; preserve completed results without model substitution or student impact.
+  Unscored cases leave the Prometheus evaluation milestone incomplete.
+- [ ] M2/M4: verify authenticated Modal A100 40 GB inference, rejection before GPU
+  allocation for unauthenticated calls, one container, scale-to-zero, credit/spend
+  caps, resume after interruption, actual cost and explicit shutdown. No AWS GPU,
+  Ragas or GPU dependencies in the shared runtime. Record checks as pending until run.
+- [ ] M4: validate grading template, source-checked reference answers, strict 1–5
+  parsing, rubric-injection resistance, held-out cases and human disagreement.
+  Any Lightning/Kaggle host switch preserves provenance and rechecks configuration.
 
 Use labelled fixed responses first, then separately authorized live integrations.
 Do not install dependencies or contact providers just to complete this checklist.

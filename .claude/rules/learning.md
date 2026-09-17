@@ -95,15 +95,18 @@ Use canonical PostgreSQL records when the existing reduced-mode path permits it.
 Keep evaluation outside the live student response path.
 Prioritize deterministic source/evidence checks, original-media review, state and
 recovery tests and accessibility tasks. Follow the
-[model/evaluation plan](../../docs/architecture/model-evaluation-plan.md): optional
-offline Gemini `gemini-3.8-flash` rubric scoring through the existing SDK;
-Prometheus-2 is deferred and AWS GPU access is not required. Integration remains
-pending. Do not add the Ragas package:
+[model/evaluation plan](../../docs/architecture/model-evaluation-plan.md): the
+primary model judge is Prometheus-2 7B hosted on Modal/A100 40 GB, isolated from
+student turns. M4 owns its deployment source and HTTP adapter; M2 reviews the
+separate GPU environment, authentication and credit/stop controls. Lightning AI
+and Kaggle are alternatives; no AWS GPU or silent Gemini/GLM fallback. Integration
+and live calibration remain pending. Do not add the Ragas package:
 it requires full LangChain and OpenAI SDKs (see runtime-baseline.md "Evaluation
 dependencies"). Implement Ragas-style metrics in evaluation scripts instead.
-Use permitted synthetic/public fixtures, label self-evaluation, and report quota
-exhaustion as skipped scoring while continuing deterministic/human review. No
-paid fallback or private student data in the free judge. Use source-checked references and
+Use permitted synthetic/public fixtures, source-checked references, the checkpoint's
+grading template, anchored 1–5 rubrics and strict result parsing. Report exhausted
+credits as unscored cases and incomplete model evaluation while continuing human
+review. No paid overage or private student data in hosted fixtures. Use
 explicit scoring rubrics. Blindfolded sighted testing is an interaction exercise,
 not proof of blind-student usability.
 Distinguish factual support, teaching quality and observed learning outcomes.

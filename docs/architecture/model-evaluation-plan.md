@@ -1,138 +1,221 @@
 # Model and evaluation plan
 
-Decision date: 17 September 2026. This updates the plan at the user's request;
-it does not claim deployed adapters, account access or completed evaluations.
-It supersedes the earlier AWS GPU/Prometheus-2 evaluation requirement. Runtime
-dependencies, wire contracts, ownership and the 4/6/20 live-turn budget remain
-governed by their existing authorities.
+Decision date: 17 September 2026, revised at the user's request. **Prometheus-2
+7B on Modal is the selected primary model evaluator.** This supersedes the
+earlier Gemini-judge/deferred-Prometheus plan in commit `f9ef024`.
+Implementation, account eligibility and deployment are not yet verified.
 
 ## Selected configuration
 
-| Responsibility | Selected plan | Reason |
-|---|---|---|
-| Coordinator / M1 | Keep Gemini `gemini-3.8-flash` | Existing configured model and SDK; provider lists free-tier API input/output. |
-| Tutor / M4 | Keep Groq `openai/gpt-oss-120b` | Existing configured model and SDK; Groq lists this model in its free-plan limits. |
-| Required evaluation / M4 with all owners | Deterministic checks, original-source review and human teaching rubrics | Runs without a GPU or judge API; remains the acceptance baseline. |
-| Optional offline judge / M4 | Gemini `gemini-3.8-flash`, through a separate evaluation adapter using the existing `google-genai` pin | No new provider, SDK or GPU; cross-model review of Groq Tutor output. This is a planning choice, not a measured quality winner. |
-| Prometheus-2 7B | Deferred optional comparison using `prometheus-eval/prometheus-7b-v2.0` | No AWS GPU prerequisite; revisit only when suitable hardware and execution are separately authorized. |
-| GLM-5.2 | Candidate only; no replacement selected | The supplied free endpoint has not been verified. Direct Z.ai API pricing is paid. |
+| Responsibility | Selected plan |
+|---|---|
+| Coordinator / M1 | Retain Gemini `gemini-3.8-flash`. |
+| Tutor / M4 | Retain Groq `openai/gpt-oss-120b`. |
+| Primary model evaluator / M4 | `prometheus-eval/prometheus-7b-v2.0`, hosted on Modal using one A100 40 GB. |
+| Acceptance evidence / all owners | Deterministic tests, original-source review, calibrated judge results and human adjudication; scores alone do not establish correctness. |
+| Alternative evaluation hosts | Lightning AI for the same isolated scorer; Kaggle for resumable notebook batches. Neither is an automatic fallback. |
+| GLM-5.2 | OpenRouter's `z-ai/glm-5.2:free` is a verified public free listing; comparison candidate, not a replacement for the selected evaluator or live agents. |
 
-This is the best fit for the current budget and integration constraints, not a
-claim that Gemini/Groq outperform GLM on Netra tasks. Keep named model IDs and
-endpoint configuration separate from SDK versions. Other parsing, embedding,
-video and speech providers are unchanged; this decision does not make the whole
-application free. Do not replace an embedding model or rebuild indexes here.
+Prometheus-2 is specifically trained for rubric-based evaluation and supports
+absolute and pairwise grading. That makes it a suitable dedicated judge for this
+English-language project; Netra-specific reliability still requires calibration.
+Use the exact 7B checkpoint, not the much larger 8x7B variant. See the
+[model card](https://huggingface.co/prometheus-eval/prometheus-7b-v2.0).
 
-## What was verified
+The evaluator is a bounded offline workflow, not a third agent. Modal is a narrow
+external evaluation-compute exception to the repository's no-new-services rule,
+not a migration of the API, worker, databases or student response path.
+AWS GPU provisioning remains excluded. EC2/Compose, exactly two agents, the
+4/6/20 originating-turn budget, wire contracts and storage authority remain intact.
 
-Public documentation was checked on the decision date; no credentials were read
-and no inference/account calls were made. Account eligibility, region, current
-quota and adapter behaviour still need an explicitly authorized smoke test.
+## Modal compute and budget
 
-- Z.ai lists GLM-5.2 at $1.40 input and $4.40 output per million tokens. Its model
-  page advertises 1M context and 128K maximum output, rather than the supplied
-  32,768/32,768 description. A third-party host can impose different limits.
-  See [Z.ai pricing](https://docs.z.ai/guides/overview/pricing) and
-  [GLM-5.2 documentation](https://docs.z.ai/guides/llm/glm-5.2).
-- NVIDIA's specific GLM-5.2 page labels the free endpoint deprecated, although
-  its model catalogue still advertises a free endpoint. Do not rely on the
-  catalogue badge as account access evidence. See the
-  [NVIDIA model page](https://build.nvidia.com/z-ai/glm-5.2?nim=self-hosted).
-- Google lists free-tier input/output for `gemini-3.8-flash`. Free-tier content
-  can be used to improve Google's products. Use only team-authored synthetic or
-  public permitted fixtures for this offline evaluation plan; do not upload
-  private student history, answers or source documents to the free judge.
-  See [Gemini pricing](https://ai.google.dev/gemini-api/docs/pricing).
-- Groq lists `openai/gpt-oss-120b` with a 131,072-token context and 65,536 maximum
-  completion tokens. Its listed free limits are 30 RPM, 1,000 RPD, 8,000 TPM and
-  200,000 TPD; organization-specific limits can differ. Context capacity does
-  not override token-rate limits. See [models](https://console.groq.com/docs/models)
-  and [rate limits](https://console.groq.com/docs/rate-limits).
-- The user reports that this AWS Free Plan account cannot launch `g5.xlarge`.
-  Treat that as the project's deployment constraint, not merely a GPU quota
-  request to retry or a claim about every promotional-credit account.
+Public [Modal pricing](https://modal.com/pricing) lists $30/month included
+compute on Starter and A100 40 GB at $0.000583/second. Calculations:
 
-The supplied Google share link could not be resolved during this review. A
-direct GLM host/model URL, actual free allowance, expiry, privacy terms and
-account availability are required before reconsidering it. Free weights or a
-free chat interface do not establish a free hosted API. Context/output maxima
-also do not mean both can be consumed simultaneously in one request.
+| Calculation | Result |
+|---|---|
+| GPU-only hourly rate | $0.000583 × 3,600 = $2.0988/hour |
+| $30 divided by GPU-only rate | 14.294 hours; an upper bound, not all-in runtime |
+| Initial planning envelope: 12 billed GPU hours | $25.1856 GPU cost, leaving $4.8144 from unused $30 credits |
 
-## Evaluation workflow without a GPU
+CPU, RAM, startup/model loading, idle scale-down time and applicable storage
+charges reduce available inference time. The 12-hour envelope is provisional:
+measure total cost during a small pilot and shorten it if necessary. Fourteen
+hours is not a guaranteed continuous session. Credits may already be partly
+consumed by other workloads; use the actual remaining balance.
 
-1. M1–M5 provide versioned, permitted fixtures and recorded observable outcomes.
-   Start with the AgentSpec chapter/lecture case, sufficient-first evidence,
-   missing axes, unreadable evidence, incorrect units and assisted answers.
-   Never export private chain of thought or credentials.
-2. M4 runs deterministic evidence/reference/value checks, replay/cancellation
-   checks and source-review rubrics first. M3 checks original media; M5 performs
-   keyboard/NVDA and playback tests. A text judge cannot replace those checks.
-3. Implement Ragas-style metrics in repository evaluation scripts, using metric
-   definitions as references only. The Ragas package remains blocked by the
-   [dependency baseline](runtime-baseline.md#evaluation-dependencies). Do not
-   describe custom metrics as an executed Ragas benchmark or equivalent scores.
-   Precision/recall require labelled relevant evidence; missing labels mean
-   not evaluated, not a fabricated value. No new embedding model is selected.
-4. Add optional Gemini rubric scoring of already-produced answers in `evaluation/`.
-   The adapter receives task, bounded source excerpts, candidate answer, reference
-   when available and a versioned rubric. Validate structured results and cited
-   evidence; use short evidence-based justifications, never private reasoning.
-   Treat instructions within candidate answers or evidence as untrusted data.
-5. Calibrate with ten human-labelled development cases, including unsupported
-   claims and plausible wrong answers. Record per-criterion disagreements and
-   human adjudication. Freeze a separate held-out set before tuning. Ten cases
-   are a starting check, not evidence of statistical reliability. Same-model
-   review of Coordinator output is explicitly labelled self-evaluation and is
-   excluded from independent-judge claims; human review remains decisive.
-6. Run sequentially by default, outside live answer execution, with explicit
-   request/token/output/time ceilings per run. Use account limits, bounded
-   backoff and Retry-After where supplied; stop on exhausted free quota. Never
-   enable paid fallback, add accounts to evade limits or silently switch models.
-   Schedule outside demonstrations because Coordinator and evaluator can share
-   Gemini project quota. If unavailable, finish deterministic/human review and
-   report model scoring as skipped with its reason; never report a pass or zero
-   score for an unevaluated case.
-7. Record commit, fixture/source versions, producer provider/model, judge model
-   and endpoint, rubric/prompt versions, generation settings, token usage,
-   latency, cache/replay status, errors, skips and human disagreement. Keep
-   artefacts read-only with respect to student/session/history stores. Include
-   producer, source, answer, rubric and judge configuration in any result-cache
-   identity. A cache hit is a replayed result, not a fresh independent sample.
+Modal's [GPU guide](https://modal.com/docs/guide/gpu) requires a valid payment
+method for GPU use. Account setup/card entry remains a user action. Explicitly
+request `A100-40GB`; do not silently select a pricier GPU or multiple replicas.
 
-The existing `evaluation/scripts/interfaces.py` is an interface scaffold, not
-a runner. M4 must inspect it and keep run provenance/skipped/error reporting in
-evaluation-owned structures; do not coerce missing scores into a passing
-`EvaluationResult` or alter public contracts for offline metadata.
+Planned deployment controls, to be implemented before an authorized live run:
 
-## Prometheus-2 and hardware
+- One GPU, `max_containers=1`, `min_containers=0`, `buffer_containers=0`,
+  one in-flight grading request initially, and `scaledown_window=60` seconds.
+  No warm pool, periodic keepalive or multiple independently scaling functions.
+  These are evaluation settings, not changes to live-turn policy. Check them
+  against the selected Modal SDK version. See [scaling](https://modal.com/docs/guide/scale).
+- Set a workspace usage cap no greater than the applicable credit allowance
+  (normally $30 for an otherwise unused cycle), account for usage already incurred,
+  and set the out-of-pocket spend limit to $0. Workspace budgets count usage
+  before credits; spend limits count charges after credits. Environment budgets
+  require a higher plan and are not assumed here. Verify the effective controls
+  before starting; do not enable paid overage. See [budgets](https://modal.com/docs/guide/budgets).
+- The runner reserves a bounded run allowance, checks remaining time/cost before
+  dispatch, and stops before the cap with a margin for startup, idle time and
+  delayed usage reporting. A timed-out HTTP client does not prove GPU work stopped:
+  bound server execution, reconcile request identity, and stop the deployment
+  explicitly after the batch. Record final usage and termination.
+- Cache pinned weights deliberately to avoid repeated downloads; include cache
+  storage in cost accounting. Persist results after each case so interruption
+  does not require restarting the whole evaluation. No blind automatic retry
+  after uncertain completion.
 
-Remove AWS GPU provisioning, quota increases and GPU spend from the required
-build/demo path. Keep the API/worker on the existing EC2/Compose plan. No GPU
-container, NIM service or local model server is added to production.
+## Hosting architecture and implementation gates
 
-An already accessible A100 40 GB can be considered for a later Prometheus-2 batch,
-but it is not promised free or proven fastest for this workload. A separately
-approved external rental also costs money; free notebooks do not guarantee an
-A100 or stable availability. Benchmark fit, sequence length, batch size, startup
-and total elapsed time before selecting hardware. Pin checkpoint revision,
-container digest and inference configuration; review the
-[Prometheus-2 model card](https://huggingface.co/prometheus-eval/prometheus-7b-v2.0).
-Keep torch/transformers/vLLM/prometheus-eval outside the API/worker dependencies.
-Downloading weights, renting compute or calling a judge requires separate
-execution authorization. Prometheus-2 absence must not block the demo.
+M4 owns the runner, evaluator adapter and deployment source under `evaluation/`;
+M2 reviews the isolated GPU environment and cost/lifecycle controls. The chosen
+architecture is an authenticated Modal GPU Web Function wrapping the scorer,
+called by an evaluation-owned HTTPX client. The API/worker and WPF never call it
+during a student turn. It must not receive database or production-provider keys.
+
+Protect the Web Function using Modal proxy authentication, explicitly enabled
+with `requires_proxy_auth=True`. Keep tokens in the approved secret mechanism,
+not URLs, source, notebooks, fixtures or logs. Reject unauthenticated traffic
+before GPU allocation. See [proxy authentication](https://modal.com/docs/guide/webhook-proxy-auth).
+
+The existing shared `httpx` pin is sufficient for the caller. Modal's deployment
+SDK, torch, transformers and any selected inference engine belong to a separately
+pinned evaluator environment/image, never the shared API/worker manifest/lock.
+Ragas remains blocked; use repository-owned Ragas-style scripts. Do not introduce
+the full LangChain framework or an OpenAI SDK to call an HTTP endpoint.
+
+Before deployment, record exact Modal SDK, Python/CUDA, inference library versions,
+container digest and model/tokenizer commit revisions. These GPU-environment
+pins are pending compatibility review, not permission to use floating versions.
+Keep the API/worker Python baseline unchanged. Start with unquantized BF16
+weights on A100; estimated weight storage is about 14 GB for 7B parameters,
+with additional runtime/KV-cache memory. Fit and throughput must be measured.
+Quantization is a separately calibrated alternative, not the default shortcut.
+
+Start with one case at a time and a conservative 4,096-token total sequence
+ceiling, reserving up to 512 generated tokens within that total. These are pilot
+caps, not advertised checkpoint maxima. Validate tokenization/template and
+measured memory before increasing batching/context. Reject oversized input or
+prepare a reviewed shorter case; never silently truncate the reference/rubric.
+Treat truncated output as unscored. No endpoint URL, image pin or running
+deployment is claimed by this documentation.
+
+## Evaluation quality and scoring workflow
+
+1. Collect permitted, versioned synthetic/public cases and already-produced
+   Coordinator/Tutor outputs. Include sufficient evidence, missing axes,
+   unsupported but plausible answers, incorrect units, alternative correct
+   reasoning, assisted attempts and appropriate abstention. Keep private student
+   records and credentials out of hosted evaluation fixtures.
+2. Run deterministic reference/value/access/replay checks first. M3 reviews
+   original media; M5 performs keyboard/NVDA, STOP and return tests. Prometheus-2
+   is a text judge and cannot validate pixels, playback or accessibility.
+3. M4 prepares a source-checked reference answer and one clearly anchored
+   1–5 rubric per dimension: source support, question relevance, factual
+   correctness and teaching usefulness. Use the checkpoint's documented absolute
+   grading instructions and Mistral conversation template. Parse feedback plus
+   the terminal `[RESULT]` integer strictly. Missing/duplicate/out-of-range
+   scores and malformed/truncated responses are errors, not passes.
+   [Prompt format](https://huggingface.co/prometheus-eval/prometheus-7b-v2.0#prompt-format)
+4. Missing reference answers mean reference-based scoring is pending human
+   labelling; do not invent a gold answer using the candidate being judged.
+   Keep candidate text and evidence untrusted. Test rubric injection and answers
+   asking the judge to assign a high score. Store concise evidence-based feedback,
+   not private chain of thought.
+5. Calibrate on at least ten human-labelled development cases before accepting
+   aggregate scores. Record per-criterion exact/within-one agreement, absolute
+   score error and human disagreements, especially unsupported answers receiving
+   high scores. Freeze a separate held-out set before tuning. Ten cases are a
+   pilot, not proof of statistical reliability; report sample size and coverage.
+   Human reviewers adjudicate errors; do not invent a universal passing threshold.
+6. For pairwise comparisons, use the documented separate format, anonymize model
+   names, swap A/B ordering and flag inconsistent preferences for human review.
+   Keep absolute scores and pairwise preferences distinct.
+7. Run custom Ragas-style retrieval/answer metrics without installing Ragas.
+   Relevant-evidence labels are required for context precision/recall. Missing
+   labels produce not-evaluated results. Ordinal Prometheus scores are not
+   Ragas-equivalent metric values or probabilities of correctness.
+8. Persist case/source/answer hashes, producer model, evaluator checkpoint and
+   tokenizer revisions, host/GPU/dtype, library/image versions, rubric/template
+   versions, seed/generation settings, timestamps, elapsed time, cost, parsed
+   score, feedback, errors and human adjudication. Use deterministic decoding
+   where supported, without claiming bitwise reproducibility across hardware.
+   Cache identity includes all inputs/configuration; label reused results.
+9. Stop on credit exhaustion or persistent hosting failure; preserve completed
+   cases and report remaining cases unscored. Continue deterministic/human checks,
+   but mark the requested Prometheus evaluation milestone incomplete. No silent
+   Gemini/GLM replacement and no paid overage.
+
+The scaffold in `evaluation/scripts/interfaces.py` is not an implemented runner.
+Keep ordinal scores, provenance and skipped/error outcomes in evaluation-owned
+structures; do not coerce them into the existing boolean `EvaluationResult`
+without an explicit reviewed mapping. Evaluation cannot mutate student history.
+
+## Alternative hosts
+
+| Host | Planned use and limitations |
+|---|---|
+| Modal — preferred | Authenticated, scale-to-zero A100 40 GB scorer with bounded $30-credit usage. Verify account eligibility and actual balance. |
+| Lightning AI — alternative | Run the same pinned scorer in a private Studio/job; confirm available GPU, rate, credits, storage and auto-sleep before selecting. Use a protected endpoint only if account features permit; otherwise export batch results. |
+| Kaggle — batch fallback | Run a private notebook over versioned cases, checkpoint results and export artifacts. Do not treat it as an always-on REST host or add a public tunnel. |
+
+[Kaggle notebook documentation](https://www.kaggle.com/docs/notebooks) lists
+12-hour GPU sessions and P100/T4 options; it does not promise an A100.
+[GPU quota guidance](https://www.kaggle.com/docs/efficient-gpu-usage) describes
+a variable weekly allowance. A 14-hour workload needs resumable batches.
+A 16 GB device leaves little space beyond BF16 weights; dual T4 memory does
+not pool automatically. A compatible sharding/precision configuration requires
+separate validation and calibration, especially if quantized.
+
+[Lightning billing](https://lightning.ai/docs/overview/faq/billing) describes
+15 free credits topped up monthly, with compute and storage consuming credits.
+Those credits do not promise a fixed number of A100 hours. Use
+[Studio stop/auto-sleep controls](https://lightning.ai/docs/overview/ai-studio/start-and-stop-studio)
+and verify current account GPU access; this plan does not select an upgraded tier.
+Switching hosts is a recorded operator decision preserving the same checkpoint,
+rubrics, cases and provenance; altered precision requires recalibration.
+
+## GLM-5.2 clarification
+
+The user's screenshot identifies **OpenRouter**, not Z.ai direct or NVIDIA.
+The [OpenRouter free-model page](https://openrouter.ai/z-ai/glm-5.2:free)
+confirms zero token price and lists 32,768 context/maximum completion tokens for
+this endpoint, while the general model description mentions 1M context. The
+endpoint limits govern; input and output must fit its actual combined allowance.
+It also lists no `tools` or enforced `response_format` support. This corrects
+the earlier unresolved-provider note; direct Z.ai pricing did not refute this offer.
+
+Free API access is rate-limited; check current
+[OpenRouter limits](https://openrouter.ai/docs/api-reference/limits) and account
+availability before any comparison. No live call was made. Keep GLM as an optional
+future comparison candidate: it is not the requested Prometheus checkpoint, and
+this endpoint's tool limitations argue against a live Coordinator replacement.
+No OpenRouter dependency, account setup or automatic model fallback is introduced.
 
 ## Member responsibilities and completion
 
-| Owner | Required change to their work |
+| Owner | Required work |
 |---|---|
-| M1 | Retain Coordinator pin/budgets; separate evaluation configuration and quota from turn execution; supply sanitized evidence-gap/cancellation traces and explicit provider-unavailable handling. Coordinate evaluator SDK access with M4 without calling the Coordinator loop. |
-| M2 | Remove GPU assumptions from infrastructure/dependency planning; provide versioned permitted retrieval fixtures and relevance labels; preserve embedding dimensions, authorization and canonical storage. |
-| M3 | Supply original-media checked graph/table/equation/timestamp cases with uncertain/transcript-only variants; keep Twelve Labs roles and playback/analysis gates. |
-| M4 | Retain Groq Tutor; own offline runner, Gemini rubric adapter, custom metrics, calibration, quota/skip handling and reproducible reports; defer Prometheus-2 and keep Ragas uninstalled. |
-| M5 | Verify accessible quota/unavailable states, keyboard/text reduced modes, STOP and return; do not add judge controls, GPU setup or API keys to the client. |
+| M1 | Retain live models/budgets; keep evaluator outside routing, boot/readiness and student turns; supply sanitized traces and review isolation with M4. |
+| M2 | Review isolated Modal image/pins, credit cap, authentication and stop/resume controls with M4; provide source/version/relevance fixtures. Keep AWS GPUs and evaluator SDKs out of production. |
+| M3 | Supply original-media checked labels/values/timestamps, unreadable variants and source-checked references; preserve Twelve Labs roles. |
+| M4 | Own Prometheus-2 runner, Modal deployment source/HTTP adapter, rubric parser, calibration, result persistence and cost report. Document Lightning/Kaggle portability. |
+| M5 | Verify accessible errors, STOP, reconnect and exact return; demonstrate evaluator outage has no student-path impact; no judge credentials or controls in WPF. |
 
-See the updated [complete member prompts](../team/prompts/README.md). This
-documentation task changes no source, manifest, lock, runtime prompt or wire
-schema. It authorizes the revised plan; invoking a member prompt authorizes that
-member's implementation under the existing review controls. Package installs,
-provider calls, hardware provisioning and deployment remain separate actions.
+Use the [updated member prompts](../team/prompts/README.md). Finish local fixture
+checks and deployment preparation independently; only account/deployment/live
+checks await execution authorization. Acceptance of hosted evaluation requires an
+authorized authenticated smoke run, calibration report, measured cost and verified
+shutdown. Documentation alone does not satisfy those gates.
+
+This request updates documents only. It selects Modal hosting and the evaluator
+architecture, but does not deploy, install dependencies, download weights, enter
+payment details, spend credits or call providers. No application code, runtime
+prompt, manifest, lock or public schema changes are made here.

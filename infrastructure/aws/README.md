@@ -3,21 +3,22 @@
 ## Evaluation compute decision — 17 September 2026
 
 The user's AWS Free Plan cannot launch `g5.xlarge`; remove AWS GPU provisioning
-from the required plan rather than treating it as only a quota request. No paid
-upgrade, A100 rental or additional evaluator service is selected. Use deterministic
-and human evaluation with optional hosted Gemini scoring outside the live path;
-Prometheus-2 is deferred under the
+from the required plan rather than treating it as only a quota request. The selected
+primary model evaluator is Prometheus-2 7B on Modal using one A100 40 GB, under the
 [model/evaluation plan](../../docs/architecture/model-evaluation-plan.md).
-An A100 40 GB is only a possible later, separately authorized comparison host.
-Keep GPU dependencies outside API/worker images. This changes no EC2/Compose or
-database placement decision below and does not establish that all AWS use is free.
+Modal credit/cost caps, authentication and scale-to-zero apply; Lightning AI and
+Kaggle are alternatives. This is external offline evaluation compute only, not an
+AWS upgrade or student-path service. Keep GPU dependencies outside API/worker
+images. No deployment is performed by this documentation change. Application
+EC2/Compose and database-placement decisions below remain unchanged.
 
 ## Application deployment
 
 The [runtime baseline](../../docs/architecture/runtime-baseline.md) retains Docker
 Compose on one EC2 instance for API and worker, with the same Python baseline.
 PostgreSQL remains authoritative; private S3 owns stored source bytes; Pinecone and
-Neo4j are derived. No Kubernetes or additional deployable services are introduced.
+Neo4j are derived. No Kubernetes or additional production services are introduced;
+the isolated external evaluator is the documented exception above.
 
 The [AgentSpec](../../docs/architecture/Netra-SPEC.md) describes RDS and PgBouncer
 as its target database connection setup. The historical plan describes a Compose

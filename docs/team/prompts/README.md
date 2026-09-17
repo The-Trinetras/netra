@@ -28,13 +28,16 @@ member already implementing, apply the MODEL AND EVALUATION UPDATE section to
 their existing work without resetting, restarting or discarding changes.
 
 Keep Coordinator Gemini `gemini-3.8-flash` and Tutor Groq `openai/gpt-oss-120b`.
-Required evaluation uses deterministic/source/human checks. Optional offline
-Gemini rubric scoring is the selected new evaluation plan, not a silent live-model
-replacement. Prometheus-2/AWS GPU work is deferred; do not install Ragas. Existing
-SDK pins suffice for the planned evaluator. Free account access, quotas and live
-behaviour remain unverified; no paid fallback, downloads or provisioning are
-authorized by this documentation update. Each role owns the changes listed in its
-prompt and coordinates cross-owner boundaries as before.
+Prometheus-2 7B on Modal/A100 40 GB is now the primary model evaluator, alongside
+deterministic/source checks and human calibration. This supersedes the earlier
+Gemini/deferred-Prometheus plan. Lightning AI/Kaggle are alternative hosts; AWS
+GPU work remains excluded. M4 owns evaluation/ deployment source and HTTPX adapter;
+M2 reviews its isolated GPU environment, credit cap and lifecycle. This is a narrow
+external offline-compute exception, not a new production microservice or agent.
+GPU/Modal dependencies stay outside shared manifests/locks; Ragas stays uninstalled.
+Free account access and live behaviour remain unverified. This documentation update
+authorizes no downloads, provisioning, spending or paid overage. Each member applies
+their update section without restarting existing work or crossing owner boundaries.
 
 These are implementation tasks, not the completed documentation migration. When a
 teammate invokes a role prompt, it authorizes application code, runtime prompts,
@@ -84,7 +87,8 @@ historical plans/audits are not active requirements or current pass evidence.
 
 - Exactly two product agents, Coordinator and Tutor. No extra agent, unrestricted
   agent chat, raw database handles for agents, model-generated SQL, new framework,
-  MCP integration, microservice or Kubernetes.
+  MCP integration, production microservice or Kubernetes. The isolated external
+  Prometheus-2 evaluator follows the explicitly selected Modal plan above.
 - PostgreSQL is authoritative; private S3 stores source bytes; Pinecone/Neo4j are
   rebuildable. Enforce service-boundary authorization and authoritative evidence
   access/deletion/version checks. Source sessions stay pinned. Retrieved content

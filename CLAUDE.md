@@ -66,7 +66,10 @@ require both owners' review; speech/session integration requires M1/M5 review.
   Checkpoint replay does not establish exactly-once external effects.
 - Providers remain behind adapters. No silent provider/model/dependency changes.
   API and worker share the repository Python baseline; preserve EC2/Compose choices.
-  No Kubernetes or new services. RDS/PgBouncer alignment remains a documented decision.
+  No Kubernetes or new production services. The explicitly selected external offline
+  Prometheus-2 scorer on Modal is the narrow evaluation-compute exception; see
+  [model/evaluation plan](docs/architecture/model-evaluation-plan.md). It is not a
+  third agent or student-turn dependency. RDS/PgBouncer alignment remains a decision.
 - Accessibility is functional correctness. Keyboard/NVDA and optional speech remain;
   deferred/removed features are listed in current scope. YouTube discovery remains.
 

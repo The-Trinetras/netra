@@ -9,8 +9,9 @@
 >
 > **Evaluation superseded on 17 September 2026:** follow the
 > [model/evaluation plan](model-evaluation-plan.md). AWS GPU provisioning is no
-> longer required; Prometheus-2 is deferred. Use deterministic/human checks and
-> optional hosted Gemini rubric scoring with custom Ragas-style metrics.
+> longer required. Prometheus-2 7B on Modal/A100 40 GB is the selected primary
+> model judge, with human calibration and custom Ragas-style metrics. Lightning
+> AI and Kaggle are alternative evaluation hosts; production remains on EC2/Compose.
 
 # Netra engineering plan and team handbook 
 

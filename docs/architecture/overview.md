@@ -41,6 +41,15 @@ Coordinator execution shares a maximum of 4 model decisions, 6 total tool calls 
 
 ## Background path
 
+Offline evaluation is separate from application jobs: M4's Prometheus-2 7B scorer
+is hosted on Modal/A100 40 GB and called by evaluation tooling through an
+authenticated HTTP adapter. This is the explicitly selected external evaluation
+compute boundary, not another product agent or a production service dependency.
+No student turn, startup or readiness check waits on it. Human/source checks and
+calibration remain required; Lightning AI/Kaggle are alternative hosts. See the
+[model/evaluation plan](model-evaluation-plan.md) for credit controls and pending
+deployment gates. API/worker dependencies and EC2/Compose deployment remain intact.
+
 Authorized ingestion creates durable PostgreSQL job records. A worker claims a lease in a short transaction, commits, then performs bounded external work. It records stage results and remote operation identities for recovery. Validated content and outbox events are committed in PostgreSQL; projection work updates Pinecone/Neo4j idempotently. Required validation/indexing gates control activation of a source version. Existing reading sessions remain pinned to their selected version.
 
 Jobs execute at least once, using lease recovery and retry/backoff. External calls do not occur inside long database transactions. Projection failure leaves canonical records intact and pending work recoverable.

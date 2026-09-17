@@ -111,12 +111,14 @@ lecture acceptance fixture to test sufficient-first-result, missing-axes repair,
 unreadable evidence, exact return position, preserved attempts and assistance,
 duplicate delivery, reconnect and cancelled audio.
 
-The [17 September model/evaluation plan](model-evaluation-plan.md) removes AWS GPU
-access from the required path. Deterministic/source checks and human rubrics are
-the baseline; optional offline Gemini `gemini-3.8-flash` scoring supplements them.
-Prometheus-2 is deferred. Ragas-style metrics use repository scripts; the Ragas
-package remains dependency-blocked. Evaluators are never product agents; their
-integration is pending. See [evaluation dependencies](runtime-baseline.md#evaluation-dependencies).
+The revised [17 September model/evaluation plan](model-evaluation-plan.md) selects
+Prometheus-2 7B on Modal/A100 40 GB as the primary model judge, alongside
+deterministic/source checks and human calibration. AWS GPU access is not required;
+Lightning AI and Kaggle are explicit alternative hosts. This external offline
+scorer is not a product agent or student-turn dependency. Hosted evaluation remains
+an implementation/acceptance milestone; outage leaves it incomplete without
+blocking student operation. Ragas-style metrics use repository scripts; Ragas
+remains dependency-blocked. See [evaluation dependencies](runtime-baseline.md#evaluation-dependencies).
 A blindfolded sighted teammate exercise tests interaction only; it does not
 establish blind-student usability. Record live versus fixed/replayed responses and
 the actual checks performed. A PDF-only demonstration remains incomplete against

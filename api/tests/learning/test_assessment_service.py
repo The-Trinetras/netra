@@ -75,7 +75,15 @@ class _FakeRepository:
         return list(self._attempts)
 
     def get(self, auth, attempt_id):
-        raise NotImplementedError
+        """Mirrors the Protocol: None when unknown, AuthorizationError when
+        the attempt exists but belongs to another account."""
+
+        found = next((a for a in self._attempts if a.attempt_id == attempt_id), None)
+        if found is None:
+            return None
+        if found.account_id != auth.account_id:
+            raise AuthorizationError("attempt belongs to another account")
+        return found
 
 
 def _pending_question(**overrides):
@@ -231,16 +239,44 @@ def test_propose_event_rejects_a_question_that_is_not_pending():
         service.propose_event(auth, proposal)
 
 
-def test_propose_event_rejects_answering_an_already_answered_question():
+def test_propose_event_rejects_a_new_turn_answering_an_already_answered_question():
+    """A *different* turn (new request_id) answering a question that is no
+    longer pending is a genuine finality violation, not a replay — the
+    replay path only covers retransmission of the same logical action."""
+
     account_id = uuid4()
     service = _service(pending=[_pending_question()])
+    first_auth = _auth(account_id)
+    proposal = _answer_proposal(account_id)
+
+    service.propose_event(first_auth, proposal)  # first, legitimate answer
+
+    later_turn = AuthContext(
+        account_id=account_id,
+        session_id=first_auth.session_id,
+        request_id=uuid4(),
+        issued_at=datetime.now(timezone.utc),
+    )
+    with pytest.raises(QuestionNotPendingError):
+        service.propose_event(later_turn, proposal)
+
+
+def test_propose_event_replays_a_duplicate_submission_without_a_second_commit():
+    """The service itself is replay-safe: a duplicate delivery of the same
+    turn returns the original attempt rather than erroring on finality or
+    appending a second record."""
+
+    account_id = uuid4()
+    repository = _FakeRepository([])
+    service = LearningService(repository, _FIXTURE_POLICY, _FakePendingQuestionRepository([_pending_question()]))
     auth = _auth(account_id)
     proposal = _answer_proposal(account_id)
 
-    service.propose_event(auth, proposal)  # first, legitimate answer
+    first = service.propose_event(auth, proposal)
+    second = service.propose_event(auth, proposal)  # duplicate delivery
 
-    with pytest.raises(QuestionNotPendingError):
-        service.propose_event(auth, proposal)
+    assert first.attempt_id == second.attempt_id
+    assert len(repository.list_for_account(auth)) == 1
 
 
 def test_propose_event_rejects_a_stale_question_version():
@@ -266,15 +302,67 @@ def test_propose_event_is_replay_safe_for_a_retried_request_id():
     proposal = _answer_proposal(account_id)
 
     first = service.propose_event(auth, proposal)
-    # Re-mark pending as though the client's retry arrived before the
-    # first response did (transport-level replay, not a new question).
-    pending_repo._pending[proposal.question_id] = _pending_question()
-    pending_repo._answered.discard(proposal.question_id)
-    second = service.propose_event(auth, proposal)
+    second = service.propose_event(auth, proposal)  # retransmitted turn
 
     assert first.attempt_id == second.attempt_id
-    assert repository.append_calls == 2  # both calls reach the repository
-    assert len(repository.list_for_account(auth)) == 1  # but only one attempt is stored
+    # The replay short-circuits before the write path entirely, so the
+    # duplicate never reaches append at all — idempotency here does not
+    # depend on the repository recognising a repeated attempt_id.
+    assert repository.append_calls == 1
+    assert len(repository.list_for_account(auth)) == 1
+
+
+def test_find_committed_attempt_returns_none_before_anything_is_committed():
+    account_id = uuid4()
+    service = _service(pending=[_pending_question()])
+    assert service.find_committed_attempt(_auth(account_id), "q-1", 1) is None
+
+
+def test_find_committed_attempt_finds_this_turns_own_attempt():
+    """The replay lookup that stops a retransmission from looking like a
+    failure once propose_event has cleared the pending question."""
+
+    account_id = uuid4()
+    service = _service(pending=[_pending_question()])
+    auth = _auth(account_id)
+
+    committed = service.propose_event(auth, _answer_proposal(account_id))
+
+    found = service.find_committed_attempt(auth, "q-1", 1)
+    assert found is not None
+    assert found.attempt_id == committed.attempt_id
+
+
+def test_find_committed_attempt_does_not_match_a_different_turn():
+    """A different request_id is a different logical action, so it is a
+    genuinely new attempt rather than a replay of the previous one."""
+
+    account_id = uuid4()
+    service = _service(pending=[_pending_question()])
+    first_auth = _auth(account_id)
+    service.propose_event(first_auth, _answer_proposal(account_id))
+
+    other_turn = AuthContext(
+        account_id=account_id,
+        session_id=first_auth.session_id,
+        request_id=uuid4(),
+        issued_at=datetime.now(timezone.utc),
+    )
+    assert service.find_committed_attempt(other_turn, "q-1", 1) is None
+
+
+def test_list_attempts_for_concepts_returns_facts_in_time_order():
+    account_id = uuid4()
+    now = datetime.now(timezone.utc)
+    older = _attempt(AttemptOutcome.INCORRECT, now - timedelta(days=2), concept_id="c-1", account_id=account_id)
+    newer = _attempt(AttemptOutcome.CORRECT, now, concept_id="c-2", account_id=account_id)
+    service = _service(attempts=[newer, older])
+
+    listed = service.list_attempts_for_concepts(_auth(account_id), ["c-1", "c-2"])
+
+    assert [a.attempt_id for a in listed] == [older.attempt_id, newer.attempt_id]
+    # Facts only: no derived label is attached to the returned records.
+    assert all(not hasattr(a, "status") for a in listed)
 
 
 def test_derive_current_status_reports_attempt_count():

@@ -35,7 +35,7 @@ for the schema-gap proposal this blocks on (M1/M2/M5 review, CLAUDE.md
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import Optional, Sequence
 from uuid import UUID, uuid5
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -164,7 +164,7 @@ derived attempt_ids would stop matching on replay).
 """
 
 
-def _derive_attempt_id(request_id: UUID, question_id: str, question_version: int) -> UUID:
+def derive_attempt_id(request_id: UUID, question_id: str, question_version: int) -> UUID:
     """Deterministic, replay-safe attempt_id for one answer_evaluated commit.
 
     message-flow.md: "request_id is minted once per logical user action
@@ -252,15 +252,15 @@ class LearningService:
         1. account ownership (auth.assert_owns_account)
         2. proposal shape (_validate_proposal)
         3. representability (event_type)
-        4. question identity + finality: the target question must still
+        4. replay: a submission this same turn already committed returns
+           that attempt unchanged (see find_committed_attempt), so a
+           duplicate delivery reuses its effect rather than appending a
+           second attempt or failing the finality check below.
+        5. question identity + finality: the target question must still
            be pending for this account (QuestionNotPendingError otherwise
            — covers both "never asked"/"not yours" and "already answered")
-        5. version: the proposal must target the version actually shown
+        6. version: the proposal must target the version actually shown
            (QuestionVersionMismatchError otherwise)
-        6. replay: attempt_id is derived deterministically from
-           auth.request_id (see _derive_attempt_id), so a retried commit
-           of the same turn reaches repository.append with the same ID
-           instead of minting a new attempt.
 
         Evidence/rubric grounding is not checked here: ApprovedQuestion
         carries no evidence_refs today (see
@@ -282,6 +282,19 @@ class LearningService:
         assert proposal.outcome is not None
         assert proposal.evaluated_by is not None
 
+        # Replay before finality. A retransmitted turn has already cleared
+        # its own pending question via mark_answered below, so checking
+        # "still pending" first would reject the very submission that
+        # succeeded. Returning the original attempt is what makes a
+        # duplicate delivery reuse its effect instead of erroring, and it
+        # holds here at the authoritative layer rather than depending on
+        # every caller to check first.
+        replayed = self.find_committed_attempt(
+            auth, proposal.question_id, proposal.question_version
+        )
+        if replayed is not None:
+            return replayed
+
         pending = self._pending_question_repository.get_pending(auth, proposal.question_id)
         if pending is None:
             raise QuestionNotPendingError(proposal.question_id)
@@ -291,7 +304,7 @@ class LearningService:
             )
 
         attempt = AssessmentAttempt(
-            attempt_id=_derive_attempt_id(auth.request_id, proposal.question_id, proposal.question_version),
+            attempt_id=derive_attempt_id(auth.request_id, proposal.question_id, proposal.question_version),
             account_id=proposal.account_id,
             concept_id=proposal.concept_id,
             question_id=proposal.question_id,
@@ -307,6 +320,52 @@ class LearningService:
             auth, proposal.question_id, proposal.question_version
         )
         return committed
+
+    def find_committed_attempt(
+        self, auth: AuthContext, question_id: str, question_version: int
+    ) -> Optional[AssessmentAttempt]:
+        """Return the attempt this exact turn already committed, if any.
+
+        The replay counterpart of propose_event. Because attempt_id is
+        derived from auth.request_id (see derive_attempt_id), a
+        retransmitted turn.submit asks for the same id the first
+        transmission committed. A caller can therefore tell a genuine
+        retransmission apart from a new attempt *before* doing any work,
+        rather than discovering it at the commit.
+
+        This is what stops a retransmission from looking like an error:
+        propose_event clears the pending question via mark_answered, so a
+        replayed turn would otherwise find nothing pending and fail, even
+        though its attempt was committed successfully the first time.
+
+        Returns None when this turn has committed nothing yet. A different
+        request_id is a different turn and therefore a genuinely separate
+        attempt, never a replay of this one.
+        """
+
+        return self._repository.get(
+            auth, derive_attempt_id(auth.request_id, question_id, question_version)
+        )
+
+    def list_attempts_for_concepts(
+        self, auth: AuthContext, concept_ids: Sequence[str]
+    ) -> list[AssessmentAttempt]:
+        """Factual attempt history for the given concepts, newest last.
+
+        Returns the committed records themselves, never a derived label:
+        automatic mastery labelling is a removed requirement, so callers
+        that want to adapt teaching read what the student actually
+        answered rather than a status computed from it.
+
+        Raises whatever the repository raises when history is unavailable.
+        Callers must not treat that failure as "no history" — learning.md:
+        "An unavailable history service is not evidence of no history."
+        """
+
+        attempts: list[AssessmentAttempt] = []
+        for concept_id in concept_ids:
+            attempts.extend(self._repository.list_for_concept(auth, concept_id))
+        return sorted(attempts, key=lambda attempt: attempt.created_at)
 
     def derive_current_status(self, auth: AuthContext, concept_id: str) -> CurrentLearningStatus:
         """Read history for concept_id and derive its current LearningStatus."""

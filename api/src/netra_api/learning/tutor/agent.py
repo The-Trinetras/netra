@@ -45,7 +45,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Optional, Protocol, Sequence
+from functools import lru_cache
+from pathlib import Path
+from typing import Callable, Optional, Protocol, Sequence
 from uuid import NAMESPACE_URL, uuid5
 
 from netra_api.content.retrieval.evidence import Evidence, EvidenceResolver, resolved_evidence
@@ -61,7 +63,12 @@ from netra_api.learning.assessment.grader import (
     grade_objective_answer,
     resolve_submitted_option,
 )
-from netra_api.learning.assessment.models import AnswerSubmission, AttemptOutcome, LearningEventProposal
+from netra_api.learning.assessment.models import (
+    AnswerSubmission,
+    AssessmentAttempt,
+    AttemptOutcome,
+    LearningEventProposal,
+)
 from netra_api.learning.assessment.service import LearningService
 from netra_api.learning.quiz.generator import QuizGenerationRequest, QuizGenerator
 from netra_api.learning.quiz.models import ApprovedQuestion, QuestionDraft
@@ -71,7 +78,7 @@ from netra_api.learning.tutor.policies import assert_not_coordinator_state
 from netra_api.learning.tutor.providers.groq import GroqTutorModelConfig, GroqTutorProvider
 from netra_api.learning.tutor.state import TutorTurnState
 from netra_api.platform.auth_context import AuthContext
-from netra_api.platform.errors import TurnBudgetExceededError
+from netra_api.platform.errors import AuthorizationError, NetraError, TurnBudgetExceededError
 
 MAX_EVIDENCE_EXCERPT_CHARS = 2000
 """How much of one resolved Evidence body is placed in a prompt.
@@ -90,6 +97,32 @@ the work is already done."""
 
 MAX_DECISION_SUMMARY_CHARS = 1000
 """Mirrors TutorToCoordinatorResult.decision_summary's contract maximum."""
+
+MAX_HISTORY_ATTEMPTS_IN_CONTEXT = 5
+"""How many prior attempts are summarised into a lesson prompt.
+
+A local prompt-assembly bound, NOT approved product policy. Bounded
+because agent context must be bounded; the exact number is not a
+protocol or product value and nothing downstream reads it.
+"""
+
+TUTOR_INSTRUCTION_PATH = Path(__file__).resolve().parent / "prompts" / "tutor.md"
+
+GroundingValidator = Callable[[QuestionDraft, Sequence[Evidence]], None]
+"""Signature of the check a draft must pass before it may be approved.
+Raises when the draft may not be approved; returns None when it may."""
+
+
+@lru_cache(maxsize=1)
+def load_tutor_instruction() -> str:
+    """Read the Tutor runtime instruction from prompts/tutor.md.
+
+    The prompt file is the owned runtime artifact; this is the path that
+    actually loads it, so the instruction cannot silently be empty in
+    production. Cached because it is immutable for the process lifetime.
+    """
+
+    return TUTOR_INSTRUCTION_PATH.read_text(encoding="utf-8")
 
 
 @dataclass(frozen=True)
@@ -110,9 +143,27 @@ class TutorServices:
     """Only the check_understanding mode needs one; a caller that never
     requests a check need not supply it."""
     model_config: GroqTutorModelConfig = field(default_factory=GroqTutorModelConfig)
-    instruction: str = ""
-    """The Tutor runtime instruction (prompts/tutor.md). Passed in rather
-    than read from disk here so prompt assembly stays a pure function."""
+    instruction: str = field(default_factory=lambda: load_tutor_instruction())
+    """The Tutor runtime instruction (prompts/tutor.md).
+
+    Loaded by default rather than defaulting to "": an empty instruction
+    silently strips every teaching, grounding and answer-key-privacy rule
+    from the prompt, and nothing downstream would report that the Tutor
+    was running unguided. Tests override it with a short literal.
+    """
+    grounding_validator: GroundingValidator = validate_question_for_approval
+    """Injection seam for the OPEN evidence-grounding decision (D2).
+
+    Defaults to the production
+    netra_api.learning.quiz.validator.validate_question_for_approval,
+    which fails closed because validate_draft_is_grounded is deliberately
+    unimplemented. Tests substitute an approving validator to exercise the
+    question-delivery behaviour *downstream* of grounding.
+
+    Substituting this does NOT implement grounding and must never be
+    described as such: production keeps the fail-closed default until the
+    M3/M4 decision lands.
+    """
 
 
 class TutorAgent(Protocol):
@@ -175,6 +226,11 @@ async def run_turn(state: TutorTurnState, services: TutorServices) -> TutorToCoo
     try:
         _ensure_can_continue(state)
 
+        if state.handoff.mode == "continue_lesson" and state.handoff.pending_question is not None:
+            # Continuing a lesson while a question is outstanding is the
+            # Coordinator saying the student wants help with it, not that
+            # they answered. A hint keeps the question pending.
+            return await _run_hint(state, services)
         if state.handoff.mode in ("explain", "continue_lesson"):
             return await _run_explanation(state, services)
         if state.handoff.mode == "check_understanding":
@@ -185,6 +241,22 @@ async def run_turn(state: TutorTurnState, services: TutorServices) -> TutorToCoo
             state,
             status="failed",
             decision_summary=f"Turn budget exhausted before completion: {exhausted}",
+        )
+    except AuthorizationError:
+        # Never converted into a result. An authorization denial is not a
+        # teaching outcome, and reporting it as an ordinary failed turn
+        # would bury a security-relevant event in a status field.
+        raise
+    except NetraError as failure:
+        # A bounded failure for an adapter or service fault (provider
+        # outage, unavailable dependency). Only the exception's type is
+        # reported: its message may carry provider payload detail, which
+        # must not ride out on the result (message-flow.md's error rules —
+        # "never a stack trace, SQL detail, or provider payload").
+        return _result(
+            state,
+            status="failed",
+            decision_summary=f"Turn failed: {type(failure).__name__}.",
         )
 
 
@@ -202,7 +274,12 @@ async def _run_explanation(state: TutorTurnState, services: TutorServices) -> Tu
             decision_summary="No supplied evidence reference resolved to authorized content.",
         )
 
-    text = await _decide(state, services, _build_explanation_prompt(state.handoff, services.instruction, evidence))
+    history = _select_relevant_history(state, services)
+    text = await _decide(
+        state,
+        services,
+        _build_explanation_prompt(state.handoff, services.instruction, evidence, history),
+    )
     if not text:
         return _result(state, status="failed", decision_summary="Model returned no usable explanation text.")
 
@@ -212,6 +289,79 @@ async def _run_explanation(state: TutorTurnState, services: TutorServices) -> Tu
         segments=[PublicSegment(kind="explanation", text=text[:MAX_PUBLIC_SEGMENT_CHARS])],
         evidence=evidence,
         events=_exposure_events(state.handoff),
+    )
+
+
+async def _run_hint(state: TutorTurnState, services: TutorServices) -> TutorToCoordinatorResult:
+    """Give one targeted, evidence-grounded hint for the pending question.
+
+    Assistance, not assessment: the question stays pending, no attempt is
+    recorded, and the student keeps their opportunity to answer. The hint
+    is attributed to the question it belongs to through the preserved
+    pending_question_id, and to the eventual attempt through
+    PendingQuestionRef.hints_used, which the Session service increments
+    and which _run_evaluate_answer copies onto the committed attempt — so
+    an assisted attempt stays distinguishable from an independent one
+    (learning.md: "Preserve assisted versus independent attempts").
+
+    The answer key and rubric are structurally excluded from the hint
+    prompt: _build_hint_prompt receives the question's public prompt text,
+    never the ApprovedQuestion. A hint cannot leak a reference answer that
+    was never put in front of the model.
+    """
+
+    pending_ref = state.handoff.pending_question
+    assert pending_ref is not None  # guarded by the caller's dispatch
+
+    _ensure_can_continue(state)
+    state.budget.register_tool_call()
+    question = services.pending_questions.get_pending(state.auth, pending_ref.question_id)
+    if question is None:
+        return _result(
+            state,
+            status="failed",
+            decision_summary="The referenced question is not pending for this account.",
+        )
+    if question.question_version != pending_ref.question_version:
+        return _result(
+            state,
+            status="failed",
+            decision_summary=(
+                f"Pending question is at version {question.question_version}; "
+                f"the handoff targets version {pending_ref.question_version}."
+            ),
+        )
+
+    evidence = _resolve_evidence(state, services)
+    if not evidence:
+        return _result(
+            state,
+            status="needs_more_evidence",
+            decision_summary="No supplied evidence reference resolved; cannot ground a hint.",
+        )
+
+    text = await _decide(
+        state,
+        services,
+        _build_hint_prompt(
+            state.handoff, services.instruction, evidence, question.prompt, pending_ref.hints_used
+        ),
+    )
+    if not text:
+        return _result(state, status="failed", decision_summary="Model returned no usable hint text.")
+
+    return _result(
+        state,
+        status="awaiting_student_answer",
+        segments=[PublicSegment(kind="hint", text=text[:MAX_PUBLIC_SEGMENT_CHARS])],
+        evidence=evidence,
+        # Proposed on the wire only. Committing assistance durably needs
+        # the factual-history record that AssessmentAttempt cannot
+        # represent (docs/team/handoffs/M4.md, D3); the Session service
+        # owns the hints_used counter in the meantime.
+        events=[ProposedLearningEvent(event_type="hint_used", concept_id=question.concept_id)],
+        pending_question_id=question.question_id,
+        decision_summary="Delivered one hint; question remains pending and no attempt was recorded.",
     )
 
 
@@ -264,9 +414,10 @@ async def _run_check_understanding(
         )
     )
 
-    # Structural validation AND evidence grounding. Grounding is the
-    # documented fail-closed gap; nothing below runs until it is decided.
-    validate_question_for_approval(draft, evidence)
+    # Structural validation AND evidence grounding. The default validator
+    # is the production one, which fails closed on the open grounding
+    # decision; nothing below runs until that decision lands.
+    services.grounding_validator(draft, evidence)
 
     question = ApprovedQuestion(
         question_id=_derive_question_id(state.handoff, concept_id),
@@ -316,6 +467,22 @@ async def _run_evaluate_answer(
             status="failed",
             decision_summary="evaluate_answer requires handoff.pending_question; none was supplied.",
         )
+
+    # Replay check FIRST, before any grading work. A retransmitted turn
+    # carries the same request_id, so the attempt it already committed is
+    # findable up front (message-flow.md: "Replayed proposals must not
+    # append another attempt"). Without this the retransmission would find
+    # the question no longer pending — propose_event cleared it via
+    # mark_answered — and report a spurious failure for a turn that
+    # actually succeeded. Checking here also means a replay costs no model
+    # decision and no second grade.
+    _ensure_can_continue(state)
+    state.budget.register_tool_call()
+    already_committed = services.learning_service.find_committed_attempt(
+        state.auth, pending_ref.question_id, pending_ref.question_version
+    )
+    if already_committed is not None:
+        return _replayed_result(state, already_committed)
 
     _ensure_can_continue(state)
     state.budget.register_tool_call()
@@ -435,6 +602,86 @@ async def _run_evaluate_answer(
 # --- bounded steps ---------------------------------------------------------
 
 
+@dataclass(frozen=True)
+class RelevantHistory:
+    """Factual prior attempts for this lesson's concepts, plus whether the
+    history service could be reached at all.
+
+    `available` is not a convenience flag. learning.md: "An unavailable
+    history service is not evidence of no history." Collapsing a failed
+    lookup into an empty list would let the Tutor teach as though the
+    student had never attempted anything — a negative claim the system
+    never established. The two states are therefore kept distinct all the
+    way into the prompt text.
+    """
+
+    attempts: tuple[AssessmentAttempt, ...]
+    available: bool
+
+
+def _select_relevant_history(state: TutorTurnState, services: TutorServices) -> RelevantHistory:
+    """Read committed attempts for the handoff's target concepts.
+
+    Returns facts (what was answered, what outcome was recorded, how much
+    assistance was used), never a derived label — automatic mastery
+    labelling is a removed requirement, so nothing here calls
+    derive_status_from_history.
+
+    An AuthorizationError is deliberately NOT swallowed: that would be a
+    real defect in how this turn was scoped, not an unavailable service.
+    """
+
+    if not state.handoff.target_concept_ids:
+        return RelevantHistory(attempts=(), available=True)
+
+    _ensure_can_continue(state)
+    state.budget.register_tool_call()
+    try:
+        attempts = services.learning_service.list_attempts_for_concepts(
+            state.auth, list(state.handoff.target_concept_ids)
+        )
+    except (AuthorizationError, TurnBudgetExceededError):
+        # Neither is a history-availability signal: the first is a scoping
+        # defect and the second is turn control flow. Only a genuine
+        # history-service failure becomes available=False.
+        raise
+    except NetraError:
+        return RelevantHistory(attempts=(), available=False)
+
+    return RelevantHistory(
+        attempts=tuple(attempts[-MAX_HISTORY_ATTEMPTS_IN_CONTEXT:]), available=True
+    )
+
+
+def _format_history(history: RelevantHistory) -> str:
+    """Render history as exact facts, keeping "unknown" distinct from "none".
+
+    Exact canonical facts stay outside any summary (current-scope.md), so
+    each attempt contributes the student's own answer text and the
+    recorded outcome rather than a characterisation of them.
+    """
+
+    if not history.available:
+        return (
+            "Earlier attempt history could not be retrieved for this turn. "
+            "Do not assume the student has, or has not, worked on this before, "
+            "and do not refer to their history."
+        )
+    if not history.attempts:
+        return "No earlier attempts are recorded for these concepts."
+
+    lines = []
+    for attempt in history.attempts:
+        assistance = (
+            f", after {attempt.hints_used} hint(s)" if attempt.hints_used else ", unassisted"
+        )
+        lines.append(
+            f'- On question {attempt.question_id} the student answered '
+            f'"{attempt.answer.final_text}"; recorded outcome: {attempt.outcome.value}{assistance}.'
+        )
+    return "Earlier recorded attempts (facts, not conclusions about the student):\n" + "\n".join(lines)
+
+
 def _ensure_can_continue(state: TutorTurnState) -> None:
     """Cancellation/deadline/counter check before every dispatch."""
 
@@ -508,6 +755,14 @@ def _parse_verdict(raw_text: str) -> tuple[Optional[str], str]:
     returns (None, ...) so the caller fails closed rather than inferring a
     grade from prose — a misread verdict writes a wrong fact into
     append-only assessment history.
+
+    This is a STRUCTURAL check only. A parsed verdict means the model
+    answered in the required shape; it establishes nothing about whether
+    the grade or the feedback is actually supported by the source. Nothing
+    in this module can establish that — it needs source review against the
+    original material and the open evidence-grounding decision (see
+    docs/team/handoffs/M4.md). Do not read a successful parse as evidence
+    of a correct assessment.
     """
 
     lines = raw_text.strip().splitlines()
@@ -554,6 +809,30 @@ def _result(
         evidence_ids=seen,
         proposed_learning_events=list(events),
         decision_summary=decision_summary[:MAX_DECISION_SUMMARY_CHARS] if decision_summary else None,
+    )
+
+
+def _replayed_result(state: TutorTurnState, attempt: AssessmentAttempt) -> TutorToCoordinatorResult:
+    """Report an attempt this turn already committed, without re-committing.
+
+    The same attempt_id goes back out, so the Coordinator sees the effect
+    of the original submission rather than a second one. No feedback text
+    is reproduced: the feedback was delivered with the first response and
+    is not stored, and inventing replacement wording here would be
+    fabricating teaching content the student never received.
+    """
+
+    return _result(
+        state,
+        status="completed",
+        events=[
+            ProposedLearningEvent(
+                event_type="answer_evaluated",
+                concept_id=attempt.concept_id,
+                attempt_id=str(attempt.attempt_id),
+            )
+        ],
+        decision_summary="Replay of an already-committed attempt; nothing was committed again.",
     )
 
 
@@ -627,7 +906,10 @@ def _format_dialogue(handoff: CoordinatorToTutorHandoff) -> str:
 
 
 def _build_explanation_prompt(
-    handoff: CoordinatorToTutorHandoff, instruction: str, evidence: Sequence[Evidence]
+    handoff: CoordinatorToTutorHandoff,
+    instruction: str,
+    evidence: Sequence[Evidence],
+    history: RelevantHistory,
 ) -> str:
     return "\n\n".join(
         part
@@ -636,8 +918,39 @@ def _build_explanation_prompt(
             f"Learning goal: {handoff.learning_goal}",
             f"Explanation level: {handoff.explanation_level}",
             f"Evidence:\n{_format_evidence(evidence)}",
+            _format_history(history),
             f"Recent dialogue:\n{_format_dialogue(handoff)}" if handoff.recent_dialogue else "",
             f"The student said: {handoff.original_utterance}",
+        )
+        if part
+    )
+
+
+def _build_hint_prompt(
+    handoff: CoordinatorToTutorHandoff,
+    instruction: str,
+    evidence: Sequence[Evidence],
+    question_prompt: str,
+    hints_already_given: int,
+) -> str:
+    """Assemble the hint prompt.
+
+    Takes the question's public prompt text, not the ApprovedQuestion:
+    the answer key and rubric are never in scope for a hint, so there is
+    no path by which this prompt can contain them.
+    """
+
+    return "\n\n".join(
+        part
+        for part in (
+            instruction,
+            f"Evidence:\n{_format_evidence(evidence)}",
+            f"The student is working on this question: {question_prompt}",
+            f"Hints already given for it: {hints_already_given}",
+            f"Recent dialogue:\n{_format_dialogue(handoff)}" if handoff.recent_dialogue else "",
+            f"The student said: {handoff.original_utterance}",
+            "Give one hint that moves them forward using the evidence. "
+            "Do not state the answer, and do not ask a new question.",
         )
         if part
     )

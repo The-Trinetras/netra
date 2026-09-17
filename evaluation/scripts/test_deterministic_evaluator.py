@@ -132,6 +132,70 @@ def test_unknown_rubric_id_fails_closed():
         evaluator.evaluate(case, _result())
 
 
+RUBRICS_DIR = REPO_ROOT / "evaluation" / "rubrics"
+CASES_DIR = REPO_ROOT / "evaluation" / "cases"
+
+
+def test_committed_tutor_core_rubric_loads_and_every_criterion_is_registered():
+    """The shipped rubric may only reference checks that actually exist —
+    otherwise a run would fail closed at grading time instead of here."""
+
+    rubric = Rubric.model_validate(json.loads((RUBRICS_DIR / "tutor_core.json").read_text()))
+
+    assert rubric.rubric_id == "tutor-core"
+    for criterion in rubric.criteria:
+        assert criterion.criterion_id in DETERMINISTIC_CRITERIA
+
+
+def test_committed_ohms_law_case_grades_against_the_committed_rubric():
+    """End-to-end over real data files: the Ohm's Law case, the shipped
+    rubric, and a result that cites the case's own evidence."""
+
+    case = EvaluationCase.model_validate(
+        json.loads((CASES_DIR / "ohms_law_explain_case.json").read_text())
+    )
+    rubric = Rubric.model_validate(json.loads((RUBRICS_DIR / "tutor_core.json").read_text()))
+    evaluator = DeterministicTutorEvaluator(rubrics={rubric.rubric_id: rubric})
+
+    graded = evaluator.evaluate(
+        case,
+        TutorToCoordinatorResult(
+            handoff_id=uuid4(),
+            status="completed",
+            public_segments=[
+                {
+                    "kind": "explanation",
+                    "text": "The graph puts current on the x-axis and voltage on the y-axis, "
+                    "and the line rises 2 volts per ampere.",
+                }
+            ],
+            evidence_ids=["ev-ohm-graph", "ev-ohm-equation"],
+            proposed_learning_events=[
+                {"event_type": "concept_exposed", "concept_id": "concept-ohms-law"}
+            ],
+        ),
+    )
+
+    assert graded.passed is True
+    assert graded.rubric_version == rubric.rubric_version
+
+
+def test_ohms_law_source_fixture_matches_the_spec_acceptance_values():
+    """Guards the fixture against drift from the AgentSpec values that
+    docs/team/integration-checklist.md pins: (1 A, 2 V), (2 A, 4 V),
+    (3 A, 6 V), current on x, voltage on y, V = I x R."""
+
+    fixture = json.loads((CASES_DIR / "ohms_law_source.json").read_text())
+    by_id = {item["evidence_id"]: item["text"] for item in fixture["evidence"]}
+
+    assert fixture["fixture_kind"] == "source_evidence"
+    for pair in ("1 A, 2 V", "2 A, 4 V", "3 A, 6 V"):
+        assert pair in by_id["ev-ohm-table"]
+    assert "current on the horizontal x-axis" in by_id["ev-ohm-graph"]
+    assert "voltage on the vertical y-axis" in by_id["ev-ohm-graph"]
+    assert "V = I x R" in by_id["ev-ohm-equation"]
+
+
 def test_unregistered_criterion_id_fails_closed():
     case = _case()
     rubric = _rubric("no-such-check")

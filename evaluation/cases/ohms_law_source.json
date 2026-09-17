@@ -1,0 +1,38 @@
+{
+  "fixture_id": "ohms-law-chapter-4",
+  "fixture_kind": "source_evidence",
+  "fixture_kind_note": "SOURCE FIXTURE. This stands in for authoritative content that ingestion would have produced from a real textbook source version, and it is what an EvidenceResolver double returns. It is NOT a provider-response double: nothing here represents model output. Provider-response doubles live in test modules, are named *Provider, and carry text a model would have generated.",
+  "spec_reference": "docs/architecture/Netra-SPEC.md acceptance fixture, via docs/team/integration-checklist.md: current on x, voltage on y; rows (1 A, 2 V), (2 A, 4 V), (3 A, 6 V); V = I x R.",
+  "source_version_id": "6f9c1b52-0d34-4a7e-9d21-7c4f5a2b8e10",
+  "resistance_ohms": 2,
+  "evidence": [
+    {
+      "evidence_id": "ev-ohm-passage",
+      "locator": "chapter 4, page 12",
+      "provenance": "Introductory Circuits, chapter 4 'Resistance'",
+      "trust": "source_verified",
+      "text": "Ohm's law relates the voltage across a resistor to the current through it. For a fixed resistance, voltage rises in direct proportion to current. The constant of proportionality is the resistance itself, measured in ohms."
+    },
+    {
+      "evidence_id": "ev-ohm-table",
+      "locator": "chapter 4, table 4.1",
+      "provenance": "Introductory Circuits, table 4.1 'Measured values for a 2 ohm resistor'",
+      "trust": "source_verified",
+      "text": "Table 4.1, measured values for a single resistor. Column headings: current in amperes, voltage in volts. Row 1: 1 A, 2 V. Row 2: 2 A, 4 V. Row 3: 3 A, 6 V."
+    },
+    {
+      "evidence_id": "ev-ohm-graph",
+      "locator": "chapter 4, figure 4.2",
+      "provenance": "Introductory Circuits, figure 4.2",
+      "trust": "derived",
+      "text": "Figure 4.2 plots the values of table 4.1 with current on the horizontal x-axis in amperes and voltage on the vertical y-axis in volts. The plotted points lie on a straight line passing through the origin. The line rises by 2 volts for every 1 ampere, so its slope is 2 volts per ampere."
+    },
+    {
+      "evidence_id": "ev-ohm-equation",
+      "locator": "chapter 4, equation 4.3",
+      "provenance": "Introductory Circuits, equation 4.3",
+      "trust": "source_verified",
+      "text": "Equation 4.3 states V = I x R, read as voltage equals current multiplied by resistance. Rearranged, R = V / I."
+    }
+  ]
+}

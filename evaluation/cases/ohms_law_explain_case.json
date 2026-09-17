@@ -1,0 +1,43 @@
+{
+  "case_id": "ohms-law-explain",
+  "rubric_id": "tutor-core",
+  "notes": "Deterministic teaching case built on the ohms_law_source.json SOURCE fixture. The student asks what the graph shows; a correct result must cite the supplied evidence and stay on the handoff's target concept. Grading a Tutor result against this case checks structure and provenance only - see tutor_core.json's scope_note.",
+  "handoff": {
+    "handoff_version": "1.0",
+    "handoff_id": "b71d4c90-5f2a-4d18-8e63-000000000041",
+    "request_id": "c2a4e6f8-1b3d-4e5a-9c7b-000000000042",
+    "session_id": "d3b5f7a9-2c4e-4f6b-8d1c-000000000043",
+    "lesson_id": "e4c6a8b0-3d5f-4a7c-9e2d-000000000044",
+    "mode": "explain",
+    "learning_goal": "Read the current-voltage graph and connect its slope to V = I x R.",
+    "original_utterance": "What does the graph in figure 4.2 actually show?",
+    "target_concept_ids": ["concept-ohms-law"],
+    "explanation_level": "standard",
+    "evidence_refs": [
+      {
+        "evidence_id": "ev-ohm-graph",
+        "source_version_id": "6f9c1b52-0d34-4a7e-9d21-7c4f5a2b8e10",
+        "evidence_version": 1
+      },
+      {
+        "evidence_id": "ev-ohm-table",
+        "source_version_id": "6f9c1b52-0d34-4a7e-9d21-7c4f5a2b8e10",
+        "evidence_version": 1
+      },
+      {
+        "evidence_id": "ev-ohm-equation",
+        "source_version_id": "6f9c1b52-0d34-4a7e-9d21-7c4f5a2b8e10",
+        "evidence_version": 1
+      }
+    ],
+    "recent_dialogue": [
+      {
+        "role": "student",
+        "content": "What does the graph in figure 4.2 actually show?"
+      }
+    ],
+    "assessment_summaries": [],
+    "pending_question": null,
+    "deadline_at": "2026-09-17T10:15:20Z"
+  }
+}

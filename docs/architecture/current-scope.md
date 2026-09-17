@@ -113,7 +113,8 @@ duplicate delivery, reconnect and cancelled audio.
 
 Ragas and Prometheus-2 are secondary evaluation tools, never product agents. Their
 integration is pending; model scores supplement source review and deterministic
-checks. A blindfolded sighted teammate exercise tests interaction only; it does not
+checks. The Ragas package itself is dependency-blocked; see
+[evaluation dependencies](runtime-baseline.md#evaluation-dependencies). A blindfolded sighted teammate exercise tests interaction only; it does not
 establish blind-student usability. Record live versus fixed/replayed responses and
 the actual checks performed. A PDF-only demonstration remains incomplete against
 the video target. See the [integration checklist](../team/integration-checklist.md).

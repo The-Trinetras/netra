@@ -1,0 +1,24 @@
+<UserControl x:Class="Netra.Desktop.Views.PreferencesView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <StackPanel Margin="12">
+        <TextBlock Text="Preferences and status" FontSize="16" Margin="0,0,0,12" />
+
+        <TextBlock AutomationProperties.Name="Connection state" Margin="0,0,0,4">
+            <Run Text="Connection: " FontWeight="Bold" />
+            <Run Text="{Binding ConnectionState, Mode=OneWay}" />
+        </TextBlock>
+
+        <TextBlock AutomationProperties.Name="Interaction mode" Margin="0,0,0,4">
+            <Run Text="Mode: " FontWeight="Bold" />
+            <Run Text="{Binding InteractionMode, Mode=OneWay}" />
+        </TextBlock>
+
+        <TextBlock AutomationProperties.LiveSetting="Polite"
+                   AutomationProperties.Name="Data source notice"
+                   Margin="0,8,0,0" TextWrapping="Wrap">
+            <Run Text="Fixture data — not a live server response. Library and Study content shown here is a labelled fixture, per docs/team/handoffs/M5.md." />
+        </TextBlock>
+    </StackPanel>
+</UserControl>

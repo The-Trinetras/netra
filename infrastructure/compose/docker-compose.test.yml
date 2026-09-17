@@ -1,0 +1,18 @@
+services:
+  postgres-test:
+    image: postgres:17.11
+    environment:
+      POSTGRES_DB: ${NETRA_TEST_POSTGRES_DB:-netra_test}
+      POSTGRES_USER: ${NETRA_TEST_POSTGRES_USER:-netra_test}
+      POSTGRES_PASSWORD: ${NETRA_TEST_POSTGRES_PASSWORD:-netra_test_local_only}
+    ports:
+      - "127.0.0.1:55432:5432"
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+      start_period: 3s
+    restart: "no"

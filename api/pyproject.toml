@@ -6,8 +6,7 @@
 #     the shared CPython version, and the pytest configuration for the
 #     whole monorepo. Do not restate a dependency version here; two
 #     sources of truth is exactly what that section forbids.
-#   - The committed uv.lock (not yet present) owns exact resolved
-#     versions.
+#   - The committed ROOT uv.lock owns exact resolved versions.
 #   - This file owns the API deployable's own identity and documents how
 #     it is installed and run.
 #

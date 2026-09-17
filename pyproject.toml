@@ -45,6 +45,14 @@ dependencies = [
     # S3 object storage (approved pin, 2026-09-12; see runtime-baseline.md
     # "exact... S3 SDK selection" — this is that decision)
     "boto3==1.43.92",
+
+    # Deterministic local token counting for structure-aware chunk budgeting
+    "tokenizers==0.23.2",
+
+    # Local normal-PDF extraction boundary (Stage C)
+    "PyMuPDF==1.28.2",
+    # Local BGE cross-encoder reranking (M2)
+    "FlagEmbedding==1.4.2",
 ]
 
 [dependency-groups]
@@ -63,6 +71,9 @@ exclude-newer = "2026-09-12T00:00:00Z"
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 asyncio_default_test_loop_scope = "function"
+markers = [
+    "integration: requires an explicitly available external or local infrastructure service",
+]
 
 # Every Python test root in the monorepo. "tests/" holds the cross-cutting
 # acceptance/contract/integration suites; the per-deployable suites live

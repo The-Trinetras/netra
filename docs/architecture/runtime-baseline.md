@@ -2,8 +2,8 @@
 
 Review cutoff: 11 September 2026.
 
-Status: Release and declared dependency metadata checked.
-Full dependency locking, installation and integration tests remain pending.
+Status: Release metadata, declared constraints and the shared Python lock checked.
+External-service integration validation remains environment-dependent.
 
 Read [current scope](current-scope.md) for product authority and the active
 [architecture overview](overview.md) for preserved boundaries. The original
@@ -45,8 +45,9 @@ Record the Tesseract binary build and OCR language-data versions.
 ## Dependency authority
 
 pyproject.toml defines approved constraints.
-A committed uv.lock must define exact direct and transitive Python versions;
-no uv.lock exists in this checkout. Full locking remains pending.
+The committed root uv.lock defines exact direct and transitive Python versions
+for the shared API/worker environment. Deployables must not maintain independent
+lockfiles.
 global.json defines the .NET SDK.
 Committed NuGet declarations and lockfiles govern desktop package versions
 when present; no NuGet lockfile exists in this checkout.
@@ -69,11 +70,7 @@ Provider pins:
 - twelvelabs==1.3.4
 - tavily-python==0.7.27
 - llama-cloud==2.14.1
-- boto3==1.43.92 (approved 2026-09-12; declared in pyproject.toml. uv.lock
-  regeneration is blocked because uv is not installed in this environment —
-  pip dry-run resolution confirmed the pin and its full dependency set
-  resolve cleanly, so the pin itself is not in question, only the lockfile
-  mechanics.)
+- boto3==1.43.92
 
 Jina Reader/HTTPX is a historical general-web integration choice; general web
 ingestion is deferred. Tavily discovery remains relevant to in-scope YouTube search.
@@ -149,7 +146,7 @@ Status (2026-09-17): the Ragas package is not approved and must not be added.
 
 When dependency setup is explicitly requested:
 
-- Resolve and commit the full Python lock without pre-releases.
+- Validate changes to the committed root Python lock without pre-releases.
 - Validate installation on the actual deployment Python/platform.
 - Record and verify image digests.
 - Run API/WebSocket, migration, async database and checkpoint-resume checks.

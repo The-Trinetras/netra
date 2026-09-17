@@ -71,6 +71,7 @@ exclude-newer = "2026-09-12T00:00:00Z"
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 asyncio_default_test_loop_scope = "function"
+addopts = "-m 'not integration'"
 markers = [
     "integration: requires an explicitly available external or local infrastructure service",
 ]

@@ -43,10 +43,8 @@ class ResultSet(BaseModel):
     Bounded and short-lived: this is not a search history log. A newer
     completed search replaces the session's last_result_set reference;
     this row simply becomes unreferenced and eligible for cleanup after
-    its TTL. Superseding a *pending* result set (a search still forming
-    its response) is a race the response formatter must avoid by writing
-    this row once atomically before it is referenced from SessionState,
-    not something this model resolves.
+    its TTL. The row is written once, before the session references it,
+    so a snapshot can never point at a list still being formed.
     """
 
     result_set_id: UUID
@@ -62,19 +60,14 @@ class ResultSet(BaseModel):
 
 
 class ResultSetRepository(Protocol):
-    """Typed contract for creating and resolving stored result sets.
+    """Typed contract for creating and resolving stored result sets."""
 
-    A concrete PostgreSQL-backed implementation is added alongside the
-    result_sets table migration, not here (CLAUDE.md: agents/services
-    never hold raw database connections outside their owning module).
-    """
-
-    def create(self, result_set: ResultSet) -> ResultSet:
+    async def create(self, result_set: ResultSet) -> ResultSet:
         ...
 
-    def get(self, session_id: UUID, result_set_id: UUID) -> Optional[ResultSet]:
+    async def get(self, session_id: UUID, result_set_id: UUID, now: datetime) -> Optional[ResultSet]:
         """Return the result set if it exists, belongs to session_id, and has
-        not expired; otherwise None. A None here is a stale-reference case
-        for the caller to report as RESOURCE_UNAVAILABLE/STALE_REQUEST —
-        never silently resolved against a different list."""
+        not expired at ``now``; otherwise None. A None here is a stale-reference
+        case for the caller to report as STALE_REQUEST — never silently
+        resolved against a different list."""
         ...

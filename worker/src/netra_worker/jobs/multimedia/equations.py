@@ -1,30 +1,56 @@
 """Multimedia job: extract a navigable equation tree for one equation.
 
-Delegates equation-tree extraction to a provider behind an interface
-(not decided here); persists through an equations repository (not yet
-defined). Must not hold a PostgreSQL transaction open while awaiting
-the provider call (CLAUDE.md "Background jobs"). Produces a candidate
-tree only — netra_api.multimedia.equations.service registers it as
-citable DERIVED evidence, not this job (CLAUDE.md "Agents never own
-database connections").
+Produces a candidate tree only — netra_api.multimedia.equations.service
+registers it as citable DERIVED evidence, not this job.
+
+The publish refusal in netra_worker.jobs.multimedia.extraction matters
+most here. An equation tree that parses is not an equation that was read
+correctly (multimedia.md: "Successful syntax conversion does not prove
+the source was read correctly"), so a tree whose canonical form was
+never compared to the source crop is stored but not citable.
 """
 
 from __future__ import annotations
 
-from netra_worker.jobs.multimedia.base import MultimediaJobPayload
+from typing import Optional
+
+from netra_worker.jobs.multimedia.base import CancellationToken, Deadline, StageRecorder
+from netra_worker.jobs.multimedia.extraction import (
+    ExtractedObjectKind,
+    ExtractionCandidateSink,
+    ExtractObjectJob,
+    ExtractObjectPayload,
+    ObjectExtractionPort,
+)
 
 
-class ExtractEquationPayload(MultimediaJobPayload):
-    equation_index: int
-    object_key: str
+class ExtractEquationPayload(ExtractObjectPayload):
+    """One equation within a source version."""
+
+    @property
+    def equation_index(self) -> int:
+        return self.object_index
 
 
-class ExtractEquationJob:
-    """Structurally implements netra_worker.runtime.job_repository.JobHandler[ExtractEquationPayload].
+class ExtractEquationJob(ExtractObjectJob):
+    """Structurally implements JobHandler[ExtractEquationPayload]."""
 
-    TODO: inject an equation-extraction provider + persistence store
-    once provider wiring for worker/ is decided.
-    """
-
-    async def handle(self, payload: ExtractEquationPayload) -> None:
-        raise NotImplementedError("TODO: extract_equation — no equation provider call implemented")
+    def __init__(
+        self,
+        extraction: ObjectExtractionPort,
+        sink: ExtractionCandidateSink,
+        recorder: StageRecorder,
+        *,
+        cancellation: Optional[CancellationToken] = None,
+        deadline: Optional[Deadline] = None,
+        stage_timeout_seconds: float = 90.0,
+    ) -> None:
+        super().__init__(
+            extraction,
+            sink,
+            recorder,
+            kind=ExtractedObjectKind.EQUATION,
+            cancellation=cancellation,
+            deadline=deadline,
+            stage_timeout_seconds=stage_timeout_seconds,
+        )

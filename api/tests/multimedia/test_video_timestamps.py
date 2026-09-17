@@ -21,10 +21,17 @@ def test_duration_ms_computes_range_length():
     assert duration_ms(reference) == 3500
 
 
-def test_duration_ms_rejects_end_before_start():
-    reference = _reference(uuid4(), "video-1", 5000, 1000)
+def test_an_inverted_range_is_rejected_when_the_reference_is_built():
+    """The invariant now fails at construction rather than at first use.
+
+    A reference whose range runs backwards cannot cite anything, so
+    letting one exist and rejecting it later left every consumer
+    responsible for re-checking. duration_ms keeps its own guard as
+    defence in depth; nothing can reach it with a bad range any more.
+    """
+
     with pytest.raises(ValueError):
-        duration_ms(reference)
+        _reference(uuid4(), "video-1", 5000, 1000)
 
 
 def test_overlaps_true_for_intersecting_ranges_in_same_video():

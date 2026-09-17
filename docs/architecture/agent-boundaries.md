@@ -72,5 +72,7 @@ compaction cannot replace canonical positions, pending questions or assistance
 records. Trace observable actions and results, never private chain of thought.
 
 The AgentSpec proposes 8/12/45 limits and a two-revision cap; neither supersedes
-the approved 4/6/20 baseline. See [current scope](current-scope.md). Ragas and
-Prometheus-2 are secondary evaluators, not additional agents.
+the approved 4/6/20 baseline. See [current scope](current-scope.md). Optional offline
+Gemini scoring and custom Ragas-style metrics follow the
+[model/evaluation plan](model-evaluation-plan.md); Prometheus-2 is deferred.
+Evaluators are not additional agents and never direct student turns.

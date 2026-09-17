@@ -1,5 +1,19 @@
 # Deployment documentation
 
+## Evaluation compute decision — 17 September 2026
+
+The user's AWS Free Plan cannot launch `g5.xlarge`; remove AWS GPU provisioning
+from the required plan rather than treating it as only a quota request. No paid
+upgrade, A100 rental or additional evaluator service is selected. Use deterministic
+and human evaluation with optional hosted Gemini scoring outside the live path;
+Prometheus-2 is deferred under the
+[model/evaluation plan](../../docs/architecture/model-evaluation-plan.md).
+An A100 40 GB is only a possible later, separately authorized comparison host.
+Keep GPU dependencies outside API/worker images. This changes no EC2/Compose or
+database placement decision below and does not establish that all AWS use is free.
+
+## Application deployment
+
 The [runtime baseline](../../docs/architecture/runtime-baseline.md) retains Docker
 Compose on one EC2 instance for API and worker, with the same Python baseline.
 PostgreSQL remains authoritative; private S3 owns stored source bytes; Pinecone and

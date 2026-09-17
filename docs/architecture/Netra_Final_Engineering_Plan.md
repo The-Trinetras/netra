@@ -6,6 +6,11 @@
 > interruption, sonification and specialist features are not current assignments.
 > Existing architecture/security boundaries survive unless explicitly superseded;
 > historical examples never override committed contracts.
+>
+> **Evaluation superseded on 17 September 2026:** follow the
+> [model/evaluation plan](model-evaluation-plan.md). AWS GPU provisioning is no
+> longer required; Prometheus-2 is deferred. Use deterministic/human checks and
+> optional hosted Gemini rubric scoring with custom Ragas-style metrics.
 
 # Netra engineering plan and team handbook 
 

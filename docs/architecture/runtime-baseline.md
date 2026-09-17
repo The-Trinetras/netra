@@ -131,19 +131,27 @@ Status (2026-09-17): the Ragas package is not approved and must not be added.
 - Ragas 0.2.3 through 0.4.3 are reported as affected by an unfixed SSRF advisory
   (the advisory was reported during dependency review, not re-verified here).
   Ragas 0.4.3 would also downgrade the resolved rich 15.0.0 to 14.3.4.
-- No existing pin changes. Prometheus-2 needs no new Python dependency: its
-  adapter uses the existing httpx pin. vLLM, prometheus-eval, torch and
-  transformers stay in the pinned evaluator container on the temporary GPU host
-  and must not be added to pyproject.toml.
+- No existing pin changes. The selected optional offline judge is Gemini
+  `gemini-3.8-flash` through an evaluation-owned adapter using the existing
+  `google-genai==2.21.0` pin. The adapter/runner is pending implementation;
+  this is not authorization for installation or live calls.
+- Prometheus-2 is deferred, not an AWS GPU requirement. If separately authorized
+  later, its HTTP adapter can use existing httpx; vLLM, prometheus-eval, torch and
+  transformers stay outside the shared API/worker dependencies.
 - Until an exception is approved, implement the secondary retrieval-and-answer
   metrics (for example faithfulness, context precision/recall and answer
   relevance) as M4 evaluation scripts. Use Ragas metric definitions as reference
-  only, and score through the Prometheus-2 adapter plus deterministic checks.
+  only. Run deterministic/source and human checks first, with optional Gemini
+  rubric scoring. Report custom metrics as Ragas-style, not an executed Ragas run.
 - Reopening requires explicit approval of one of these: a patched Ragas release
   without mandatory OpenAI/full-LangChain dependencies, or an explicit exception
   for a named version and its transitive set. With that exception, OpenAI must
   never be configured as judge or embedding model.
-- The Prometheus-2 blocker is AWS GPU quota, not dependency resolution.
+- The user reports AWS Free Plan instance eligibility prevents `g5.xlarge` use;
+  this is not a quota-only blocker. No AWS GPU provisioning or paid-plan upgrade
+  is required. See the [17 September model/evaluation decision](model-evaluation-plan.md)
+  for the selected models, free-tier evidence, quota/privacy controls and optional
+  later hardware comparison. Deterministic/human evaluation needs no judge API.
 
 ## Completing the freeze
 

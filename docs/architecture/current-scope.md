@@ -111,10 +111,13 @@ lecture acceptance fixture to test sufficient-first-result, missing-axes repair,
 unreadable evidence, exact return position, preserved attempts and assistance,
 duplicate delivery, reconnect and cancelled audio.
 
-Ragas and Prometheus-2 are secondary evaluation tools, never product agents. Their
-integration is pending; model scores supplement source review and deterministic
-checks. The Ragas package itself is dependency-blocked; see
-[evaluation dependencies](runtime-baseline.md#evaluation-dependencies). A blindfolded sighted teammate exercise tests interaction only; it does not
+The [17 September model/evaluation plan](model-evaluation-plan.md) removes AWS GPU
+access from the required path. Deterministic/source checks and human rubrics are
+the baseline; optional offline Gemini `gemini-3.8-flash` scoring supplements them.
+Prometheus-2 is deferred. Ragas-style metrics use repository scripts; the Ragas
+package remains dependency-blocked. Evaluators are never product agents; their
+integration is pending. See [evaluation dependencies](runtime-baseline.md#evaluation-dependencies).
+A blindfolded sighted teammate exercise tests interaction only; it does not
 establish blind-student usability. Record live versus fixed/replayed responses and
 the actual checks performed. A PDF-only demonstration remains incomplete against
 the video target. See the [integration checklist](../team/integration-checklist.md).

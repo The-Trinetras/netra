@@ -19,6 +19,23 @@ worktrees and role branches. Do not run five agents against one mutable checkout
 
 ## Shared implementation agreement
 
+### Model and evaluation update — 17 September 2026
+
+All five prompts include the [model/evaluation decision](../../architecture/model-evaluation-plan.md).
+Use a common agreed commit containing this update, not the older prompt pack alone;
+publication/push of this local documentation commit is a separate action. For a
+member already implementing, apply the MODEL AND EVALUATION UPDATE section to
+their existing work without resetting, restarting or discarding changes.
+
+Keep Coordinator Gemini `gemini-3.8-flash` and Tutor Groq `openai/gpt-oss-120b`.
+Required evaluation uses deterministic/source/human checks. Optional offline
+Gemini rubric scoring is the selected new evaluation plan, not a silent live-model
+replacement. Prometheus-2/AWS GPU work is deferred; do not install Ragas. Existing
+SDK pins suffice for the planned evaluator. Free account access, quotas and live
+behaviour remain unverified; no paid fallback, downloads or provisioning are
+authorized by this documentation update. Each role owns the changes listed in its
+prompt and coordinates cross-owner boundaries as before.
+
 These are implementation tasks, not the completed documentation migration. When a
 teammate invokes a role prompt, it authorizes application code, runtime prompts,
 meaningful tests and documentation within that role's ownership. The migration-only

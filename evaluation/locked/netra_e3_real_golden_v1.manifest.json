@@ -1,0 +1,6 @@
+{
+  "dataset_id": "netra-e3-real-golden-retrieval",
+  "dataset_version": "1",
+  "path": "evaluation/cases/netra_e3_real_golden_v1.jsonl",
+  "sha256": "959c9e80dcfff8d83cba334edc88191f4525eed06d6bb4dbba451ed35b685880"
+}

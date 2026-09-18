@@ -14,6 +14,16 @@ class PermanentJobError(RuntimeError):
     """A job failure that must be dead-lettered without another attempt."""
 
 
+class JobCancelled(RuntimeError):
+    """The job was deliberately cancelled (not failed, not lease-lost).
+
+    Recorded as a terminal ``cancelled`` outcome, never retried and never
+    dead-lettered as a failure: nobody wants its result any more. Losing
+    the lease is NOT cancellation; raise ``LeaseLostError`` for that so the
+    next claimant resumes from the recorded stages.
+    """
+
+
 class LeaseLostError(RuntimeError):
     """This worker no longer owns the job/outbox claim it was acting on.
 
@@ -23,4 +33,4 @@ class LeaseLostError(RuntimeError):
     """
 
 
-__all__ = ["LeaseLostError", "PermanentJobError"]
+__all__ = ["JobCancelled", "LeaseLostError", "PermanentJobError"]

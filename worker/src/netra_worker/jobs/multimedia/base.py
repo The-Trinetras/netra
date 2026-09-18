@@ -37,6 +37,7 @@ from uuid import UUID
 
 from pydantic import BaseModel
 
+from netra_worker.runtime.errors import JobCancelled, LeaseLostError
 from netra_worker.runtime.job_repository import JobPayload
 
 TRecord = TypeVar("TRecord", bound=BaseModel)
@@ -74,14 +75,17 @@ class MultimediaJobPayload(JobPayload):
     source_version_id: UUID
 
 
-class JobCancelledError(Exception):
-    """Raised when a job stops because it was cancelled or lost its lease.
+class JobCancelledError(JobCancelled):
+    """Raised when a job stops because it was explicitly cancelled.
 
     Distinct from a failure. A cancelled job has not gone wrong: the
-    student pressed STOP, the turn was superseded, or another worker now
-    owns the lease. Nothing it produced afterwards may be delivered
-    (current-scope.md: "Cancelled or disconnected generations cannot
-    resume audio"), and it must not be rescheduled as a failed attempt.
+    student pressed STOP or the turn was superseded. Nothing it produced
+    afterwards may be delivered (current-scope.md: "Cancelled or
+    disconnected generations cannot resume audio"), and it must not be
+    rescheduled as a failed attempt: the dispatcher records it as a
+    terminal ``cancelled`` outcome. A lease that expired (or is inside its
+    safety margin) is not a cancellation; run_stages raises
+    LeaseLostError for it so the next claimant resumes the job.
     """
 
     def __init__(self, stage: str, reason: str) -> None:
@@ -197,6 +201,9 @@ async def run_stages(
         if stage_name in already_done:
             continue
         if cancellation is not None and cancellation.is_cancelled():
+            lease_expired = getattr(cancellation, "lease_expired", None)
+            if lease_expired is not None and lease_expired():
+                raise LeaseLostError(f"lease expired before stage {stage_name}")
             raise JobCancelledError(stage_name, cancellation.reason())
         if deadline is not None and deadline.remaining_seconds() <= 0:
             raise JobDeadlineExceededError(stage_name)

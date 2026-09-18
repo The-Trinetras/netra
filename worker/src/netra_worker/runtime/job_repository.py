@@ -27,6 +27,8 @@ class JobStatus(str, Enum):
     COMPLETED = "completed"
     FAILED = "failed"
     DEAD_LETTER = "dead_letter"
+    CANCELLED = "cancelled"
+    """Terminal: deliberately cancelled (netra_worker.runtime.errors.JobCancelled)."""
 
 
 class JobPayload(BaseModel):
@@ -111,6 +113,11 @@ class JobRepository(Protocol):
 
     def heartbeat(self, job_id: UUID, lease: Lease, new_expires_at: datetime) -> Lease:
         """Extend a lease for a long-running job."""
+        ...
+
+    def cancel(self, job_id: UUID, lease: Lease) -> None:
+        """Record the job as cancelled (terminal, not retried). Fenced by the
+        lease like complete/fail."""
         ...
 
     def record_stage(

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 import signal
 from collections.abc import Awaitable, Callable
@@ -18,7 +19,7 @@ from netra_api.content.retrieval.chunks import AsyncSearchChunkRepository
 from netra_api.content.reading.postgres import AsyncReadingBlockRepository
 from netra_api.content.sources.postgres import AsyncSourceRepository
 from netra_api.config import Settings
-from netra_api.content.telemetry import configure_logging, configure_metrics
+from netra_api.content.telemetry import configure_logging, configure_metrics, log_event
 from netra_api.platform.database import create_engine, create_session_factory, dispose_engine
 from netra_api.platform.tracing import DISABLED_TRACER, Tracer, build_tracer, disable_langsmith_export
 
@@ -26,11 +27,20 @@ from netra_worker.jobs.ingestion.activate_version import ActivateVersionJob, Act
 from netra_worker.jobs.ingestion.build_blocks import BuildBlocksJob, BuildBlocksPayload, S3ParsedDocumentReader
 from netra_worker.jobs.ingestion.embed_text import EmbedTextJob, EmbedTextPayload
 from netra_worker.jobs.ingestion.parse_document import ParseDocumentJob, ParseDocumentPayload, S3ParsedDocumentStore
+from netra_worker.jobs.learning_projection.neo4j import (
+    LEARNING_PROJECTION_JOB_TYPE,
+    FactualLearningGraphWriter,
+    ProjectAssessmentAttemptJob,
+    ProjectAssessmentAttemptPayload,
+)
+from netra_worker.jobs.learning_projection.neo4j_writer import LearningProjectionSettings, Neo4jFactualGraphWriter
 from netra_worker.jobs.search_projection.pinecone import SearchProjectionJob, SearchProjectionPayload
 from netra_worker.runtime.dispatcher import JobHandler, WorkerPool, WorkerPoolConfig
 from netra_worker.runtime.job_repository import Job
 from netra_worker.runtime.postgres import AsyncJobRepository
 from netra_worker.runtime.outbox_consumer import OutboxConsumer
+
+logger = logging.getLogger(__name__)
 
 
 class SessionScopedJobRepository:
@@ -54,6 +64,14 @@ class SessionScopedJobRepository:
     async def heartbeat(self, job_id, lease, new_expires_at):
         async with self.factory() as session:
             return await AsyncJobRepository(session).heartbeat(job_id, lease, new_expires_at)
+
+    async def cancel(self, job_id, lease):
+        async with self.factory() as session:
+            await AsyncJobRepository(session).cancel(job_id, lease)
+
+    async def record_stage(self, job_id, lease, stage, remote_operation_id=None):
+        async with self.factory() as session:
+            return await AsyncJobRepository(session).record_stage(job_id, lease, stage, remote_operation_id)
 
     async def enqueue(self, job_type, payload, idempotency_key):
         async with self.factory() as session:
@@ -120,9 +138,27 @@ def _handlers(factory: async_sessionmaker[AsyncSession], settings: ContentSettin
     }
 
 
+def learning_projection_handler(writer: FactualLearningGraphWriter) -> JobHandler:
+    """Handler for committed-attempt projection jobs (payload validated here).
+
+    Projects from the outbox payload only: the worker never re-reads
+    account-scoped state. Failure retries/dead-letters this job and never
+    touches the committed PostgreSQL attempt.
+    """
+
+    async def project_attempt(job: Job) -> None:
+        await ProjectAssessmentAttemptJob(writer).handle(ProjectAssessmentAttemptPayload.model_validate(job.payload))
+
+    return project_attempt
+
+
 def build_pools(settings: ContentSettings, factory: async_sessionmaker[AsyncSession],
-                tracer: Tracer = DISABLED_TRACER) -> list[WorkerPool]:
+                tracer: Tracer = DISABLED_TRACER, *,
+                projection_writer: FactualLearningGraphWriter | None = None,
+                learning_projection_workers: int = 0) -> list[WorkerPool]:
     handlers = _handlers(factory, settings)
+    if projection_writer is not None:
+        handlers[LEARNING_PROJECTION_JOB_TYPE] = learning_projection_handler(projection_writer)
     repository = SessionScopedJobRepository(factory)
     process = os.getpid()
     definitions = (
@@ -131,6 +167,8 @@ def build_pools(settings: ContentSettings, factory: async_sessionmaker[AsyncSess
         ("embed", ("embed_text",), settings.embed_workers),
         ("projection", ("search_projection",), settings.projection_workers),
         ("activation", ("activate_version",), settings.activation_workers),
+        ("learning_projection", (LEARNING_PROJECTION_JOB_TYPE,),
+         learning_projection_workers if projection_writer is not None else 0),
     )
     return [WorkerPool(repository, handlers, WorkerPoolConfig(
         worker_id=f"{process}/{name}", job_types=job_types, concurrency=concurrency,
@@ -162,7 +200,15 @@ async def run() -> None:
     factory = create_session_factory(engine)
     stop = asyncio.Event()
     _install_shutdown_handlers(stop)
-    pools = build_pools(settings, factory, tracer)
+    projection_settings = LearningProjectionSettings()
+    projection_writer = (Neo4jFactualGraphWriter.from_settings(projection_settings)
+                         if projection_settings.configured else None)
+    if projection_writer is None:
+        # Visible, not silent: committed attempts stay canonical in PostgreSQL
+        # and their projection jobs wait (pending) until Neo4j is configured.
+        log_event(logger, "learning_projection_disabled", component="worker", level=logging.WARNING)
+    pools = build_pools(settings, factory, tracer, projection_writer=projection_writer,
+                        learning_projection_workers=projection_settings.workers)
     outbox_consumer = OutboxConsumer(
         factory, f"{os.getpid()}/outbox", settings.worker_poll_interval_seconds,
         settings.outbox_lease_duration_seconds, tracer=tracer,
@@ -173,6 +219,8 @@ async def run() -> None:
         outbox_consumer.stop()
         for pool in pools:
             pool.stop()
+        if projection_writer is not None:
+            await projection_writer.close()
         await dispose_engine(engine)
         # Bounded final flush outside any job attempt (never per job).
         await asyncio.to_thread(tracer.shutdown, app_settings.tracing_shutdown_timeout_seconds)

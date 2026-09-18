@@ -101,6 +101,11 @@ class AsyncJobRepository:
     async def complete(self, job_id: UUID, lease: Lease) -> None:
         async with self.session.begin(): await self._owned(job_id, lease, {"status": JobStatus.COMPLETED.value, "lease_until": None})
 
+    async def cancel(self, job_id: UUID, lease: Lease) -> None:
+        async with self.session.begin():
+            await self._owned(job_id, lease, {"status": JobStatus.CANCELLED.value, "lease_until": None,
+                                              "last_error": "job cancelled"})
+
     async def fail(self, job_id: UUID, lease: Lease, next_run_at: datetime, retryable: bool = True) -> None:
         async with self.session.begin():
             row = await self._owned(job_id, lease, {"next_run_at": next_run_at, "lease_until": None, "last_error": "job failed"})

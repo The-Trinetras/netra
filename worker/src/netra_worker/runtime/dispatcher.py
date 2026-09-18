@@ -11,6 +11,8 @@ Resilience rules:
   means an unrecorded outcome is simply retried after the lease expires.
 - Invalid payloads (``pydantic.ValidationError``) and ``PermanentJobError``
   are dead-lettered, never retried.
+- ``JobCancelled`` is recorded as a terminal ``cancelled`` outcome: neither a
+  retryable failure nor a dead letter. ``LeaseLostError`` writes nothing.
 - Tracing uses M1's injected ``Tracer``: one span per attempt, never a span
   held open while a job waits in the queue. Telemetry failure cannot change
   job outcomes.
@@ -29,7 +31,7 @@ from pydantic import ValidationError
 
 from netra_api.content.telemetry import bind_context, increment, log_event, observe
 from netra_api.platform.tracing import DISABLED_TRACER, Tracer
-from netra_worker.runtime.errors import LeaseLostError, PermanentJobError
+from netra_worker.runtime.errors import JobCancelled, LeaseLostError, PermanentJobError
 from netra_worker.runtime.job_repository import Job, JobRepository
 from netra_worker.runtime.retries import BackoffPolicy, ExponentialBackoffWithJitter
 
@@ -158,6 +160,10 @@ class WorkerPool:
             return await self._record(job, "completed", lambda: self.repository.complete(job.job_id, job.lease))
         if isinstance(error, LeaseLostError):
             return "lease_lost"
+        if isinstance(error, JobCancelled):
+            log_event(logger, "job_cancelled", component="worker", job_id=job.job_id,
+                      job_type=job.job_type, error_type=type(error).__name__)
+            return await self._record(job, "cancelled", lambda: self.repository.cancel(job.job_id, job.lease))
         if isinstance(error, (PermanentJobError, ValidationError)):
             log_event(logger, "job_dead_lettered", component="worker", job_id=job.job_id,
                       job_type=job.job_type, error_type=type(error).__name__, level=logging.ERROR)

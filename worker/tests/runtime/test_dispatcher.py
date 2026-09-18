@@ -186,3 +186,30 @@ async def test_each_attempt_is_one_span_with_sanitized_facts():
     assert span.attributes["netra.operation"] == "parse_document"
     assert span.attributes["netra.outcome"] == "retry_scheduled"
     assert "secret provider detail" not in str(span.attributes)
+
+
+class _CancellingRepo(Repo):
+    def __init__(self, jobs):
+        super().__init__(jobs)
+        self.cancelled = []
+
+    async def cancel(self, job_id, lease):
+        self.cancelled.append(job_id)
+
+
+@pytest.mark.asyncio
+async def test_a_cancelled_job_is_recorded_cancelled_not_retried_or_dead_lettered():
+    from netra_worker.runtime.errors import JobCancelled
+
+    job = _job()
+    repo = _CancellingRepo([job])
+    stop = asyncio.Event()
+
+    async def handle(_job):
+        stop.set()
+        raise JobCancelled("student pressed STOP")
+
+    pool = WorkerPool(repo, {"parse_document": handle}, WorkerPoolConfig(
+        worker_id="pool", job_types=("parse_document",), poll_interval_seconds=0.01))
+    await asyncio.wait_for(pool.run(stop), 1)
+    assert repo.cancelled == [job.job_id] and repo.failed == [] and repo.completed == []

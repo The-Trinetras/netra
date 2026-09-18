@@ -165,6 +165,12 @@ class AsyncSourceRepository:
             row.status = SourceVersionStatus.FAILED.value
         return _version(row)
 
+    async def active_version_number_internal(self, source_id: UUID) -> int:
+        """Trusted worker read: the active version number, or 0 when none is active."""
+        number = (await self.session.execute(select(SourceVersionRow.version_number).where(
+            SourceVersionRow.source_id == source_id, SourceVersionRow.is_active.is_(True)))).scalar_one_or_none()
+        return number or 0
+
     async def get_active_version(self, auth: AuthContext, source_id: UUID) -> SourceVersion | None:
         await self.get_source(auth, source_id)
         row = (await self.session.execute(select(SourceVersionRow).where(SourceVersionRow.source_id == source_id,

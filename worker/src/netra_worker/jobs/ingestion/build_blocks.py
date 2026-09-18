@@ -14,7 +14,13 @@ from netra_api.content.retrieval.chunks import SearchChunk
 from netra_api.content.telemetry import instrument_stage, stage_span, tracer_of
 
 from netra_worker.runtime.errors import PermanentJobError
-from netra_worker.jobs.ingestion.base import IngestionJobPayload, IngestionVersionStore
+from netra_worker.jobs.ingestion.base import (
+    IngestionJobPayload,
+    IngestionVersionStore,
+    StageScheduler,
+    schedule_next,
+    stage_key,
+)
 
 
 class BuildBlocksPayload(IngestionJobPayload):
@@ -45,9 +51,11 @@ class S3ParsedDocumentReader:
 class BuildBlocksJob:
     def __init__(self, versions: IngestionVersionStore, parsed_documents: ParsedDocumentReader,
                  blocks: ReadingBlockWriter, chunks: SearchChunkWriter,
-                 chunker: StructureAwareChunker | None = None) -> None:
+                 chunker: StructureAwareChunker | None = None,
+                 scheduler: StageScheduler | None = None) -> None:
         self.versions, self.parsed_documents, self.blocks, self.chunks = versions, parsed_documents, blocks, chunks
         self.chunker = chunker or StructureAwareChunker()
+        self.scheduler = scheduler
 
     @instrument_stage("build_reading_blocks_and_chunks")
     async def handle(self, payload: BuildBlocksPayload) -> None:
@@ -57,6 +65,7 @@ class BuildBlocksJob:
         if "blocks_built" in version.completed_stages:
             # Redelivery after this stage committed. Rebuilding would replace
             # chunks that later stages have already embedded and projected.
+            await self._schedule_embedding(payload)
             return
         if version.ingestion_state.value != "parsing":
             raise PermanentJobError("source version is not ready for block construction")
@@ -74,3 +83,11 @@ class BuildBlocksJob:
             search_chunks = self.chunker.chunk([ChunkBlock.from_reading_block(block) for block in reading_blocks])
         await self.chunks.replace_chunks(payload.source_version_id, search_chunks)
         await self.versions.mark_stage_complete_internal(payload.source_version_id, "blocks_built")
+        await self._schedule_embedding(payload)
+
+    async def _schedule_embedding(self, payload: BuildBlocksPayload) -> None:
+        from netra_worker.jobs.ingestion.embed_text import EmbedTextPayload
+
+        await schedule_next(self.scheduler, "embed_text", EmbedTextPayload(
+            idempotency_key=stage_key("embed_text", payload.source_version_id),
+            source_id=payload.source_id, source_version_id=payload.source_version_id))

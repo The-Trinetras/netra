@@ -4,6 +4,7 @@ import pytest
 
 from netra_api.content.providers.pymupdf import PdfParseResult, PdfParseStatus
 from netra_api.content.providers.llamaparse import ParsedBlock
+from netra_api.content.sources.models import SourceVersionStatus
 from netra_worker.jobs.ingestion.parse_document import ParseDocumentJob, ParseDocumentPayload
 
 
@@ -14,6 +15,8 @@ async def test_ocr_required_parse_continues_with_ocr_capable_parser():
 
     class Version:
         object_key = "source.pdf"
+        status = SourceVersionStatus.PENDING
+        completed_stages: list = []
         content_hash = __import__("hashlib").sha256(data).hexdigest()
 
     class Versions:

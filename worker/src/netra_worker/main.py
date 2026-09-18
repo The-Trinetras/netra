@@ -75,6 +75,8 @@ def _handlers(factory: async_sessionmaker[AsyncSession], settings: ContentSettin
         storage = Boto3ObjectStorage(settings)
     else:
         raise ValueError(f"unsupported storage_provider: {settings.storage_provider}")
+    # Each stage enqueues its successor idempotently through the job table.
+    scheduler = SessionScopedJobRepository(factory)
     parsed_store = S3ParsedDocumentStore(storage)
     parsed_reader = S3ParsedDocumentReader(storage)
     embedder = GeminiEmbeddingProvider(settings)
@@ -82,23 +84,26 @@ def _handlers(factory: async_sessionmaker[AsyncSession], settings: ContentSettin
 
     async def parse(job: Job) -> None:
         await _with_session(factory, lambda session: ParseDocumentJob(
-            AsyncSourceRepository(session), storage, parsed_store, PyMuPDFDocumentParser()
+            AsyncSourceRepository(session), storage, parsed_store, PyMuPDFDocumentParser(),
+            settings=settings, scheduler=scheduler,
         ).handle(ParseDocumentPayload.model_validate(job.payload)))
 
     async def build(job: Job) -> None:
         await _with_session(factory, lambda session: BuildBlocksJob(
             AsyncSourceRepository(session), parsed_reader, AsyncReadingBlockRepository(session),
-            AsyncSearchChunkRepository(session)
+            AsyncSearchChunkRepository(session), scheduler=scheduler,
         ).handle(BuildBlocksPayload.model_validate(job.payload)))
 
     async def embed(job: Job) -> None:
         await _with_session(factory, lambda session: EmbedTextJob(
-            AsyncSourceRepository(session), AsyncSearchChunkRepository(session), embedder, settings
+            AsyncSourceRepository(session), AsyncSearchChunkRepository(session), embedder, settings,
+            scheduler=scheduler,
         ).handle(EmbedTextPayload.model_validate(job.payload)))
 
     async def project(job: Job) -> None:
         await _with_session(factory, lambda session: SearchProjectionJob(
-            AsyncSourceRepository(session), AsyncSearchChunkRepository(session), index, settings
+            AsyncSourceRepository(session), AsyncSearchChunkRepository(session), index, settings,
+            scheduler=scheduler,
         ).handle(SearchProjectionPayload.model_validate(job.payload)))
 
     async def activate(job: Job) -> None:

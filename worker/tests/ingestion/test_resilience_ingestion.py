@@ -51,9 +51,13 @@ async def test_parser_failure_marks_version_failed_and_writes_no_parsed_output()
         def parse_bytes(self, _): raise ValueError("malformed PDF")
     class Parsed:
         async def put(self, *_): raise AssertionError("invalid output must not be written")
-    with pytest.raises(ValueError, match="malformed"):
+    from netra_worker.jobs.ingestion.parse_document import IngestionError
+
+    # A malformed PDF is permanent (dead-lettered), keeping the parser's cause.
+    with pytest.raises(IngestionError, match="could not be parsed") as raised:
         await ParseDocumentJob(Versions(version), Storage(), Parsed(), Parser()).handle(
             ParseDocumentPayload(**_payload(version, object_key="source.pdf", content_type="application/pdf")))
+    assert isinstance(raised.value.__cause__, ValueError)
     assert version.ingestion_state == SourceVersionIngestionState.FAILED
     assert version.completed_stages == []
 

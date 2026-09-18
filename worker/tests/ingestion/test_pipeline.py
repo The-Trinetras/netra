@@ -210,9 +210,12 @@ async def test_embedding_batches_and_marks_stage_only_after_valid_results():
 
 @pytest.mark.asyncio
 async def test_embedding_dimension_failure_does_not_mark_embedded():
+    from netra_worker.runtime.errors import PermanentJobError
+
     data = _pdf(); version = _version(uuid4(), data)
     version.ingestion_state = SourceVersionIngestionState.BLOCKS_BUILT
-    with pytest.raises(ValueError, match="incompatible"):
+    # A configuration mismatch is permanent: retrying cannot change the model.
+    with pytest.raises(PermanentJobError, match="incompatible"):
         await EmbedTextJob(Versions(version), Chunks([_chunk(version)]), Embedder(2), ContentSettings(gemini_embedding_dimension=3)).handle(
             EmbedTextPayload(**_payload(version)))
     assert version.ingestion_state == SourceVersionIngestionState.BLOCKS_BUILT

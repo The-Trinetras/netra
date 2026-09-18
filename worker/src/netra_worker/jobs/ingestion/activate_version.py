@@ -7,6 +7,7 @@ from uuid import UUID
 
 from netra_worker.jobs.ingestion.base import IngestionJobPayload
 from netra_api.content.telemetry import instrument_stage
+from netra_worker.runtime.errors import PermanentJobError
 
 
 class ActivateVersionPayload(IngestionJobPayload):
@@ -30,6 +31,13 @@ class ActivateVersionJob:
 
     @instrument_stage("activate_version")
     async def handle(self, payload: ActivateVersionPayload) -> None:
-        await self.sources.activate_version_internal(
-            payload.source_id, payload.source_version_id, payload.expected_version_number
-        )
+        from netra_api.content.sources.postgres import SourceVersionConflictError
+
+        try:
+            await self.sources.activate_version_internal(
+                payload.source_id, payload.source_version_id, payload.expected_version_number
+            )
+        except SourceVersionConflictError as exc:
+            # A newer version exists or another activation won: retrying the
+            # same compare-and-set cannot succeed.
+            raise PermanentJobError("source version activation was superseded") from exc

@@ -29,6 +29,7 @@ from netra_api.coordinator.tools import register_available_tools
 from netra_api.coordinator.tutor_gateway import (
     AssessmentSummaryProvider,
     LearningProposalSink,
+    LearningTutorRunner,
     TutorGateway,
     TutorRunner,
 )
@@ -39,7 +40,16 @@ from netra_api.identity.service import (
     UnconfiguredCredentialVerifier,
 )
 from netra_api.platform.errors import ResourceUnavailableError
-from netra_api.platform.observability import InMemoryTraceSink, LoggingTraceSink, TraceSink
+import os
+
+from netra_api.platform.observability import (
+    FanOutTraceSink,
+    InMemoryTraceSink,
+    LoggingTraceSink,
+    TraceSink,
+    TracingTraceSink,
+)
+from netra_api.platform.tracing import ExportSettings, SpanExporter, Tracer, build_tracer, disable_langsmith_export
 from netra_api.session.navigation import DeterministicNavigator
 from netra_api.session.reading import ReadingAccess
 from netra_api.session.service import SessionService
@@ -63,6 +73,10 @@ class IntegrationDependencies:
     video_evidence: Any = None
     # M4 learning
     tutor_runner: Optional[TutorRunner] = None
+    tutor_services: Any = None
+    """M4's ``netra_api.learning.tutor.agent.TutorServices``. When supplied (and
+    tutor_runner is not), it is wrapped in LearningTutorRunner and its
+    ``pending_questions`` repository is used for navigation and resume."""
     pending_questions: Any = None
     assessment_summaries: Optional[AssessmentSummaryProvider] = None
     learning_sink: Optional[LearningProposalSink] = None
@@ -94,6 +108,26 @@ class Composition:
     services: TransportServices
     verifier: CredentialVerifier
     registered: dict[str, bool] = field(default_factory=dict)
+    tracer: Optional[Tracer] = None
+    langsmith_flags_overridden: list[str] = field(default_factory=list)
+    shutdown_timeout_seconds: float = 5.0
+
+    def telemetry_diagnostics(self) -> dict[str, Any]:
+        """Safe counters only: no identifiers, messages or configuration values."""
+
+        tracer = self.tracer
+        snapshot = tracer.diagnostics.snapshot() if tracer is not None else {}
+        return {
+            "tracing_enabled": bool(tracer is not None and tracer.enabled),
+            "langsmith_export_disabled": True,
+            **snapshot,
+        }
+
+    def shutdown(self) -> None:
+        """Bounded final flush at orderly process shutdown; never per turn."""
+
+        if self.tracer is not None:
+            self.tracer.shutdown(self.shutdown_timeout_seconds)
 
 
 def durable_repositories(settings: Settings) -> Repositories:
@@ -120,7 +154,24 @@ def compose(
     dependencies: IntegrationDependencies,
     *,
     trace_sink: Optional[TraceSink] = None,
+    span_exporter: Optional[SpanExporter] = None,
+    export_settings: Optional[ExportSettings] = None,
+    environ: Any = None,
 ) -> Composition:
+    langsmith_flags = disable_langsmith_export(os.environ if environ is None else environ)
+    tracer = build_tracer(
+        settings.tracing_mode,
+        exporter=span_exporter,
+        settings=export_settings or ExportSettings(),
+        service_name="netra-api",
+    )
+
+    if dependencies.tutor_services is not None:
+        if dependencies.tutor_runner is None:
+            dependencies.tutor_runner = LearningTutorRunner(dependencies.tutor_services)
+        if dependencies.pending_questions is None:
+            dependencies.pending_questions = dependencies.tutor_services.pending_questions
+
     reading = None
     if dependencies.reading_positions and dependencies.reading_blocks and dependencies.sources:
         reading = ReadingAccess(dependencies.reading_positions, dependencies.reading_blocks, dependencies.sources)
@@ -160,6 +211,7 @@ def compose(
             registry=registry,
             context=ContextSelector(repositories.dialogue),
             tutor=tutor,
+            tracer=tracer,
         )
 
     if settings.auth_mode == "stored_credential" and settings.database_url:
@@ -167,7 +219,10 @@ def compose(
     else:
         verifier = UnconfiguredCredentialVerifier()
 
-    sink = trace_sink or (LoggingTraceSink() if settings.trace_to_log else InMemoryTraceSink())
+    base_sink = trace_sink or (LoggingTraceSink() if settings.trace_to_log else InMemoryTraceSink())
+    sink = FanOutTraceSink(base_sink, TracingTraceSink(tracer)) if tracer.enabled else base_sink
+    if dependencies.speech_output is not None:
+        dependencies.speech_output.tracer = tracer
     services = TransportServices(
         identity=IdentityService(repositories.identity),
         sessions=sessions,
@@ -178,6 +233,7 @@ def compose(
         coordinator=coordinator,
         dialogue=repositories.dialogue,
         speech=dependencies.speech_output,
+        tracer=tracer,
     )
     registered = {
         "persistence": not isinstance(repositories.sessions, UnavailableRepository),
@@ -189,7 +245,14 @@ def compose(
         "result_sets": ttl is not None and repositories.result_sets is not None,
         **{f"tool:{name}": True for name in tools},
     }
-    return Composition(services=services, verifier=verifier, registered=registered)
+    return Composition(
+        services=services,
+        verifier=verifier,
+        registered=registered,
+        tracer=tracer,
+        langsmith_flags_overridden=langsmith_flags,
+        shutdown_timeout_seconds=settings.tracing_shutdown_timeout_seconds,
+    )
 
 
 def build_production(settings: Optional[Settings] = None, dependencies: Optional[IntegrationDependencies] = None) -> Composition:

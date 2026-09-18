@@ -36,6 +36,7 @@ from netra_api.multimedia.evidence import ObservationSource
 from netra_api.platform.auth_context import AuthContext
 from netra_api.platform.errors import NetraError
 from netra_api.platform.observability import TurnTrace
+from netra_api.platform.tracing import DISABLED_TRACER, Tracer
 from netra_api.session.modes import InteractionMode
 from netra_api.session.state import SessionState
 
@@ -177,8 +178,9 @@ def _argument_key(request: ToolCallRequest) -> str:
 
 
 class ToolGateway:
-    def __init__(self, registry: ToolRegistry) -> None:
+    def __init__(self, registry: ToolRegistry, *, tracer: Tracer = DISABLED_TRACER) -> None:
         self._registry = registry
+        self._tracer = tracer
 
     @staticmethod
     def action_key(request: ToolCallRequest) -> str:
@@ -213,31 +215,19 @@ class ToolGateway:
 
         async def run_one(index: int, definition: ToolDefinition, arguments: BaseModel) -> None:
             request = requests[index]
-            timeout = min(definition.timeout_seconds, context.budget.remaining_seconds())
-            context.trace.record(
-                "tool_dispatched", tool=definition.name, argument_keys=sorted(request.arguments), timeout_s=round(timeout, 3)
-            )
-            if timeout <= 0:
-                outcomes[index] = ToolDispatchOutcome(request, "timeout", reason="deadline_reached")
-                return
-            invoker = self._registry.get_invoker(definition.name)
-            try:
-                raw = await asyncio.wait_for(invoker(context, arguments), timeout=timeout)
-                result = ToolResult.model_validate(raw.model_dump() if isinstance(raw, BaseModel) else raw)
-                self._assert_pinned(context, result)
-                outcomes[index] = ToolDispatchOutcome(request, "ok", result=result)
-            except asyncio.TimeoutError:
-                outcomes[index] = ToolDispatchOutcome(request, "timeout", reason="tool_timeout")
-            except asyncio.CancelledError:
-                outcomes[index] = ToolDispatchOutcome(request, "cancelled", reason="turn_cancelled")
-                raise
-            except (ValidationError, _PinViolation):
-                outcomes[index] = ToolDispatchOutcome(request, "failed", reason="invalid_tool_result")
-            except NetraError as exc:
-                outcomes[index] = ToolDispatchOutcome(request, "failed", reason=type(exc).__name__)
-            except Exception as exc:  # tool boundary: record kind only
-                logger.warning("tool %s failed: %s", definition.name, type(exc).__name__)
-                outcomes[index] = ToolDispatchOutcome(request, "failed", reason="tool_error")
+            with self._tracer.span("netra.tool", netra_operation="tool_call", netra_tool=definition.name) as span:
+                outcome = await self._invoke(context, request, definition, arguments)
+                outcomes[index] = outcome
+                span.set(
+                    netra_tool_status=outcome.status,
+                    netra_tool_reason=outcome.reason or None,
+                    netra_evidence_count=len(outcome.result.evidence) if outcome.result else 0,
+                    netra_rejected_count=outcome.result.rejected_count if outcome.result else 0,
+                )
+                if outcome.status in ("timeout", "cancelled"):
+                    span.fail(outcome.status)
+                elif outcome.status == "failed":
+                    span.fail("error", outcome.reason)
 
         if runnable:
             tasks = [asyncio.ensure_future(run_one(index, definition, arguments)) for index, definition, arguments in runnable]
@@ -256,6 +246,33 @@ class ToolGateway:
                 outcomes.setdefault(index, ToolDispatchOutcome(requests[index], "cancelled", reason="turn_cancelled"))
 
         return [outcomes[index] for index in range(len(requests))]
+
+    async def _invoke(
+        self, context: ToolContext, request: ToolCallRequest, definition: ToolDefinition, arguments: BaseModel
+    ) -> ToolDispatchOutcome:
+        timeout = min(definition.timeout_seconds, context.budget.remaining_seconds())
+        context.trace.record(
+            "tool_dispatched", tool=definition.name, argument_keys=sorted(request.arguments), timeout_s=round(timeout, 3)
+        )
+        if timeout <= 0:
+            return ToolDispatchOutcome(request, "timeout", reason="deadline_reached")
+        invoker = self._registry.get_invoker(definition.name)
+        try:
+            raw = await asyncio.wait_for(invoker(context, arguments), timeout=timeout)
+            result = ToolResult.model_validate(raw.model_dump() if isinstance(raw, BaseModel) else raw)
+            self._assert_pinned(context, result)
+            return ToolDispatchOutcome(request, "ok", result=result)
+        except asyncio.TimeoutError:
+            return ToolDispatchOutcome(request, "timeout", reason="tool_timeout")
+        except asyncio.CancelledError:
+            raise
+        except (ValidationError, _PinViolation):
+            return ToolDispatchOutcome(request, "failed", reason="invalid_tool_result")
+        except NetraError as exc:
+            return ToolDispatchOutcome(request, "failed", reason=type(exc).__name__)
+        except Exception as exc:  # tool boundary: record kind only
+            logger.warning("tool %s failed: %s", definition.name, type(exc).__name__)
+            return ToolDispatchOutcome(request, "failed", reason="tool_error")
 
     @staticmethod
     def _assert_pinned(context: ToolContext, result: ToolResult) -> None:

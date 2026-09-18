@@ -53,6 +53,7 @@ from netra_api.coordinator.tool_registry import ToolContext, ToolGateway, ToolRe
 from netra_api.coordinator.tutor_gateway import HandoffRejectedError, TutorGateway
 from netra_api.platform.errors import NetraError, TurnCancelledError
 from netra_api.platform.observability import TurnTrace
+from netra_api.platform.tracing import DISABLED_TRACER, Tracer
 from netra_api.session.outputs import PlannedSegment
 from netra_api.session.state import PendingQuestionRef
 
@@ -77,16 +78,32 @@ class CoordinatorEngine:
         tutor: Optional[TutorGateway] = None,
         model_config: GeminiModelConfig = DEFAULT_COORDINATOR_MODEL_CONFIG,
         instructions: Optional[str] = None,
+        tracer: Tracer = DISABLED_TRACER,
     ) -> None:
         self._model = model
         self._registry = registry
-        self._gateway = ToolGateway(registry)
+        self._tracer = tracer
+        self._gateway = ToolGateway(registry, tracer=tracer)
         self._context = context
         self._tutor = tutor
         self._model_config = model_config
         self._instructions = instructions if instructions is not None else load_coordinator_instructions()
 
     async def run(self, turn: CoordinatorTurnState, trace: TurnTrace) -> TurnOutcome:
+        with self._tracer.span("netra.coordinator.turn", netra_request_id=str(turn.request_id), netra_operation="coordinator_turn") as span:
+            outcome = await self._run(turn, trace)
+            budget = turn.budget
+            span.set(
+                netra_outcome=outcome.kind,
+                netra_budget_model_decisions_used=budget.model_decisions_used,
+                netra_budget_tool_calls_used=budget.tool_calls_used,
+                netra_budget_nested_model_calls=budget.nested_model_calls,
+            )
+            if outcome.kind == "cancelled":
+                span.fail("cancelled")
+            return outcome
+
+    async def _run(self, turn: CoordinatorTurnState, trace: TurnTrace) -> TurnOutcome:
         if turn.session is None:
             raise ValueError("a Coordinator turn requires the accepted session state")
         budget = turn.budget
@@ -118,14 +135,23 @@ class CoordinatorEngine:
 
             budget.register_model_decision()
             trace.record("model_decision", attempt=budget.model_decisions_used, tools_offered=[t.name for t in tools])
-            try:
-                decision = await self._decide(prompt, specs, budget)
-            except TurnCancelledError:
-                return self._cancelled(trace)
-            except _ModelCallFailed as failure:
-                feedback.append(f"model call failed: {failure.reason}")
-                trace.record("model_output_rejected", check=failure.reason)
-                continue
+            with self._tracer.span(
+                "netra.model.decision",
+                netra_operation="model_decision",
+                llm_provider="google",
+                llm_model_name=self._model_config.model_id,
+                netra_attempt=budget.model_decisions_used,
+            ) as model_span:
+                try:
+                    decision = await self._decide(prompt, specs, budget)
+                except TurnCancelledError:
+                    model_span.fail("cancelled")
+                    return self._cancelled(trace)
+                except _ModelCallFailed as failure:
+                    model_span.fail("timeout" if failure.reason == "deadline_reached" else "error", failure.reason.lower())
+                    feedback.append(f"model call failed: {failure.reason}")
+                    trace.record("model_output_rejected", check=failure.reason)
+                    continue
             if budget.cancelled:
                 return self._cancelled(trace)
 
@@ -189,7 +215,11 @@ class CoordinatorEngine:
                     ),
                 )
 
-            outcome = await self._delegate(turn, ledger, parsed, trace, feedback)
+            with self._tracer.span("netra.tutor.handoff", netra_operation="tutor_handoff", netra_handoff_mode=payload.tutor.mode) as handoff_span:
+                outcome = await self._delegate(turn, ledger, parsed, trace, feedback)
+                handoff_span.set(netra_outcome=outcome.kind if outcome is not None else "retry_with_feedback")
+                if outcome is not None and outcome.kind == "cancelled":
+                    handoff_span.fail("cancelled")
             if outcome is not None:
                 return outcome
 

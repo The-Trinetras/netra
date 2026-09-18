@@ -50,6 +50,7 @@ from netra_api.platform.errors import (
 )
 from netra_api.platform.idempotency import check_expected_version, fingerprint_message
 from netra_api.platform.observability import TraceSink, TurnTrace
+from netra_api.platform.tracing import DISABLED_TRACER, Tracer
 from netra_api.session.commands import NavigationCommandName, match_deterministic_command
 from netra_api.session.dialogue import DialogueEntry, DialogueLog
 from netra_api.session.modes import InteractionMode, NavigationUnit
@@ -240,6 +241,7 @@ class TransportServices:
     coordinator: Optional[CoordinatorEngine] = None
     dialogue: Optional[DialogueLog] = None
     speech: Optional[SpeechOutput] = None
+    tracer: Tracer = DISABLED_TRACER
 
 
 @dataclass
@@ -316,6 +318,20 @@ class Connection:
             await self._send_error(session_id, request_id, InvalidRequestError("invalid message", field=field_name))
             return
 
+        with self.services.tracer.span(
+            "netra.request",
+            netra_operation="client_message",
+            netra_message_type=envelope.type,
+            netra_request_id=str(envelope.request_id),
+        ) as span:
+            code = await self._dispatch(envelope, payload)
+            span.set(netra_outcome="error" if code else "handled", netra_error_code=code)
+            if code:
+                span.fail("error", code)
+
+    async def _dispatch(self, envelope: Any, payload: Any) -> Optional[str]:
+        """Handle one validated message; return a safe error code when one was sent."""
+
         try:
             auth = await self.services.identity.resolve_auth_context(self.principal, envelope.session_id, envelope.request_id)
             self._sessions.add(envelope.session_id)
@@ -329,13 +345,19 @@ class Connection:
                 await self._playback_ack(auth, payload)
             elif isinstance(payload, SessionResumePayload):
                 await self._resume(auth)
+            return None
         except SessionVersionConflictError as exc:
             await self._send_error(envelope.session_id, envelope.request_id, exc, current_version=exc.actual_version)
+            return "session_version_conflict"
         except NetraError as exc:
             await self._send_error(envelope.session_id, envelope.request_id, exc)
+            from netra_api.platform.errors import error_code_for
+
+            return error_code_for(exc).lower()
         except Exception:
             logger.exception("unhandled error while dispatching %s", envelope.type)
             await self._send_error(envelope.session_id, envelope.request_id, NetraError("internal"))
+            return "internal_error"
 
     async def on_disconnect(self) -> None:
         """Fence everything this connection was producing, exactly like STOP."""
@@ -380,6 +402,12 @@ class Connection:
             payload_fingerprint=fingerprint,
             expected_version=expected_version,
             decide=decide,
+        )
+        services.tracer.current().set(
+            netra_command=command.value,
+            netra_replayed=result.replayed,
+            netra_changed=result.changed,
+            netra_session_version=result.state.session_version,
         )
         if result.replayed:
             await self._replay(auth, result.result)
@@ -541,6 +569,7 @@ class Connection:
         if key in generation.acknowledgements:
             return
         generation.acknowledgements.add(key)
+        self.services.tracer.current().set(netra_playback_status=payload.status, netra_generation_id=payload.generation_id)
         state, changed = await self.services.sessions.apply_playback_ack(
             auth, sentence, generation_id=payload.generation_id, status=payload.status, played_ms=payload.played_ms
         )

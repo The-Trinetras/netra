@@ -8,6 +8,7 @@ FastAPI is imported only here, so every service and transport module stays
 testable without it. Routes:
 
 - GET /health/live — unauthenticated liveness plus registered-capability booleans.
+- GET /health/telemetry — tracing counters (created/exported/dropped, flush outcome).
 - WS  /v1/ws — authenticated protocol v1 WebSocket (PROPOSED path; M5 review).
 
 Session creation, source selection/upload and job-status HTTP routes are not
@@ -38,7 +39,18 @@ def create_app(
 
     @app.get("/health/live")
     async def health_live() -> dict:
+        # Liveness never depends on AX, Modal or any provider.
         return liveness(composition.registered)
+
+    @app.get("/health/telemetry")
+    async def health_telemetry() -> dict:
+        return composition.telemetry_diagnostics()
+
+    @app.on_event("shutdown")
+    async def flush_telemetry() -> None:
+        import asyncio
+
+        await asyncio.to_thread(composition.shutdown)
 
     @app.websocket(WEBSOCKET_PATH)
     async def websocket_endpoint(websocket: WebSocket) -> None:

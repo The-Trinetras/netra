@@ -141,3 +141,63 @@ class TurnTrace:
                 detail=redact_detail(detail),
             )
         )
+
+
+_EVENT_ATTRIBUTE_MAP = {
+    "tool": "netra.tool",
+    "reason": "netra.tool.reason",
+    "status": "netra.outcome",
+    "outcome": "netra.outcome",
+    "limit": "netra.outcome",
+    "evidence_ids": "netra.evidence_ids",
+    "evidence_id": "netra.evidence_ids",
+    "new_evidence": "netra.evidence_count",
+    "count": "netra.rejected_count",
+    "requirement": "netra.requirement",
+    "reason_requirements": "netra.requirements",
+    "gap": "netra.gap",
+    "new_tools": "netra.tools",
+    "check": "netra.check",
+    "mode": "netra.handoff_mode",
+    "attempt": "netra.attempt",
+    "handoff_id": "netra.handoff_id",
+    "already_committed_attempts": "netra.evidence_count",
+}
+
+
+class TracingTraceSink:
+    """Re-emits TurnTrace action/evidence/outcome events as events on the current span.
+
+    Detail keys are mapped onto allowlisted attributes and then sanitized by
+    the tracer; anything unmapped or free-text is dropped before export. The
+    existing structured events therefore reach AX without widening what
+    can be exported.
+    """
+
+    def __init__(self, tracer) -> None:
+        self._tracer = tracer
+
+    def emit(self, event: TraceEvent) -> None:
+        span = self._tracer.current()
+        attributes = {}
+        for key, value in event.detail.items():
+            mapped = _EVENT_ATTRIBUTE_MAP.get(key)
+            if mapped is None:
+                continue
+            if mapped == "netra.evidence_ids" and isinstance(value, str):
+                value = [value]
+            attributes[mapped] = value
+        attributes["netra.request_id"] = str(event.request_id)
+        span.event(event.kind, **attributes)
+
+
+class FanOutTraceSink:
+    def __init__(self, *sinks: TraceSink) -> None:
+        self._sinks = sinks
+
+    def emit(self, event: TraceEvent) -> None:
+        for sink in self._sinks:
+            try:
+                sink.emit(event)
+            except Exception:  # a telemetry sink can never break a turn
+                logging.getLogger("netra.trace").warning("trace sink failed: %s", type(sink).__name__)

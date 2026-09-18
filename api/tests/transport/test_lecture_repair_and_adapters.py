@@ -71,7 +71,7 @@ async def test_lecture_transcript_without_axes_triggers_graph_retrieval_then_val
             tools(
                 ("describe_figure", {"figure_index": 1}),
                 assessments=[
-                    {"requirement_id": "x-axis", "status": "missing", "evidence_id": "ev-lecture-0042", "observation_label": "transcript_segment", "gap": "axes not established from transcript"},
+                    {"requirement_id": "x-axis", "status": "missing", "evidence_id": "ev-lecture-0042", "gap": "axes not established from transcript"},
                     {"requirement_id": "y-axis", "status": "missing", "evidence_id": "ev-lecture-0042", "gap": "axes not established from transcript"},
                 ],
             ),
@@ -104,6 +104,19 @@ async def test_lecture_transcript_without_axes_triggers_graph_retrieval_then_val
     assert results[0]["tool"] == "search_lecture" and results[1]["tool"] == "describe_figure"
     assert sink.of_kind("evidence_gap")[0].detail["evidence_id"] == "ev-lecture-0042"
     assert sink.of_kind("action_changed")[0].detail["reason_requirements"] == ["x-axis", "y-axis"]
+
+
+async def test_transcript_can_never_be_accepted_as_a_visual_observation():
+    from netra_api.coordinator.decisions import Assessment, Requirement
+
+    tool = SearchLectureTool(FixtureVideo(), FixtureResolver())
+    result = await tool(_context(frozenset({str(LECTURE_V1)})), SearchLectureArgs(query="line", lecture_source_version_id=str(LECTURE_V1)))
+    ledger = EvidenceLedger()
+    ledger.add_requirements((Requirement(requirement_id="x-axis", description="x axis"),))
+    ledger.add_evidence(result.evidence)
+    ledger.apply_assessments((Assessment(requirement_id="x-axis", status="supported", evidence_id="ev-lecture-0042", observation_label="x-axis"),))
+    assert ledger.requirements["x-axis"].status == "missing"
+    assert result.evidence[0].observations[0].label == "spoken transcript (not visual evidence)"
 
 
 async def test_lecture_outside_the_turn_scope_is_refused():

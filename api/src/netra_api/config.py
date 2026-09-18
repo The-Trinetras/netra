@@ -32,3 +32,12 @@ class Settings(BaseSettings):
     """Retention for stored result sets. Unapproved value: unset disables them."""
 
     trace_to_log: bool = True
+    """Operational log of structured action/evidence events (not AX export)."""
+
+    tracing_mode: Literal["off", "local", "ax"] = "off"
+    """Span tracing. ``ax`` needs a reviewed OTLP exporter that is not in this
+    build (pending OpenTelemetry pins via M2); requesting it records a
+    configuration error and tracing stays off. It never blocks boot."""
+
+    tracing_shutdown_timeout_seconds: float = Field(default=5.0, gt=0, le=30)
+    """Bound on the final flush at orderly shutdown; implementation bound."""

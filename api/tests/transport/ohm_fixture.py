@@ -541,6 +541,8 @@ async def build_journey(
     state: Optional[SessionState] = None,
     versioned_tools: bool = True,
     tutor_kwargs: Optional[dict] = None,
+    span_exporter: Any = None,
+    export_settings: Any = None,
 ) -> Journey:
     identity = InMemoryIdentityRepository()
     now = datetime.now(timezone.utc)
@@ -584,7 +586,21 @@ async def build_journey(
         coordinator_model=model,
     )
     repositories = Repositories(identity=identity, sessions=sessions, result_sets=InMemoryResultSetRepository(), dialogue=dialogue)
-    composition = compose(Settings(auth_mode="stored_credential", database_url=None, trace_to_log=False), repositories, dependencies, trace_sink=trace)
+    settings = Settings(
+        auth_mode="stored_credential",
+        database_url=None,
+        trace_to_log=False,
+        tracing_mode="local" if span_exporter is not None else "off",
+    )
+    composition = compose(
+        settings,
+        repositories,
+        dependencies,
+        trace_sink=trace,
+        span_exporter=span_exporter,
+        export_settings=export_settings,
+        environ={},
+    )
     # compose() refuses stored-credential auth without a database; fixture journeys opt in explicitly.
     from netra_api.identity.service import StoredCredentialVerifier
 

@@ -66,6 +66,32 @@ class TutorRunner(Protocol):
         ...
 
 
+class LearningTutorRunner:
+    """Adapter from M4's merged ``run_turn(state, services)`` to TutorRunner.
+
+    ``state`` is built by M4's own ``build_turn_state`` inside the gateway,
+    carrying the ORIGINATING TurnBudget instance, so every Tutor model
+    decision and evidence resolution spends the Coordinator's counters and
+    deadline, and cancelling the turn is visible to the Tutor.
+
+    M4 commits answered attempts itself through LearningService.propose_event
+    and reports them as events carrying ``attempt_id``; this adapter and the
+    gateway never commit or re-propose anything.
+    """
+
+    def __init__(self, services: Any) -> None:
+        self.services = services
+
+    @property
+    def pending_questions(self) -> Any:
+        return self.services.pending_questions
+
+    async def run(self, state: TutorTurnState) -> TutorToCoordinatorResult:
+        from netra_api.learning.tutor.agent import run_turn
+
+        return await run_turn(state, self.services)
+
+
 class AssessmentSummaryProvider(Protocol):
     async def summaries(self, auth: AuthContext, concept_ids: tuple[str, ...]) -> list[AssessmentSummary]:
         ...
@@ -176,12 +202,17 @@ class TutorGateway:
         result = self._validate(handoff, raw)
         question = await self._validate_question(auth, result)
 
+        committed = [event for event in result.proposed_learning_events if event.attempt_id]
+        uncommitted = [event for event in result.proposed_learning_events if not event.attempt_id]
         for event in result.proposed_learning_events:
             if event.event_type == "review_requested":
                 trace.record("handoff_result", legacy_event_ignored="review_requested")
-        if self._learning_sink is not None and result.proposed_learning_events:
-            await self._learning_sink.forward(auth, handoff.handoff_id, result)
-            trace.record("learning_proposal_forwarded", count=len(result.proposed_learning_events))
+        if committed:
+            # Already committed by the Learning service inside the Tutor turn.
+            trace.record("handoff_result", already_committed_attempts=len(committed))
+        if self._learning_sink is not None and uncommitted:
+            await self._learning_sink.forward(auth, handoff.handoff_id, result.model_copy(update={"proposed_learning_events": uncommitted}))
+            trace.record("learning_proposal_forwarded", count=len(uncommitted))
 
         trace.record(
             "handoff_result",
@@ -213,6 +244,11 @@ class TutorGateway:
             done, _ = await asyncio.wait({run, cancel_waiter}, timeout=remaining, return_when=asyncio.FIRST_COMPLETED)
         finally:
             cancel_waiter.cancel()
+        if run in done and isinstance(run.exception(), NotImplementedError):
+            # M4's check_understanding path fails closed on the open D2
+            # grounding decision. That is a pending product decision, not a
+            # crash and not a teaching result.
+            raise HandoffRejectedError("tutor_capability_pending_decision")
         if run not in done:
             run.cancel()
             await asyncio.gather(run, return_exceptions=True)

@@ -204,9 +204,16 @@ class SearchLectureTool:
             except NetraError:
                 rejected += 1
                 continue
-            source = (
-                ObservationSource.OBSERVED if item.kind == VideoEvidenceKind.TRANSCRIPT_SEGMENT else ObservationSource.GENERATED
-            )
+            # M3's VideoEvidenceKind.supports_visual_claim: only a visual
+            # description can back a claim about what is SHOWN, and it is
+            # model-produced (GENERATED), so the ledger will not accept it as a
+            # source observation. A transcript is observed SPEECH; its label
+            # says so, and it is never labelled as a visual observation.
+            # Accepting visual descriptions as support is an open M1/M3 rule.
+            if item.kind == VideoEvidenceKind.TRANSCRIPT_SEGMENT:
+                label, source = "spoken transcript (not visual evidence)", ObservationSource.OBSERVED
+            else:
+                label, source = f"{item.kind.value} (model description)", ObservationSource.GENERATED
             evidence.append(
                 ToolEvidence(
                     evidence_id=authorized.evidence_id,
@@ -215,7 +222,7 @@ class SearchLectureTool:
                     text=item.description[:MAX_EVIDENCE_TEXT_CHARS],
                     provenance=authorized.provenance[:200],
                     trust=EvidenceTrust.DERIVED,
-                    observations=(ToolObservation(label=item.kind.value, value=None, source=source),),
+                    observations=(ToolObservation(label=label, value=None, source=source),),
                 )
             )
         return ToolResult(evidence=tuple(evidence), rejected_count=rejected)

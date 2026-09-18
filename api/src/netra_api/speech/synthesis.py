@@ -26,6 +26,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from netra_api.platform.auth_context import AuthContext
 from netra_api.platform.errors import NetraError
 from netra_api.speech.playback_metadata import Generation, GenerationRegistry
+from netra_api.platform.tracing import DISABLED_TRACER, Tracer
 from netra_api.speech.quota import QuotaLedger
 from netra_api.transport.audio.frame import AudioFrameHeader, encode_audio_frame
 
@@ -106,13 +107,30 @@ class SpeechOutput:
         quota: QuotaLedger,
         cache: AudioCache,
         registry: GenerationRegistry,
+        tracer: Tracer = DISABLED_TRACER,
     ) -> None:
+        self.tracer = tracer
         self._synthesizer = synthesizer
         self._quota = quota
         self._cache = cache
         self._registry = registry
 
-    async def speak_segment(
+    async def speak_segment(self, auth: AuthContext, generation: Generation, **kwargs) -> bool:
+        """Deliver one segment's audio inside a span recording SENT frames only.
+
+        Frames sent is not playback: played/acknowledged progress is traced
+        separately when the client acknowledges.
+        """
+
+        before = generation.frame_sequence
+        with self.tracer.span("netra.speech.segment", netra_operation="speech_segment", netra_generation_id=generation.generation_id) as span:
+            sent = await self._speak_segment(auth, generation, **kwargs)
+            span.set(netra_audio_frames_sent=generation.frame_sequence - before, netra_outcome="sent" if sent else "not_sent")
+            if not sent and generation.is_cancelled:
+                span.fail("cancelled")
+            return sent
+
+    async def _speak_segment(
         self,
         auth: AuthContext,
         generation: Generation,

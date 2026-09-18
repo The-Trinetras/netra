@@ -1,0 +1,189 @@
+{
+  "account_id": "c2b4b7ee-4ea3-5684-9625-4ac48d4da3f8",
+  "chunks": [
+    {
+      "chunk_id": "6c8ed726-af56-5e06-9e83-b5424bd4723a",
+      "embedding_spec": "gemini-embedding-001:1536",
+      "locator": "chapter 4, table 4.1",
+      "name": "table-4-1",
+      "source_version_id": "6f9c1b52-0d34-4a7e-9d21-7c4f5a2b8e10",
+      "text": "Table 4.1, measured values for a single resistor. Current 1 A gives 2 V, 2 A gives 4 V and 3 A gives 6 V."
+    },
+    {
+      "chunk_id": "6d3925cf-5cfd-507b-9e51-0023faaeafa0",
+      "embedding_spec": "gemini-embedding-001:1536",
+      "locator": "chapter 4, figure 4.2",
+      "name": "figure-4-2",
+      "source_version_id": "6f9c1b52-0d34-4a7e-9d21-7c4f5a2b8e10",
+      "text": "Figure 4.2 plots voltage in volts against current in amperes; the points lie on a straight line through the origin rising 2 volts per ampere."
+    },
+    {
+      "chunk_id": "5c2b2f37-8a99-5f55-b38e-2b1bfb816a16",
+      "embedding_spec": "gemini-embedding-001:1536",
+      "locator": "chapter 4, section 4.1, paragraph 1",
+      "name": "ohms-law-statement",
+      "source_version_id": "6f9c1b52-0d34-4a7e-9d21-7c4f5a2b8e10",
+      "text": "Ohm's law states that the voltage across a resistor equals the current through it multiplied by its resistance, V = I R."
+    },
+    {
+      "chunk_id": "7396810e-386d-56fe-8a91-8830b9bb1991",
+      "embedding_spec": "gemini-embedding-001:1536",
+      "locator": "chapter 4, section 4.1, paragraph 2",
+      "name": "resistance-units",
+      "source_version_id": "6f9c1b52-0d34-4a7e-9d21-7c4f5a2b8e10",
+      "text": "Resistance is measured in ohms; one ohm is one volt per ampere."
+    },
+    {
+      "chunk_id": "e9e9669d-a950-5570-9cd8-09fdb20b2d96",
+      "embedding_spec": "gemini-embedding-001:1536",
+      "locator": "chapter 4, section 4.3, paragraph 1",
+      "name": "power-intro",
+      "source_version_id": "6f9c1b52-0d34-4a7e-9d21-7c4f5a2b8e10",
+      "text": "Electrical power is the rate at which energy is transferred, measured in watts."
+    },
+    {
+      "chunk_id": "8c133af3-9c02-58c3-b582-4eb88279d4b3",
+      "embedding_spec": "gemini-embedding-001:1536",
+      "locator": "chapter 4, section 4.1, paragraph 1",
+      "name": "v1-ohms-law-statement",
+      "source_version_id": "79b0ba4c-66a1-5833-abff-76c4178f76cd",
+      "text": "Ohm's law: voltage is proportional to current for an ohmic conductor."
+    },
+    {
+      "chunk_id": "e1513d3d-c6b3-5bcf-98fc-dc8b8a932ea0",
+      "embedding_spec": "gemini-embedding-001:1536",
+      "locator": "chapter 4, section 4.1, paragraph 1",
+      "name": "v3-failed-statement",
+      "source_version_id": "68ed4155-7aec-5d3d-817a-8d4d8bd9f08d",
+      "text": "Ohm's law text from an ingestion run that failed validation."
+    },
+    {
+      "chunk_id": "c446ef0a-c3c2-52b3-a1bc-23d5dbd118dd",
+      "embedding_spec": "gemini-embedding-001:1536",
+      "locator": "notes, paragraph 1",
+      "name": "deleted-note",
+      "source_version_id": "515a662a-1e33-5720-9c4b-000c9bc6e1f2",
+      "text": "A deleted note that also mentions Ohm's law."
+    },
+    {
+      "chunk_id": "028fb066-3347-5ea1-8b12-e64acfb8be1b",
+      "embedding_spec": "gemini-embedding-001:1536",
+      "locator": "notes, paragraph 1",
+      "name": "other-student-note",
+      "source_version_id": "ce44849f-cb76-52a4-8083-e88a974d4b8c",
+      "text": "Another student's private note about V = I R."
+    }
+  ],
+  "dataset_id": "m2-retrieval-fixtures",
+  "dataset_version": "1",
+  "embedding_spec": "gemini-embedding-001:1536",
+  "incompatible_vectors": [
+    {
+      "embedding_spec": "gemini-embedding-001:768",
+      "expected": "dropped_before_resolution",
+      "vector_id": "5c2b2f37-8a99-5f55-b38e-2b1bfb816a16"
+    }
+  ],
+  "owner": "M2",
+  "permission": "synthetic",
+  "queries": [
+    {
+      "expected_resolution": {
+        "028fb066-3347-5ea1-8b12-e64acfb8be1b": "unauthorized",
+        "3b1ace7b-0acd-57d7-a3ca-8e5b941f51bf": "not_found",
+        "6d3925cf-5cfd-507b-9e51-0023faaeafa0": "resolved",
+        "8c133af3-9c02-58c3-b582-4eb88279d4b3": "source_version_mismatch",
+        "c446ef0a-c3c2-52b3-a1bc-23d5dbd118dd": "not_found",
+        "e1513d3d-c6b3-5bcf-98fc-dc8b8a932ea0": "source_version_mismatch"
+      },
+      "query": "What does the graph of voltage against current show for the resistor?",
+      "query_id": "ohm-q1-proportionality",
+      "relevance": {
+        "5c2b2f37-8a99-5f55-b38e-2b1bfb816a16": 1,
+        "6c8ed726-af56-5e06-9e83-b5424bd4723a": 1,
+        "6d3925cf-5cfd-507b-9e51-0023faaeafa0": 2
+      },
+      "scope_source_version_ids": null
+    },
+    {
+      "expected_resolution": {
+        "7396810e-386d-56fe-8a91-8830b9bb1991": "resolved",
+        "e9e9669d-a950-5570-9cd8-09fdb20b2d96": "resolved"
+      },
+      "query": "What unit is resistance measured in?",
+      "query_id": "ohm-q2-units",
+      "relevance": {
+        "5c2b2f37-8a99-5f55-b38e-2b1bfb816a16": 1,
+        "7396810e-386d-56fe-8a91-8830b9bb1991": 2
+      },
+      "scope_source_version_ids": [
+        "6f9c1b52-0d34-4a7e-9d21-7c4f5a2b8e10"
+      ]
+    },
+    {
+      "expected_resolution": {
+        "5c2b2f37-8a99-5f55-b38e-2b1bfb816a16": "source_version_mismatch",
+        "8c133af3-9c02-58c3-b582-4eb88279d4b3": "resolved"
+      },
+      "query": "State Ohm's law.",
+      "query_id": "ohm-q3-pinned-old-version",
+      "relevance": {
+        "8c133af3-9c02-58c3-b582-4eb88279d4b3": 2
+      },
+      "scope_source_version_ids": [
+        "79b0ba4c-66a1-5833-abff-76c4178f76cd"
+      ]
+    },
+    {
+      "expected_resolution": {},
+      "note": "No chunk answers this; an honest system reports missing evidence.",
+      "query": "How does a transistor amplify a signal?",
+      "query_id": "ohm-q4-no-evidence",
+      "relevance": {},
+      "scope_source_version_ids": null
+    }
+  ],
+  "versions": [
+    {
+      "account_id": "c2b4b7ee-4ea3-5684-9625-4ac48d4da3f8",
+      "is_active": true,
+      "source_id": "dc10820b-2299-5b0d-b933-b084c7128178",
+      "source_version_id": "6f9c1b52-0d34-4a7e-9d21-7c4f5a2b8e10",
+      "status": "ready",
+      "version_number": 2
+    },
+    {
+      "account_id": "c2b4b7ee-4ea3-5684-9625-4ac48d4da3f8",
+      "is_active": false,
+      "source_id": "dc10820b-2299-5b0d-b933-b084c7128178",
+      "source_version_id": "79b0ba4c-66a1-5833-abff-76c4178f76cd",
+      "status": "ready",
+      "version_number": 1
+    },
+    {
+      "account_id": "c2b4b7ee-4ea3-5684-9625-4ac48d4da3f8",
+      "is_active": false,
+      "source_id": "dc10820b-2299-5b0d-b933-b084c7128178",
+      "source_version_id": "68ed4155-7aec-5d3d-817a-8d4d8bd9f08d",
+      "status": "failed",
+      "version_number": 3
+    },
+    {
+      "account_id": "c2b4b7ee-4ea3-5684-9625-4ac48d4da3f8",
+      "deleted": true,
+      "is_active": true,
+      "source_id": "8427dde6-6730-5981-8005-babd5436899d",
+      "source_version_id": "515a662a-1e33-5720-9c4b-000c9bc6e1f2",
+      "status": "ready",
+      "version_number": 1
+    },
+    {
+      "account_id": "205fba08-6f8f-5877-971a-ec7b09fad970",
+      "is_active": true,
+      "source_id": "5768bd4d-7ea0-50d2-bb29-35e017f6d833",
+      "source_version_id": "ce44849f-cb76-52a4-8083-e88a974d4b8c",
+      "status": "ready",
+      "version_number": 1
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "evaluation_id": "teaching_usefulness_v2",
+  "status": "draft_uncalibrated",
+  "supersedes": "teaching_usefulness_v1",
+  "criteria": "Would this response help this student learn, given what they asked and said? It should address their actual question or answer, respond to their stated reasoning (including misconceptions and assistance already given), give hints that move them forward without revealing a pending answer, keep optional checks optional and respect a decline, and make no claim about the student's mastery or ability.",
+  "score1": "Harmful or useless for learning: a bare verdict ('Wrong.'), a hint that reveals the pending answer, a label about the student's mastery or ability, or a response that ignores what the student asked.",
+  "score2": "Addresses the question but ignores the student's stated reasoning or misconception, or forces an unrequested quiz, detour or prerequisite check.",
+  "score3": "Answers and explains, but does not connect to the student's own reasoning or misses a clear chance to correct a misconception.",
+  "score4": "A clear, relevant explanation that responds to the student's reasoning; a minor issue in pacing, length or tone.",
+  "score5": "Directly helps this student: responds to their reasoning, shows why a misconception fails, moves them forward without giving away a pending answer, keeps checks optional and respects a decline, and makes no mastery or ability claim.",
+  "requires_reference": true,
+  "applies_to_modes": [],
+  "unit": "ordinal_1_5",
+  "scope": "Teaching value only. Factual accuracy, sourcing, citation and hedging are judged by the other criteria; observed learning outcomes are never inferred from one response.",
+  "anchor_examples": {
+    "score1": "Pending question 'What is the resistance in ohms?'; the student asks for a hint. Response: 'Hint: the answer is 2 ohms.' Or, after a correct answer: 'Correct. You have now mastered Ohm's law.'",
+    "score2": "The student answered '6' and said 'I took the biggest voltage in the table.' Response: 'The answer is 2 ohms.' (their reasoning is ignored).",
+    "score3": "Response: 'Resistance is V divided by I, so it is 2 ohms.' Correct, but it never says why taking the largest voltage does not give the resistance.",
+    "score4": "Response explains that resistance compares voltage with current and shows 6 V / 3 A = 2 ohms, but runs on through all three rows when one row and a check would do.",
+    "score5": "Response: 'You took the largest voltage, 6 V, but resistance compares voltage with current: 6 V / 3 A = 2 ohms, and every row of table 4.1 gives the same 2 ohms.'"
+  },
+  "author": "Claude (overnight evaluation-preparation session, 2026-09-19); unreviewed draft",
+  "reviewer": null,
+  "notes": "DRAFT, uncalibrated, unreviewed. Corresponds to 'pedagogical usefulness'; the documented evaluation name teaching_usefulness is kept. Anchor examples use only development-family material (intro-circuits-ch4) and are not sent to the judge."
+}

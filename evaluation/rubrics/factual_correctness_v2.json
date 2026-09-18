@@ -1,0 +1,25 @@
+{
+  "evaluation_id": "factual_correctness_v2",
+  "status": "draft_uncalibrated",
+  "supersedes": "factual_correctness_v1",
+  "criteria": "Is the response factually correct compared with the source-checked reference answer, including values, units, arithmetic and the direction of relationships? When the reference is a limitation, abstention or clarifying question, judge whether the statements the response does make are true.",
+  "score1": "The main conclusion is wrong: a wrong value, a wrong unit, a reversed relationship, an arithmetic error that changes the result, or a correct-sounding answer to a different quantity.",
+  "score2": "The main conclusion is partly right but rests on an incorrect step, value or unit that a student could learn as fact.",
+  "score3": "The main conclusion matches the reference, but a supporting statement contains a factual error or an ambiguous unit.",
+  "score4": "Every substantive fact matches the reference; only a minor imprecision in wording remains.",
+  "score5": "Every value, unit, calculation and relationship is consistent with the reference; valid alternative reasoning that reaches the same correct result is not penalised.",
+  "requires_reference": true,
+  "applies_to_modes": [],
+  "unit": "ordinal_1_5",
+  "scope": "Correctness only. Whether a claim is supported by the supplied excerpts is source_support_v2; whether citations point to the right excerpt is citation_correctness_v1; hedging and abstention are appropriate_uncertainty_v1; teaching value is teaching_usefulness_v2.",
+  "anchor_examples": {
+    "score1": "Table 4.1 lists (1 A, 2 V), (2 A, 4 V), (3 A, 6 V). Response: 'The resistance is 6 ohms.' (the largest voltage copied as the resistance).",
+    "score2": "Response: 'The resistance is 2 volts.' The number is right but the unit teaches that volts measure resistance.",
+    "score3": "Response: 'The resistance is 2 ohms, and doubling the current would halve the voltage.' Correct conclusion, false supporting relationship.",
+    "score4": "Response: 'Each row gives roughly 2 ohms.' Correct, but 'roughly' blurs a value the table gives exactly.",
+    "score5": "Response: '2 V / 1 A = 4 V / 2 A = 6 V / 3 A = 2 ohms, so the resistance is 2 ohms.' The same result read from the graph's slope of 2 volts per ampere also scores 5."
+  },
+  "author": "Claude (overnight evaluation-preparation session, 2026-09-19); unreviewed draft",
+  "reviewer": null,
+  "notes": "DRAFT, uncalibrated, unreviewed. Anchor examples use only development-family material (intro-circuits-ch4) so held-out candidates are not used to write rubrics. Examples are for human reviewers and are not sent to the judge. Calibrate against at least ten human-labelled cases before reporting any aggregate."
+}

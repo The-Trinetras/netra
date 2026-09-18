@@ -1,0 +1,25 @@
+{
+  "evaluation_id": "source_support_v2",
+  "status": "draft_uncalibrated",
+  "supersedes": "source_support_v1",
+  "criteria": "Is every factual claim in the response supported by the source excerpts that were available to the tutor, with nothing presented as coming from the source that the excerpts do not state, and no detail from evidence the tutor was not given?",
+  "score1": "A central claim contradicts the excerpts, or invented values, labels, relationships or visual details are presented as if they came from the source.",
+  "score2": "At least one unsupported claim matters to the answer, or a missing, unreadable, withheld or unverified detail is filled with a guess stated as fact.",
+  "score3": "The central answer is supported, but a secondary claim goes beyond the excerpts without saying so, or a value is paraphrased loosely enough to change its meaning.",
+  "score4": "All substantive claims are supported; minor wording is not directly traceable but adds no new fact.",
+  "score5": "Every factual claim is traceable to the excerpts, with values and units exactly as stated; anything the excerpts do not establish is stated as a limitation rather than guessed.",
+  "requires_reference": true,
+  "applies_to_modes": [],
+  "unit": "ordinal_1_5",
+  "scope": "Support only: a claim can be true (factual_correctness_v2) yet unsupported by these excerpts. Citation labels are judged by citation_correctness_v1.",
+  "anchor_examples": {
+    "score1": "Response: 'Table 4.1 shows 8 volts at 4 amperes.' The table has no 4 A row.",
+    "score2": "Response to 'How much power does the resistor use at 3 amperes?': 'The chapter's formula gives 18 watts.' The chapter excerpt defines power and watts but gives no formula.",
+    "score3": "Response: 'The resistance is 2 ohms, and the resistor is made of carbon.' The first claim is supported; the second appears in no excerpt.",
+    "score4": "Response: 'The points climb steadily, 2 volts for every ampere.' 'Steadily' is interpretation, but it adds no new fact.",
+    "score5": "Response: 'The chapter defines power as the rate of energy transfer, measured in watts, but these excerpts give no formula linking power to voltage and current, so I can't work out the power at 3 amperes from them. Table 4.1 does give 6 V at 3 A.'"
+  },
+  "author": "Claude (overnight evaluation-preparation session, 2026-09-19); unreviewed draft",
+  "reviewer": null,
+  "notes": "DRAFT, uncalibrated, unreviewed. Text judging cannot check original media; M3 original-source review stays separate. Anchor examples use only development-family material (intro-circuits-ch4) and are not sent to the judge."
+}

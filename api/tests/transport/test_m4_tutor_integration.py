@@ -235,8 +235,8 @@ async def test_real_m4_answer_commits_once_and_retransmission_does_not_recommit(
     await task
 
 
-async def test_m4_pending_grounding_decision_is_a_bounded_failure_not_a_crash():
-    model = ScriptedModel(
+def _check_script():
+    return ScriptedModel(
         [
             tools(("search_sources", {"query": "table rows"}), requirements=[{"requirement_id": "rows", "description": "table rows"}]),
             final(
@@ -248,22 +248,62 @@ async def test_m4_pending_grounding_decision_is_a_bounded_failure_not_a_crash():
             ),
         ]
     )
-    journey, provider, attempts, pending, _ = await _journey(model)
-    from netra_api.learning.quiz.generator import QuizGenerator  # noqa: F401  (M4 protocol exists)
 
-    class Draft:
-        async def generate(self, request):
-            from netra_api.learning.quiz.models import QuestionDraft
 
-            return QuestionDraft(concept_id="ohms-law", kind=QuestionKind.TRUE_FALSE, prompt="Is R constant?", options=[QuestionOption(option_id="true", text="True"), QuestionOption(option_id="false", text="False")], answer_key=AnswerKey(correct_answer="true"))
+class _Draft:
+    """Labelled QuizGenerator double; ``evidence_ids`` is what the draft cites."""
 
+    def __init__(self, evidence_ids):
+        self.evidence_ids = evidence_ids
+
+    async def generate(self, request):
+        from netra_api.learning.quiz.models import QuestionDraft
+
+        return QuestionDraft(
+            concept_id="ohms-law",
+            kind=QuestionKind.TRUE_FALSE,
+            prompt="Is R constant?",
+            options=[QuestionOption(option_id="true", text="True"), QuestionOption(option_id="false", text="False")],
+            answer_key=AnswerKey(correct_answer="true"),
+            evidence_ids=self.evidence_ids,
+        )
+
+
+async def _check_journey(evidence_ids):
+    journey, provider, attempts, pending, _ = await _journey(_check_script())
     gateway = journey.services.coordinator._tutor
-    gateway._runner.services = TutorServices(**{**gateway._runner.services.__dict__, "quiz_generator": Draft()})
+    gateway._runner.services = TutorServices(**{**gateway._runner.services.__dict__, "quiz_generator": _Draft(evidence_ids)})
     socket, task = await _open(journey)
     responses = await _submit(socket, _turn("Can you check my understanding?", 10))
+    return journey, pending, socket, task, responses
+
+
+async def test_m4_pending_grounding_decision_is_a_bounded_failure_not_a_crash():
+    # The draft cites the evidence this turn resolved, so reference binding
+    # passes and the turn reaches the support check (D2), which is still an
+    # unmade product decision and fails closed. That must surface as the
+    # distinct pending-capability rejection, not a crash or a teaching result.
+    journey, pending, socket, task, responses = await _check_journey(["ev-table-tbl01"])
     assert journey.trace.of_kind("handoff_rejected")[0].detail["check"] == "tutor_capability_pending_decision"
     assert not [m for m in responses if m["type"] == "quiz.question"]
     assert pending.questions == {}  # fail-closed grounding persisted nothing
     assert (await journey.sessions.get(SESSION)).pending_question is None
     socket.disconnect()
     await task
+
+
+async def test_m4_uncited_or_unresolved_draft_is_refused_by_binding_not_reported_as_pending():
+    # Reference binding runs before (and independently of) the pending support
+    # decision: a draft citing nothing, or citing evidence this turn never
+    # resolved, is an ordinary bounded failure. It must not be confused with
+    # the pending-capability path, and nothing may be persisted or delivered.
+    for cited in ([], ["ev-not-handed-to-this-turn"]):
+        journey, pending, socket, task, responses = await _check_journey(cited)
+        assert journey.trace.of_kind("handoff_rejected") == []
+        statuses = [e.detail["status"] for e in journey.trace.of_kind("handoff_result") if "status" in e.detail]
+        assert statuses == ["failed"], cited
+        assert not [m for m in responses if m["type"] == "quiz.question"]
+        assert pending.questions == {}
+        assert (await journey.sessions.get(SESSION)).pending_question is None
+        socket.disconnect()
+        await task

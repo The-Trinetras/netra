@@ -2,8 +2,8 @@
 
 `docker-compose.yml` is intentionally unchanged: application database placement
 (Compose PostgreSQL versus RDS/PgBouncer) is an open M1/M2 decision recorded in
-`docs/team/handoffs/M2.md`. M2's RDS/PgBouncer Terraform proposal lives on the
-separate `codex/m2-infra-proposal` branch and is not part of this change.
+`docs/team/handoffs/M2.md`. M2's RDS/PgBouncer Terraform proposal is kept on a local-only
+`codex/m2-infra-proposal` branch and is not part of this change.
 
 `docker-compose.test.yml` runs PostgreSQL 17.11 on container tmpfs, bound to
 localhost port 55432, for **disposable integration tests only**. Its password

@@ -97,6 +97,25 @@ The candidate must meet all of the following:
 7. Healthy paced still exports 2000 of 2000, and a failing collector is still counted as 100% lost.
 8. `api/tests/platform/test_tracing.py` and `api/tests/transport/test_tracing_journey.py` pass unmodified.
 
+**T-1 result** (`results/tracing-t1-candidate.json`, same instrument and settings):
+
+| Threshold | Baseline | Candidate | Met |
+|---|---|---|---|
+| 1. Duplicate deliveries, slow / stalled | 1024 / 640 | 0 / 0 | yes |
+| 2. Slow collector, delivered but counted lost | 600 of 600 (exported counter 0) | 0 (exported 600, all late) | yes |
+| 3. Stalled then released: after-final-flush counter vs collector | 256 counted lost though delivered | counter 0 = 2176 received − 2176 exported; the non-zero case is covered by a unit test | yes |
+| 4. Queued export calls while stalled | 7 | 0 | yes |
+| 5. `exported + lost == ended` | held in these runs, but a shutdown race could count one span twice (seen in the new test) | holds in every condition; settled once under a lock | yes |
+| 6. Burst span median; worst span | 10.8–11.0 µs; 730 µs | 10.8–11.0 µs; 904 µs (limit 2 ms) | yes |
+| 7. Paced / failing | 2000 of 2000 / 100% counted lost | 2000 of 2000 / 100% counted lost | yes |
+| 8. Existing tracing tests | – | 14 + 2 unmodified pass; 3 new pass (15/15 and 10/10 repeated runs); suite 1112 passed | yes |
+
+The stalled-then-released collector still receives 2176 distinct spans, now with no
+duplicates. While a call is stuck, spans wait in the bounded queue; they are no
+longer drained into an unbounded backlog of pending calls. Transport navigation
+overhead is unchanged: local p50 0.202–0.207 ms, stalled 0.208 ms, and shutdown
+bounded at 1009 ms. Rollback: `git revert` the T-1 commit.
+
 ### C-1: child work outlives a cancelled turn (M1, `coordinator/graph.py` and `coordinator/tutor_gateway.py`)
 
 The candidate must meet all of the following:

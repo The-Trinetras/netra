@@ -242,3 +242,78 @@ def test_langsmith_export_is_forced_off_and_reported():
     environ = {"LANGSMITH_TRACING": "true", "LANGCHAIN_TRACING_V2": "false"}
     assert disable_langsmith_export(environ) == ["LANGSMITH_TRACING"]
     assert all(environ[name] == "false" for name in ("LANGSMITH_TRACING", "LANGCHAIN_TRACING_V2", "LANGCHAIN_TRACING"))
+
+
+class RecordingExporter:
+    """Records every span id it receives (repeats included); optionally slow or gated."""
+
+    def __init__(self, delay=0.0, gate=None):
+        self.delay = delay
+        self.gate = gate
+        self.calls = 0
+        self.received = {}
+        self._lock = threading.Lock()
+
+    def export(self, batch):
+        with self._lock:
+            self.calls += 1
+        if self.gate is not None:
+            self.gate.wait(5)
+        if self.delay:
+            time.sleep(self.delay)
+        with self._lock:
+            for span in batch:
+                self.received[span.span_id] = self.received.get(span.span_id, 0) + 1
+        return "success"
+
+    def shutdown(self):
+        pass
+
+
+def test_a_slow_exporter_never_receives_a_batch_twice_and_its_late_success_is_counted():
+    exporter = RecordingExporter(delay=0.3)  # slower than FAST's 0.2 s per-call timeout
+    tracer = build_tracer("local", exporter=exporter, settings=FAST)
+    for _ in range(5):
+        with tracer.span("netra.request"):
+            pass
+    _wait(lambda: len(exporter.received) == 5 and tracer.diagnostics.exported == 5, timeout=3)
+    time.sleep(0.8)  # a resubmitted copy of a timed-out batch would have arrived by now
+    diagnostics = tracer.diagnostics
+    assert max(exporter.received.values()) == 1
+    assert diagnostics.export_timeouts >= 1 and diagnostics.dropped_after_failure == 0
+    assert diagnostics.exported == 5 and diagnostics.exported_late == 5
+    tracer.shutdown(1)
+    assert diagnostics.exported + diagnostics.lost == diagnostics.ended
+
+
+def test_a_stalled_exporter_gets_no_queued_work_and_what_it_delivers_is_what_is_counted():
+    exporter = RecordingExporter(gate=threading.Event())
+    tracer = build_tracer("local", exporter=exporter, settings=FAST)
+    for _ in range(48):
+        with tracer.span("netra.request"):
+            pass
+    time.sleep(1.0)  # several per-call timeouts pass while the first call is stuck
+    assert exporter.calls == 1
+    exporter.gate.set()
+    time.sleep(0.6)
+    diagnostics = tracer.diagnostics
+    assert max(exporter.received.values()) == 1  # nothing delivered twice
+    assert diagnostics.exported == len(exporter.received)  # delivered == counted as exported
+    tracer.shutdown(1)
+    assert diagnostics.exported + diagnostics.lost == diagnostics.ended
+
+
+def test_a_delivery_after_the_final_flush_is_reported_rather_than_silently_lost():
+    exporter = RecordingExporter(gate=threading.Event())
+    tracer = build_tracer("local", exporter=exporter, settings=FAST)
+    with tracer.span("netra.request"):
+        pass
+    _wait(lambda: exporter.calls == 1)
+    tracer.shutdown(0.3)
+    diagnostics = tracer.diagnostics
+    assert diagnostics.final_flush == "incomplete"
+    assert diagnostics.exported == 0 and diagnostics.exported + diagnostics.lost == diagnostics.ended
+    exporter.gate.set()
+    _wait(lambda: diagnostics.delivered_after_final_flush == 1)
+    assert len(exporter.received) == 1
+    assert diagnostics.exported + diagnostics.lost == diagnostics.ended  # totals frozen at shutdown

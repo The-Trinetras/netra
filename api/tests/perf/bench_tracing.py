@@ -95,9 +95,12 @@ def run(name: str, exporter, settings: ExportSettings, spans: int, settle_second
                     "max": ordered[-1], "mean": statistics.fmean(ordered)},
         "shutdown_ms": round(shutdown_ms, 1),
         "pool_backlog_before_shutdown": backlog_before_shutdown,
-        "diagnostics": {k: diag[k] for k in ("created", "ended", "enqueued", "exported", "export_attempts",
-                                             "export_timeouts", "dropped_queue_full", "dropped_after_failure",
-                                             "dropped_at_shutdown", "final_flush", "last_error_code")},
+        # .get(): counters added by later revisions are absent (None) when measuring the baseline revision.
+        "diagnostics": {k: diag.get(k) for k in ("created", "ended", "enqueued", "exported", "export_attempts",
+                                                 "export_timeouts", "dropped_queue_full", "dropped_after_failure",
+                                                 "dropped_at_shutdown", "final_flush", "last_error_code",
+                                                 "exported_late", "export_skipped_stalled",
+                                                 "delivered_after_final_flush")},
     }
     if isinstance(exporter, Recording):
         received = exporter.received

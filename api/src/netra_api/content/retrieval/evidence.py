@@ -16,7 +16,7 @@ from enum import Enum
 from typing import List, Optional, Protocol
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from netra_api.platform.auth_context import AuthContext
 
@@ -35,6 +35,15 @@ class Evidence(BaseModel):
 
     evidence_id: str
     source_version_id: UUID
+    evidence_version: Optional[int] = Field(default=None, ge=1)
+    """Immutable version of this evidence content (INT-03).
+
+    Search chunks and reading blocks are never edited in place: re-ingestion
+    creates a new source version with new evidence IDs. The evidence version
+    is therefore the owning source version's ``version_number`` (>= 1), which
+    fills ``EvidenceRef.evidence_version`` in shared/contracts/agent/v1.
+    Optional only so other producers (multimedia) can adopt it; M2's
+    PostgreSQL resolver always sets it."""
     locator: str
     text: str
     provenance: str

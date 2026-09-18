@@ -56,7 +56,8 @@ class AsyncPostgresEvidenceResolver:
                 results.append(EvidenceResolution(evidence_id=evidence_id, rejection_reason=EvidenceRejectionReason.DELETED)); continue
             locator = ", ".join((b.structured_location or {}).get("locator", str(b.sequence_id)) for b in blocks)
             results.append(EvidenceResolution(evidence_id=evidence_id, evidence=Evidence(
-                evidence_id=evidence_id, source_version_id=version.source_version_id, locator=locator,
+                evidence_id=evidence_id, source_version_id=version.source_version_id,
+                evidence_version=version.version_number, locator=locator,
                 text=chunk.text, provenance=f"source:{source.source_id};blocks:{','.join(chunk.block_ids)}",
                 trust=EvidenceTrust.SOURCE_VERIFIED)))
         return results

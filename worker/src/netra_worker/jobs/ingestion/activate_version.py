@@ -6,7 +6,7 @@ from typing import Protocol
 from uuid import UUID
 
 from netra_worker.jobs.ingestion.base import IngestionJobPayload
-from netra_api.platform.observability import instrument_stage
+from netra_api.content.telemetry import instrument_stage
 
 
 class ActivateVersionPayload(IngestionJobPayload):

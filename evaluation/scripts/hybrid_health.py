@@ -12,7 +12,7 @@ from typing import Any
 import httpx
 from sqlalchemy import text
 
-from netra_api.config import Settings
+from netra_api.content.settings import ContentSettings, application_database_url
 from netra_api.content.providers.pinecone import PineconeVectorIndex
 from netra_api.content.providers.s3 import Boto3ObjectStorage
 from netra_api.content.retrieval.embeddings import GeminiEmbeddingProvider
@@ -76,8 +76,8 @@ async def run_checks(
 
     engine = None
     if operations is None:
-        settings = Settings()
-        engine = create_engine(settings)
+        settings = ContentSettings()
+        engine = create_engine(application_database_url(), pool_size=settings.database_pool_size)
 
         async def database() -> None:
             assert engine is not None

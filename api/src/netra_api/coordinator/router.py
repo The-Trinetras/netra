@@ -2,9 +2,10 @@
 
 Owns study-task routing, source selection, cross-source comparison, and
 whether a turn requires Tutor delegation (CLAUDE.md "Coordinator"). This
-module fixes the typed decision shapes and a bounded entry point; the
-policy/model logic is implemented once GeminiCoordinatorProvider and
-ToolRegistry have concrete wiring.
+module keeps the deterministic-first routing entry point; the bounded
+model/tool loop lives in netra_api.coordinator.graph.CoordinatorEngine, and
+the WebSocket dispatcher applies the same deterministic check before any turn
+reaches it.
 """
 
 from __future__ import annotations
@@ -43,9 +44,8 @@ class CoordinatorRouter(Protocol):
     deterministically. Never call this directly from a turn loop; call
     route_turn, which runs the deterministic check first.
 
-    TODO: implement against GeminiCoordinatorProvider
-    (coordinator/providers/gemini.py) and ToolRegistry
-    (coordinator/tool_registry.py) once those are wired to real services.
+    Retained for synchronous callers and tests; the production path is
+    netra_api.coordinator.graph.CoordinatorEngine.
     """
 
     def route(self, turn: CoordinatorTurnState) -> RoutingDecision:

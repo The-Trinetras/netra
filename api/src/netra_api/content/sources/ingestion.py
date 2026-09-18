@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from netra_api.content.sources.models import SourceVersionIngestionState, SourceVersionStatus
 from netra_api.db.models import JobRow, OutboxRow, SourceRow, SourceVersionRow
 from netra_api.platform.auth_context import AuthContext
-from netra_api.platform.observability import log_event
+from netra_api.content.telemetry import log_event
 from netra_api.platform.errors import AuthorizationError
 
 

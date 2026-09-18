@@ -18,9 +18,9 @@ from uuid import UUID
 from pydantic import BaseModel, Field, field_validator
 
 from netra_api.platform.auth_context import AuthContext
-from netra_api.config import Settings
-from netra_api.platform.observability import (configure_observability, increment, log_event,
-                                               observe, start_span)
+from netra_api.content.settings import ContentSettings
+from netra_api.content.telemetry import increment, log_event, observe, stage_span
+from netra_api.platform.tracing import DISABLED_TRACER, Tracer
 import logging
 import time
 
@@ -64,12 +64,13 @@ class HybridRetrievalService:
     """Bounded lexical + semantic retrieval with canonical evidence gating."""
 
     def __init__(self, lexical, semantic, evidence_resolver, reranker=None,
-                 settings: Settings | None = None) -> None:
+                 settings: ContentSettings | None = None, tracer: Tracer | None = None) -> None:
         self.lexical, self.semantic = lexical, semantic
         self.evidence_resolver, self.reranker = evidence_resolver, reranker
-        self.settings = settings or Settings()
-        configure_observability(metrics_enabled=self.settings.observability_enabled and self.settings.metrics_enabled,
-                                tracing_enabled=self.settings.observability_enabled and self.settings.tracing_enabled)
+        self.settings = settings or ContentSettings()
+        # Process telemetry is configured once by the composition root; a
+        # service constructor must not reconfigure it as a side effect.
+        self.tracer = tracer or DISABLED_TRACER
 
     async def search(self, auth: AuthContext, query: RetrievalQuery) -> list[RetrievalHit]:
         from netra_api.content.retrieval.ranking import reciprocal_rank_fusion
@@ -77,13 +78,17 @@ class HybridRetrievalService:
             return []
         import asyncio
         started = time.perf_counter()
+        # An explicit version scope is a pinned session: its versions stay
+        # servable after a newer version activates. Unscoped search serves
+        # only each source's active version.
+        require_active = query.source_version_ids is None
         increment("netra_retrieval_requests_total")
         log_event(logging.getLogger(__name__), "retrieval_started", component="retrieval")
 
         async def provider_call(provider, name, top_k):
             stage = time.perf_counter()
             try:
-                with start_span(name, component="retrieval", provider=name):
+                with stage_span(self.tracer, f"retrieval.{name}", operation=f"retrieval_{name}"):
                     result = await provider.search(auth, query.query_text, query.source_version_ids, top_k)
                 return result
             except Exception as exc:
@@ -110,7 +115,7 @@ class HybridRetrievalService:
         if lexical_unavailable and semantic_unavailable:
             raise RetrievalUnavailableError("lexical and semantic retrieval are unavailable")
         stage = time.perf_counter()
-        with start_span("rrf_fusion", component="retrieval", operation="rrf"):
+        with stage_span(self.tracer, "retrieval.fusion", operation="retrieval_rrf"):
             fused = reciprocal_rank_fusion(lexical, semantic, k=self.settings.rrf_k,
                                            top_k=self.settings.fusion_top_k)
         observe("netra_retrieval_provider_duration_seconds", time.perf_counter() - stage, provider="rrf")
@@ -124,7 +129,7 @@ class HybridRetrievalService:
                 auth,
                 [hit.evidence_id for hit in rerank_candidates],
                 allowed_source_version_ids=query.source_version_ids,
-                require_active=True,
+                require_active=require_active,
             )
             resolved_by_id = {
                 item.evidence_id: item.evidence.text
@@ -150,16 +155,23 @@ class HybridRetrievalService:
         fused = fused[:min(query.top_k, self.settings.final_evidence_max)]
         stage = time.perf_counter()
         try:
-            with start_span("canonical_evidence_resolution", component="retrieval"):
+            with stage_span(self.tracer, "retrieval.evidence_check", operation="evidence_resolution") as span:
                 resolutions = await self.evidence_resolver.resolve(
                     auth, [hit.evidence_id for hit in fused],
-                    allowed_source_version_ids=query.source_version_ids, require_active=True)
+                    allowed_source_version_ids=query.source_version_ids, require_active=require_active)
+                if len(resolutions) != len(fused):
+                    # The resolver contract is one outcome per id, in order.
+                    # A mismatch would pair hits with the wrong verdicts.
+                    raise RuntimeError("evidence resolver returned a misaligned result")
+                accepted = [hit for hit, resolution in zip(fused, resolutions) if resolution.is_resolved]
+                span.set(**{"netra.evidence_ids": [hit.evidence_id for hit in accepted][:16],
+                            "netra.evidence_count": len(accepted),
+                            "netra.rejected_count": len(fused) - len(accepted)})
         except Exception:
             increment("netra_retrieval_failures_total")
             raise
         observe("netra_retrieval_provider_duration_seconds", time.perf_counter() - stage, provider="canonical_resolution")
-        result = [RetrievalHit(evidence_id=hit.evidence_id, score=hit.score)
-                  for hit, resolution in zip(fused, resolutions) if resolution.is_resolved]
+        result = [RetrievalHit(evidence_id=hit.evidence_id, score=hit.score) for hit in accepted]
         observe("netra_retrieval_duration_seconds", time.perf_counter() - started)
         log_event(logging.getLogger(__name__), "retrieval_completed", component="retrieval",
                   duration_ms=round((time.perf_counter() - started) * 1000, 3))

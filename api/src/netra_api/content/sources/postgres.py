@@ -302,6 +302,12 @@ class AsyncSourceRepository:
             ).with_for_update())).scalar_one_or_none()
             if row is None:
                 raise AuthorizationError("source version is not accessible")
+            if row.is_active:
+                # Redelivered activation of the version that is already
+                # active: an idempotent success, not a version conflict.
+                if row.ingestion_state != SourceVersionIngestionState.ACTIVE.value:
+                    raise NetraError("active source version has invalid ingestion state")
+                return _version(row)
             active = (await self.session.execute(select(SourceVersionRow).where(
                 SourceVersionRow.source_id == source_id, SourceVersionRow.is_active.is_(True)
             ).with_for_update())).scalar_one_or_none()
@@ -318,10 +324,6 @@ class AsyncSourceRepository:
             if not set(_STAGES).issubset(row.completed_stages or []) or not all(
                     (row.object_key, row.content_hash, row.parser_name, row.parser_version)):
                 raise NetraError("source version ingestion gates are incomplete")
-            if row.is_active:
-                if row.ingestion_state != SourceVersionIngestionState.ACTIVE.value:
-                    raise NetraError("active source version has invalid ingestion state")
-                return _version(row)
             await self.session.execute(update(SourceVersionRow).where(SourceVersionRow.source_id == source_id,
                                                                        SourceVersionRow.source_version_id != source_version_id)
                                        .values(is_active=False, activated_at=None))

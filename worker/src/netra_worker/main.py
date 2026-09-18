@@ -9,7 +9,7 @@ from collections.abc import Awaitable, Callable
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from netra_api.config import Settings
+from netra_api.content.settings import ContentSettings
 from netra_api.content.providers.pinecone import PineconeVectorIndex
 from netra_api.content.providers.pymupdf import PyMuPDFDocumentParser
 from netra_api.content.providers.s3 import Boto3ObjectStorage, LocalFixtureObjectStorage, ObjectStorageProvider
@@ -17,8 +17,10 @@ from netra_api.content.retrieval.embeddings import GeminiEmbeddingProvider
 from netra_api.content.retrieval.chunks import AsyncSearchChunkRepository
 from netra_api.content.reading.postgres import AsyncReadingBlockRepository
 from netra_api.content.sources.postgres import AsyncSourceRepository
+from netra_api.config import Settings
+from netra_api.content.telemetry import configure_logging, configure_metrics
 from netra_api.platform.database import create_engine, create_session_factory, dispose_engine
-from netra_api.platform.observability import configure_logging, configure_observability
+from netra_api.platform.tracing import DISABLED_TRACER, Tracer, build_tracer, disable_langsmith_export
 
 from netra_worker.jobs.ingestion.activate_version import ActivateVersionJob, ActivateVersionPayload
 from netra_worker.jobs.ingestion.build_blocks import BuildBlocksJob, BuildBlocksPayload, S3ParsedDocumentReader
@@ -63,7 +65,7 @@ async def _with_session(factory: async_sessionmaker[AsyncSession], operation: Ca
         await operation(session)
 
 
-def _handlers(factory: async_sessionmaker[AsyncSession], settings: Settings) -> dict[str, JobHandler]:
+def _handlers(factory: async_sessionmaker[AsyncSession], settings: ContentSettings) -> dict[str, JobHandler]:
     storage: ObjectStorageProvider
     if settings.storage_provider == "local_fixture":
         if not settings.local_fixture_root:
@@ -113,7 +115,8 @@ def _handlers(factory: async_sessionmaker[AsyncSession], settings: Settings) -> 
     }
 
 
-def build_pools(settings: Settings, factory: async_sessionmaker[AsyncSession]) -> list[WorkerPool]:
+def build_pools(settings: ContentSettings, factory: async_sessionmaker[AsyncSession],
+                tracer: Tracer = DISABLED_TRACER) -> list[WorkerPool]:
     handlers = _handlers(factory, settings)
     repository = SessionScopedJobRepository(factory)
     process = os.getpid()
@@ -128,7 +131,7 @@ def build_pools(settings: Settings, factory: async_sessionmaker[AsyncSession]) -
         worker_id=f"{process}/{name}", job_types=job_types, concurrency=concurrency,
         lease_duration_seconds=settings.worker_lease_duration_seconds,
         poll_interval_seconds=settings.worker_poll_interval_seconds,
-    )) for name, job_types, concurrency in definitions]
+    ), tracer=tracer) for name, job_types, concurrency in definitions if concurrency > 0]
 
 
 def _install_shutdown_handlers(stop: asyncio.Event) -> None:
@@ -141,19 +144,23 @@ def _install_shutdown_handlers(stop: asyncio.Event) -> None:
 
 
 async def run() -> None:
-    settings = Settings()
-    if settings.observability_enabled:
-        configure_logging(log_format=settings.log_format)
-    configure_observability(metrics_enabled=settings.observability_enabled and settings.metrics_enabled,
-                            tracing_enabled=settings.observability_enabled and settings.tracing_enabled)
-    engine = create_engine(settings)
+    app_settings = Settings()
+    settings = ContentSettings()
+    if not app_settings.database_url:
+        # Fail closed: the worker has no useful mode without its job table.
+        raise SystemExit("NETRA_DATABASE_URL is required to run the worker")
+    configure_logging(log_format=settings.log_format)
+    configure_metrics(enabled=settings.metrics_enabled)
+    disable_langsmith_export(os.environ)
+    tracer = build_tracer(app_settings.tracing_mode, service_name="netra-worker")
+    engine = create_engine(app_settings.database_url, pool_size=settings.database_pool_size)
     factory = create_session_factory(engine)
     stop = asyncio.Event()
     _install_shutdown_handlers(stop)
-    pools = build_pools(settings, factory)
+    pools = build_pools(settings, factory, tracer)
     outbox_consumer = OutboxConsumer(
         factory, f"{os.getpid()}/outbox", settings.worker_poll_interval_seconds,
-        settings.outbox_lease_duration_seconds,
+        settings.outbox_lease_duration_seconds, tracer=tracer,
     )
     try:
         await asyncio.gather(*(pool.run(stop) for pool in pools), outbox_consumer.run(stop))
@@ -162,6 +169,8 @@ async def run() -> None:
         for pool in pools:
             pool.stop()
         await dispose_engine(engine)
+        # Bounded final flush outside any job attempt (never per job).
+        await asyncio.to_thread(tracer.shutdown, app_settings.tracing_shutdown_timeout_seconds)
 
 
 def main() -> None:

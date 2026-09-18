@@ -2,32 +2,55 @@
 
 Runs after (or alongside) figure extraction when a figure is classified
 as a diagram; produces the layered node/edge/reading-order structure
-defined in netra_api.multimedia.diagrams.models. Must not hold a
-PostgreSQL transaction open while awaiting the provider call (CLAUDE.md
-"Background jobs"). Produces a candidate structure only —
-netra_api.multimedia.diagrams.service registers it as citable DERIVED
-evidence, not this job (CLAUDE.md "Agents never own database
-connections").
+defined in netra_api.multimedia.diagrams.models. Produces a candidate
+structure only — netra_api.multimedia.diagrams.service registers it as
+citable DERIVED evidence, not this job.
+
+Staging, idempotency, cancellation and the refusal to publish an
+unchecked extraction come from netra_worker.jobs.multimedia.extraction.
 """
 
 from __future__ import annotations
 
-from netra_worker.jobs.multimedia.base import MultimediaJobPayload
+from typing import Optional
+
+from netra_worker.jobs.multimedia.base import CancellationToken, Deadline, StageRecorder
+from netra_worker.jobs.multimedia.extraction import (
+    ExtractedObjectKind,
+    ExtractionCandidateSink,
+    ExtractObjectJob,
+    ExtractObjectPayload,
+    ObjectExtractionPort,
+)
 
 
-class ExtractDiagramStructurePayload(MultimediaJobPayload):
-    figure_index: int
-    object_key: str
+class ExtractDiagramStructurePayload(ExtractObjectPayload):
+    """One diagram within a source version."""
+
+    @property
+    def figure_index(self) -> int:
+        return self.object_index
 
 
-class ExtractDiagramStructureJob:
-    """Structurally implements netra_worker.runtime.job_repository.JobHandler[ExtractDiagramStructurePayload].
+class ExtractDiagramStructureJob(ExtractObjectJob):
+    """Structurally implements JobHandler[ExtractDiagramStructurePayload]."""
 
-    TODO: inject a diagram-structure-extraction provider + persistence
-    store once provider wiring for worker/ is decided.
-    """
-
-    async def handle(self, payload: ExtractDiagramStructurePayload) -> None:
-        raise NotImplementedError(
-            "TODO: extract_diagram_structure — no diagram extraction provider call implemented"
+    def __init__(
+        self,
+        extraction: ObjectExtractionPort,
+        sink: ExtractionCandidateSink,
+        recorder: StageRecorder,
+        *,
+        cancellation: Optional[CancellationToken] = None,
+        deadline: Optional[Deadline] = None,
+        stage_timeout_seconds: float = 90.0,
+    ) -> None:
+        super().__init__(
+            extraction,
+            sink,
+            recorder,
+            kind=ExtractedObjectKind.DIAGRAM,
+            cancellation=cancellation,
+            deadline=deadline,
+            stage_timeout_seconds=stage_timeout_seconds,
         )

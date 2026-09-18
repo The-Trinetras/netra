@@ -2,7 +2,7 @@ import asyncio
 
 import pytest
 
-from netra_api.config import Settings
+from netra_api.content.settings import ContentSettings
 from netra_api.content.retrieval.exact_search import SearchCandidate
 from netra_api.content.retrieval.reranker import BGEReranker
 from netra_api.content.retrieval.service import RetrievalProviderUnavailableError
@@ -25,7 +25,7 @@ def candidates(count=3):
 @pytest.mark.asyncio
 async def test_bge_reranker_batches_pairs_and_preserves_ids():
     model = FakeModel({f"passage {i}": float(i) for i in range(5)})
-    reranker = BGEReranker(Settings(reranker_batch_size=2), lambda *_args, **_kwargs: model)
+    reranker = BGEReranker(ContentSettings(reranker_batch_size=2), lambda *_args, **_kwargs: model)
     result = await reranker.rerank("query", candidates(5))
     assert [item.evidence_id for item in result] == ["4", "3", "2", "1", "0"]
     assert model.calls == [

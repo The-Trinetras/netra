@@ -10,6 +10,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from netra_api.db.models import JobRow, OutboxRow
+from netra_worker.runtime.errors import LeaseLostError
 from netra_worker.runtime.job_repository import Job, JobPayload, JobStatus
 from netra_worker.runtime.leases import Lease
 from netra_worker.runtime.outbox import OutboxEvent
@@ -30,6 +31,9 @@ class AsyncJobRepository:
     async def enqueue(self, job_type: str, payload: JobPayload, idempotency_key: str, max_attempts: int = 5) -> Job:
         existing = (await self.session.execute(select(JobRow).where(JobRow.operation_key == idempotency_key))).scalar_one_or_none()
         if existing:
+            if existing.job_type != job_type:
+                await self.session.rollback()
+                raise ValueError("idempotency key is already used by a different job type")
             # The lookup autobegins a read transaction. Close it before a
             # caller starts another explicit transaction, such as the
             # outbox acknowledgement immediately after idempotent enqueue.
@@ -52,14 +56,25 @@ class AsyncJobRepository:
             existing = (await self.session.execute(select(JobRow).where(
                 JobRow.operation_key == idempotency_key))).scalar_one()
             await self.session.commit()
+            if existing.job_type != job_type:
+                raise ValueError("idempotency key is already used by a different job type")
             return _job(existing)
         return _job(row)
 
     async def claim_next(self, job_types: list[str], worker_id: str, lease_duration_seconds: int) -> Job | None:
         now = datetime.now(timezone.utc)
         async with self.session.begin():
+            # A worker that crashed (or lost its lease) never called fail(), so
+            # its attempt was counted at claim time. Once attempts are exhausted
+            # an expired lease is dead-lettered instead of being re-claimed forever.
+            await self.session.execute(update(JobRow).where(
+                JobRow.job_type.in_(job_types), JobRow.status == JobStatus.LEASED.value,
+                JobRow.lease_until < now, JobRow.attempts >= JobRow.max_attempts,
+            ).values(status=JobStatus.DEAD_LETTER.value, lease_until=None, lease_token=None,
+                     last_error="lease expired after final attempt", updated_at=now))
             row = (await self.session.execute(select(JobRow).where(
                 JobRow.job_type.in_(job_types), JobRow.status.in_([JobStatus.PENDING.value, JobStatus.LEASED.value]),
+                JobRow.attempts < JobRow.max_attempts,
                 JobRow.next_run_at <= now, (JobRow.lease_until.is_(None) | (JobRow.lease_until < now))
             ).order_by(JobRow.next_run_at, JobRow.created_at).limit(1).with_for_update(skip_locked=True))).scalar_one_or_none()
             if not row: return None
@@ -71,7 +86,7 @@ class AsyncJobRepository:
         row = (await self.session.execute(select(JobRow).where(JobRow.job_id == job_id,
             JobRow.status == JobStatus.LEASED.value, JobRow.lease_token == lease.token,
             JobRow.worker_id == lease.worker_id, JobRow.lease_until >= datetime.now(timezone.utc)).with_for_update())).scalar_one_or_none()
-        if row is None: raise RuntimeError("job lease is no longer valid")
+        if row is None: raise LeaseLostError("job lease is no longer valid")
         for key, value in values.items(): setattr(row, key, value)
         row.updated_at = datetime.now(timezone.utc)
         return row
@@ -141,4 +156,4 @@ class AsyncOutboxRepository:
                 OutboxRow.claim_until >= datetime.now(timezone.utc),
             ).values(processed_at=processed_at, claim_token=None, claim_worker_id=None, claim_until=None))
             if result.rowcount != 1:
-                raise RuntimeError("outbox claim is no longer valid")
+                raise LeaseLostError("outbox claim is no longer valid")

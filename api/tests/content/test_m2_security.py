@@ -49,7 +49,31 @@ async def test_retrieval_applies_canonical_active_and_scope_gate():
     )
     result = await service.search(_auth(account), RetrievalQuery(query_text="q", source_version_ids=[version], top_k=5))
     assert [hit.evidence_id for hit in result] == ["active"]
-    assert resolver.calls[0][1] == {"allowed_source_version_ids": [version], "require_active": True}
+    # An explicit version scope is a pinned session: its version stays citable
+    # after a newer version activates, so "active" is not required, but the
+    # scope itself is enforced by the canonical resolver.
+    assert resolver.calls[0][1] == {"allowed_source_version_ids": [version], "require_active": False}
+
+
+@pytest.mark.asyncio
+async def test_unscoped_retrieval_requires_the_active_version():
+    resolver = _Resolver()
+    service = HybridRetrievalService(_Search([SearchCandidate(evidence_id="a", score=1)]), _Search([]), resolver)
+    await service.search(_auth(uuid4()), RetrievalQuery(query_text="q"))
+    assert resolver.calls[0][1] == {"allowed_source_version_ids": None, "require_active": True}
+
+
+@pytest.mark.asyncio
+async def test_misaligned_resolver_output_fails_closed():
+    class ShortResolver(_Resolver):
+        async def resolve(self, auth, evidence_ids, **kwargs):
+            return (await super().resolve(auth, evidence_ids, **kwargs))[:-1]
+
+    service = HybridRetrievalService(
+        _Search([SearchCandidate(evidence_id="a", score=1), SearchCandidate(evidence_id="b", score=.5)]),
+        _Search([]), ShortResolver())
+    with pytest.raises(RuntimeError, match="misaligned"):
+        await service.search(_auth(uuid4()), RetrievalQuery(query_text="q"))
 
 
 @pytest.mark.asyncio

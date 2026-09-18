@@ -7,6 +7,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from netra_api.content.sources.models import SourceVersionStatus
 from netra_api.content.retrieval.evidence import Evidence, EvidenceRejectionReason, EvidenceResolution, EvidenceTrust
 from netra_api.db.models import ReadingBlockRow, SearchChunkRow, SourceRow, SourceVersionRow
 from netra_api.platform.auth_context import AuthContext
@@ -39,6 +40,9 @@ class AsyncPostgresEvidenceResolver:
                 results.append(EvidenceResolution(evidence_id=evidence_id, rejection_reason=EvidenceRejectionReason.SOURCE_VERSION_MISMATCH)); continue
             if pinned_source_version_id is not None and version.source_version_id != pinned_source_version_id:
                 results.append(EvidenceResolution(evidence_id=evidence_id, rejection_reason=EvidenceRejectionReason.SOURCE_VERSION_MISMATCH)); continue
+            if version.status != SourceVersionStatus.READY.value:
+                # Pending, processing or failed ingestion is never citable.
+                results.append(EvidenceResolution(evidence_id=evidence_id, rejection_reason=EvidenceRejectionReason.SOURCE_VERSION_MISMATCH)); continue
             if require_active and not version.is_active:
                 results.append(EvidenceResolution(evidence_id=evidence_id, rejection_reason=EvidenceRejectionReason.SOURCE_VERSION_MISMATCH)); continue
             try:
@@ -47,7 +51,7 @@ class AsyncPostgresEvidenceResolver:
                 results.append(EvidenceResolution(evidence_id=evidence_id, rejection_reason=EvidenceRejectionReason.DELETED)); continue
             blocks = (await self.session.execute(select(ReadingBlockRow).where(
                 ReadingBlockRow.source_version_id == version.source_version_id,
-                ReadingBlockRow.block_id.in_(block_ids)))).scalars().all()
+                ReadingBlockRow.block_id.in_(block_ids)).order_by(ReadingBlockRow.sequence_id))).scalars().all()
             if len(blocks) != len(block_ids) or len(block_ids) != len(chunk.block_ids):
                 results.append(EvidenceResolution(evidence_id=evidence_id, rejection_reason=EvidenceRejectionReason.DELETED)); continue
             locator = ", ".join((b.structured_location or {}).get("locator", str(b.sequence_id)) for b in blocks)

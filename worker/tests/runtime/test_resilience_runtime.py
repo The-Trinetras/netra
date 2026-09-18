@@ -35,3 +35,11 @@ async def test_lease_loss_cancels_handler_and_never_completes_job():
         worker_id="worker", job_types=("parse_document",), lease_duration_seconds=1))
     await asyncio.wait_for(asyncio.gather(pool._execute(_job()), started.wait()), 2)
     assert cancelled.is_set(); assert repo.completed == []; assert repo.failed == []
+
+
+def test_backoff_is_bounded_for_large_attempt_counts():
+    from datetime import timedelta
+    from netra_worker.runtime.retries import ExponentialBackoffWithJitter
+
+    delay = ExponentialBackoffWithJitter(max_delay=timedelta(minutes=15)).next_delay(10_000)
+    assert delay <= timedelta(minutes=15) * 1.2

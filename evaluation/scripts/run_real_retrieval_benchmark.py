@@ -24,7 +24,7 @@ if str(API_SRC) not in sys.path:
     sys.path.insert(0, str(API_SRC))
 sys.path.insert(0, str(ROOT / "evaluation" / "scripts"))
 
-from netra_api.config import Settings  # noqa: E402
+from netra_api.content.settings import ContentSettings, application_database_url  # noqa: E402
 from netra_api.content.retrieval.factory import build_postgres_retrieval_service  # noqa: E402
 from netra_api.db.models import SourceRow, SourceVersionRow  # noqa: E402
 from netra_api.platform.auth_context import AuthContext  # noqa: E402
@@ -83,7 +83,7 @@ async def main() -> None:
     cases = load_golden_cases(DATASET, dataset_id=specs[0].dataset_id,
                               dataset_version=specs[0].dataset_version)
 
-    settings = Settings()
+    settings = ContentSettings()
     if settings.embedding_model != "gemini-embedding-001" or settings.embedding_dimension != 1536:
         raise RuntimeError("configured embedding model/dimension does not match the locked benchmark")
     if settings.gemini_embedding_model != "gemini-embedding-001" or settings.gemini_embedding_dimension != 1536:
@@ -94,7 +94,7 @@ async def main() -> None:
         raise RuntimeError("Pinecone API key or index name is not configured")
     settings.reranker_enabled = False
 
-    engine = create_engine(settings)
+    engine = create_engine(application_database_url(), pool_size=settings.database_pool_size)
     factory = create_session_factory(engine)
     summaries: list[ExperimentSummary] = []
     try:

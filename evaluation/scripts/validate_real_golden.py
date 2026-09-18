@@ -8,7 +8,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from netra_api.config import Settings
+from netra_api.content.settings import ContentSettings
 from netra_api.db.models import SearchChunkRow, SourceRow, SourceVersionRow
 from retrieval_evaluation import GoldenEvaluationCase, load_golden_cases
 

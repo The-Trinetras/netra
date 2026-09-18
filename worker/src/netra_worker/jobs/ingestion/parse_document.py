@@ -9,8 +9,8 @@ from typing import Protocol
 from netra_api.content.providers.llamaparse import ParsedBlock
 from netra_api.content.providers.pymupdf import PdfParseStatus, PyMuPDFDocumentParser
 from netra_api.content.providers.tesseract import TesseractOCRProvider
-from netra_api.config import Settings
-from netra_api.platform.observability import instrument_stage
+from netra_api.content.settings import ContentSettings
+from netra_api.content.telemetry import instrument_stage
 from netra_api.content.providers.s3 import ObjectStorageProvider
 
 from netra_worker.jobs.ingestion.base import IngestionJobPayload, IngestionVersionStore
@@ -42,10 +42,10 @@ class S3ParsedDocumentStore:
 class ParseDocumentJob:
     def __init__(self, versions: IngestionVersionStore, storage: ObjectStorageProvider,
                  parsed_documents: ParsedDocumentStore, parser: PyMuPDFDocumentParser | None = None,
-                 ocr_provider: TesseractOCRProvider | None = None, settings: Settings | None = None) -> None:
+                 ocr_provider: TesseractOCRProvider | None = None, settings: ContentSettings | None = None) -> None:
         self.versions, self.storage, self.parsed_documents = versions, storage, parsed_documents
         self.parser = parser or PyMuPDFDocumentParser()
-        config = settings or Settings()
+        config = settings or ContentSettings()
         self.ocr_provider = ocr_provider
         self.ocr_settings = config
         self.ocr_dpi = config.ocr_dpi

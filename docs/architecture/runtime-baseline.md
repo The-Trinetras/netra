@@ -5,6 +5,14 @@ Review cutoff: 11 September 2026.
 Status: Release metadata, declared constraints and the shared Python lock checked.
 External-service integration validation remains environment-dependent.
 
+Integration follow-up (18 September 2026): see the
+[dependency review](../team/dependency-review.md). A Windows-targeted pip dry run
+resolved the current runtime/dev declarations without an observed version conflict;
+it did not enforce the uv cutoff or validate the installed Linux runtime. Root pins
+remain unchanged. The user authorizes necessary reviewed dependency-file repairs;
+M2 coordinates one shared lock after collecting actual member errors and M1's
+telemetry requirements. Unpublished M2 changes and isolated AX/GPU pins remain unverified.
+
 Read [current scope](current-scope.md) for product authority and the active
 [architecture overview](overview.md) for preserved boundaries. The original
 Engineering Plan is historical where its product requirements are superseded.
@@ -128,19 +136,52 @@ Status (2026-09-17): the Ragas package is not approved and must not be added.
 - Ragas 0.2.3 through 0.4.3 are reported as affected by an unfixed SSRF advisory
   (the advisory was reported during dependency review, not re-verified here).
   Ragas 0.4.3 would also downgrade the resolved rich 15.0.0 to 14.3.4.
-- No existing pin changes. Prometheus-2 needs no new Python dependency: its
-  adapter uses the existing httpx pin. vLLM, prometheus-eval, torch and
-  transformers stay in the pinned evaluator container on the temporary GPU host
-  and must not be added to pyproject.toml.
+- The selected primary model judge is `prometheus-eval/prometheus-7b-v2.0` on
+  Modal, one A100 40 GB. The evaluation-owned HTTP adapter uses existing httpx;
+  no API/worker dependency pin changes are required. Gemini is no longer the
+  selected judge. Runner/deployment integration remains pending.
+- Modal SDK, torch, transformers and any inference-engine dependencies belong
+  to an isolated evaluator environment/image. M4/M2 must record compatible exact
+  versions, model/tokenizer revisions and image digest before deployment; these
+  pins are pending, not permission for floating installs. API/worker runtime and
+  locks remain unchanged. Lightning AI/Kaggle use separately validated evaluator
+  environments, not production dependency changes.
 - Until an exception is approved, implement the secondary retrieval-and-answer
   metrics (for example faithfulness, context precision/recall and answer
   relevance) as M4 evaluation scripts. Use Ragas metric definitions as reference
-  only, and score through the Prometheus-2 adapter plus deterministic checks.
+  only. Run deterministic/source and human checks alongside calibrated Prometheus-2
+  scoring. Report custom metrics as Ragas-style, not an executed Ragas run; ordinal
+  judge scores do not automatically implement those metrics.
 - Reopening requires explicit approval of one of these: a patched Ragas release
   without mandatory OpenAI/full-LangChain dependencies, or an explicit exception
   for a named version and its transitive set. With that exception, OpenAI must
   never be configured as judge or embedding model.
-- The Prometheus-2 blocker is AWS GPU quota, not dependency resolution.
+- The user reports AWS Free Plan instance eligibility prevents `g5.xlarge` use;
+  this is not a quota-only blocker. No AWS GPU provisioning or paid-plan upgrade
+  is required. See the [17 September model/evaluation decision](model-evaluation-plan.md)
+  for Modal credit/cost controls, authentication, calibration and alternative hosts.
+  This selects external offline evaluator hosting, not another production service.
+  Installation, model downloads, account setup and live deployment remain separate
+  execution actions. An unavailable judge leaves its evaluation milestone incomplete.
+
+## Arize AX dependency review — 18 September 2026
+
+The [AX integration decision](arize-ax-integration.md) approves the architecture,
+not an unreviewed package set. No telemetry dependencies are added by this revision.
+M1/M2 must review minimal OpenTelemetry API/SDK, the selected OTLP exporter and
+any necessary OpenInference components against Python 3.13.15 and the existing
+shared API/worker constraints. Prefer controlled service-boundary instrumentation;
+do not install every framework/provider instrumentor or duplicate span exporters.
+Record exact direct/transitive pins and test async context, sanitization, bounded
+export/shutdown and compatibility before accepting a lock change. Current pins and
+installation-tested compatibility remain pending; do not invent versions.
+
+M4's AX dataset/experiment SDK belongs in a separately pinned offline evaluation
+environment, alongside the HTTP caller as needed, not the application import path.
+The Modal GPU image remains separately pinned. Keep AX SDK types behind adapters
+and select APIs matching the reviewed SDK major. Vendor examples do not authorize
+OpenAI/full-LangChain dependencies, provider substitution or runtime upgrades.
+Dependency setup/install/live access retains the explicit execution controls above.
 
 ## Completing the freeze
 

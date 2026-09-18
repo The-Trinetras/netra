@@ -6,7 +6,7 @@ import hashlib
 
 import pytest
 
-from netra_api.config import Settings
+from netra_api.content.settings import ContentSettings
 from netra_api.content.retrieval.chunks import SearchChunk, SearchChunkProjection
 from netra_api.content.retrieval.embeddings import EmbeddingSpec
 from netra_api.content.sources.models import SourceVersion, SourceVersionIngestionState, SourceVersionStatus
@@ -68,7 +68,7 @@ async def test_embedding_provider_failure_keeps_canonical_chunks_and_stage_incom
     class Embedder:
         async def embed_batch(self, _): raise RuntimeError("Gemini unavailable")
     with pytest.raises(RuntimeError, match="Gemini unavailable"):
-        await EmbedTextJob(Versions(version), Chunks(), Embedder(), Settings(gemini_embedding_dimension=3)).handle(
+        await EmbedTextJob(Versions(version), Chunks(), Embedder(), ContentSettings(gemini_embedding_dimension=3)).handle(
             EmbedTextPayload(**_payload(version)))
     assert chunk.embedding is None
     assert version.ingestion_state == SourceVersionIngestionState.BLOCKS_BUILT
@@ -88,7 +88,7 @@ async def test_projection_failure_does_not_mark_ready_and_replay_uses_same_vecto
         async def upsert(self, _namespace, vectors):
             if self.fail: raise RuntimeError("Pinecone unavailable")
             self.ids.extend(item[0] for item in vectors)
-    index = Index(); job = SearchProjectionJob(Versions(version), Chunks(), index, Settings(gemini_embedding_dimension=3))
+    index = Index(); job = SearchProjectionJob(Versions(version), Chunks(), index, ContentSettings(gemini_embedding_dimension=3))
     payload = SearchProjectionPayload(**_payload(version))
     with pytest.raises(RuntimeError, match="Pinecone unavailable"): await job.handle(payload)
     assert version.ingestion_state == SourceVersionIngestionState.EMBEDDED

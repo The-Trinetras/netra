@@ -12,7 +12,7 @@ from typing import Any, Protocol, Sequence
 
 from pydantic import BaseModel, Field
 
-from netra_api.config import Settings
+from netra_api.content.settings import ContentSettings
 
 
 class EmbeddingError(RuntimeError):
@@ -35,7 +35,7 @@ class EmbeddingSpec(BaseModel):
     version: str = Field(min_length=1)
 
     @classmethod
-    def from_settings(cls, settings: Settings) -> "EmbeddingSpec":
+    def from_settings(cls, settings: ContentSettings) -> "EmbeddingSpec":
         model = settings.gemini_embedding_model
         dimension = settings.gemini_embedding_dimension
         return cls(model=model, dimension=dimension, version=f"{model}:{dimension}")
@@ -62,8 +62,8 @@ class EmbeddingProvider(Protocol):
 class GeminiEmbeddingProvider:
     """Async adapter for the pinned ``google-genai`` client API."""
 
-    def __init__(self, settings: Settings | None = None, client: Any | None = None) -> None:
-        self.settings = settings or Settings()
+    def __init__(self, settings: ContentSettings | None = None, client: Any | None = None) -> None:
+        self.settings = settings or ContentSettings()
         self.specification = EmbeddingSpec.from_settings(self.settings)
         self._client = client
 

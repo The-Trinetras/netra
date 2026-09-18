@@ -1,0 +1,28 @@
+{
+ "_comment": "LABELLED FIXTURE: captured from M1's real transport/serializer/frame encoder driving the Ohm fixture journey (fake synthesizer, in-memory repositories). Bytes after each audio header are placeholder text, not decodable audio. Not live server evidence.",
+ "producer": "M1 codex/m1-coordinator",
+ "producer_commit": "162e50bc884fa601ff8ce5e55047cd68e6faa408",
+ "scenario": "navigation.command next (block) with speech",
+ "messages": [
+  {
+   "kind": "text",
+   "text": "{\"protocol_version\":\"1.0\",\"message_id\":\"41a27297-c662-4af4-aa61-22cb6172c071\",\"session_id\":\"476a56cb-2060-52e2-a57a-4af0f5dae94f\",\"request_id\":\"ed3a2e21-1460-4577-b872-f8fc5e0dac41\",\"sequence\":0,\"type\":\"session.snapshot\",\"payload\":{\"session_version\":11,\"interaction_mode\":\"reading\",\"active_source_version_id\":\"a0c3f366-db1f-50d8-ad56-3d3b03de89b2\",\"current_block_id\":\"f879ce9c-1564-59bc-a36a-f58fa2ac22f9\",\"current_sentence_id\":\"ea797790-d854-5ffd-a89d-0e96a71c1b58\",\"last_acknowledged_sentence_id\":\"ccd9e069-09f2-5827-bb98-b91f6fff38fb\",\"active_lesson\":null,\"pending_question\":null,\"last_result_set\":null}}"
+  },
+  {
+   "kind": "text",
+   "text": "{\"protocol_version\":\"1.0\",\"message_id\":\"dacf3873-5adb-48ad-86b2-34bafea5000b\",\"session_id\":\"476a56cb-2060-52e2-a57a-4af0f5dae94f\",\"request_id\":\"ed3a2e21-1460-4577-b872-f8fc5e0dac41\",\"sequence\":1,\"type\":\"response.segment\",\"payload\":{\"generation_id\":\"48b81999-3cda-40e9-ab20-7f8140cad69e\",\"segment_id\":\"f879ce9c-1564-59bc-a36a-f58fa2ac22f9\",\"sentence_id\":\"ea797790-d854-5ffd-a89d-0e96a71c1b58\",\"text\":\"Figure 2: the measured relationship.\",\"final\":true}}"
+  },
+  {
+   "kind": "binary",
+   "base64": "AAAA0HsidmVyc2lvbiI6MSwiZ2VuZXJhdGlvbl9pZCI6IjQ4YjgxOTk5LTNjZGEtNDBlOS1hYjIwLTdmODE0MGNhZDY5ZSIsInNlZ21lbnRfaWQiOiJmODc5Y2U5Yy0xNTY0LTU5YmMtYTM2YS1mNThmYTJhYzIyZjkiLCJzZXF1ZW5jZSI6MCwiZW5kX29mX3NlZ21lbnQiOmZhbHNlLCJlbmRfb2ZfZ2VuZXJhdGlvbiI6ZmFsc2UsIm1lZGlhX3R5cGUiOiJhdWRpby9tcGVnIn1GaWd1cmUgMiMw"
+  },
+  {
+   "kind": "binary",
+   "base64": "AAAA0HsidmVyc2lvbiI6MSwiZ2VuZXJhdGlvbl9pZCI6IjQ4YjgxOTk5LTNjZGEtNDBlOS1hYjIwLTdmODE0MGNhZDY5ZSIsInNlZ21lbnRfaWQiOiJmODc5Y2U5Yy0xNTY0LTU5YmMtYTM2YS1mNThmYTJhYzIyZjkiLCJzZXF1ZW5jZSI6MSwiZW5kX29mX3NlZ21lbnQiOmZhbHNlLCJlbmRfb2ZfZ2VuZXJhdGlvbiI6ZmFsc2UsIm1lZGlhX3R5cGUiOiJhdWRpby9tcGVnIn1GaWd1cmUgMiMx"
+  },
+  {
+   "kind": "binary",
+   "base64": "AAAAznsidmVyc2lvbiI6MSwiZ2VuZXJhdGlvbl9pZCI6IjQ4YjgxOTk5LTNjZGEtNDBlOS1hYjIwLTdmODE0MGNhZDY5ZSIsInNlZ21lbnRfaWQiOiJmODc5Y2U5Yy0xNTY0LTU5YmMtYTM2YS1mNThmYTJhYzIyZjkiLCJzZXF1ZW5jZSI6MiwiZW5kX29mX3NlZ21lbnQiOnRydWUsImVuZF9vZl9nZW5lcmF0aW9uIjp0cnVlLCJtZWRpYV90eXBlIjoiYXVkaW8vbXBlZyJ9RmlndXJlIDIjMg=="
+  }
+ ]
+}

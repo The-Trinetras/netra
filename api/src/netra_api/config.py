@@ -1,56 +1,43 @@
-from pydantic_settings import BaseSettings, SettingsConfigDict
+"""API runtime configuration (environment variables prefixed ``NETRA_``).
+
+Only values the repository has approved or that are pure wiring switches live
+here. Unapproved product values — result-set retention, speech quota, total
+binary frame size, credential issuance — have NO defaults: leaving them unset
+disables the dependent capability explicitly instead of inventing policy.
+
+Secrets are read from the environment by the process only; they are never
+logged or returned by health endpoints.
+"""
+
+from __future__ import annotations
+
+from typing import Literal, Optional
+
 from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    """Runtime configuration shared by API persistence and adapters."""
+    model_config = SettingsConfigDict(env_prefix="NETRA_", extra="ignore")
 
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
-    database_url: str = "postgresql+asyncpg://netra:netra@localhost:5432/netra"
-    database_pool_size: int = 5
-    embedding_model: str = "gemini-embedding-001"
-    embedding_dimension: int = 1536
-    gemini_api_key: str | None = None
-    gemini_embedding_model: str = "gemini-embedding-001"
-    gemini_embedding_dimension: int = 1536
-    gemini_embedding_batch_size: int = 100
-    pinecone_api_key: str | None = None
-    pinecone_index_name: str | None = None
-    pinecone_namespace: str = "netra"
-    pinecone_upsert_batch_size: int = 100
-    parse_workers: int = 3
-    block_workers: int = 3
-    embed_workers: int = 2
-    projection_workers: int = 3
-    activation_workers: int = 1
-    worker_lease_duration_seconds: int = 60
-    worker_poll_interval_seconds: float = 1.0
-    outbox_lease_duration_seconds: int = 60
-    s3_bucket: str | None = None
-    aws_region: str | None = None
-    storage_provider: str = "s3"
-    local_fixture_root: str | None = None
-    chunk_target_tokens: int = 500
-    chunk_min_tokens: int = 350
-    chunk_max_tokens: int = 700
-    chunk_overlap_tokens: int = 64
-    vector_top_k: int = 20
-    fts_top_k: int = 20
-    rrf_k: int = 60
-    fusion_top_k: int = 12
-    rerank_top_k: int = 12
-    reranker_model_id: str = "BAAI/bge-reranker-v2-m3"
-    reranker_enabled: bool = False
-    reranker_batch_size: int = Field(default=4, ge=1, le=12)
-    reranker_device: str = "cpu"
-    reranker_max_concurrency: int = Field(default=1, ge=1, le=4)
-    final_evidence_min: int = 4
-    final_evidence_max: int = 6
-    tesseract_executable: str = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
-    ocr_language: str = "eng"
-    ocr_timeout_seconds: float = 30.0
-    ocr_dpi: int = 300
-    observability_enabled: bool = True
-    log_format: str = "json"
-    tracing_enabled: bool = True
-    metrics_enabled: bool = True
+    database_url: Optional[str] = None
+    """postgresql+asyncpg URL for application access. Unset -> identity and
+    session persistence are unavailable and every request fails closed."""
+
+    auth_mode: Literal["unconfigured", "stored_credential"] = "unconfigured"
+    """stored_credential verifies previously issued bearer credentials stored as
+    SHA-256 digests (requires database_url). Issuance remains undecided."""
+
+    result_set_ttl_seconds: Optional[int] = Field(default=None, ge=1)
+    """Retention for stored result sets. Unapproved value: unset disables them."""
+
+    trace_to_log: bool = True
+    """Operational log of structured action/evidence events (not AX export)."""
+
+    tracing_mode: Literal["off", "local", "ax"] = "off"
+    """Span tracing. ``ax`` needs a reviewed OTLP exporter that is not in this
+    build (pending OpenTelemetry pins via M2); requesting it records a
+    configuration error and tracing stays off. It never blocks boot."""
+
+    tracing_shutdown_timeout_seconds: float = Field(default=5.0, gt=0, le=30)
+    """Bound on the final flush at orderly shutdown; implementation bound."""

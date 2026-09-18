@@ -16,7 +16,7 @@ API_SRC = ROOT / "api" / "src"
 sys.path.insert(0, str(API_SRC))
 sys.path.insert(0, str(ROOT / "evaluation" / "scripts"))
 
-from netra_api.config import Settings  # noqa: E402
+from netra_api.content.settings import ContentSettings, application_database_url  # noqa: E402
 from netra_api.content.retrieval.factory import build_postgres_retrieval_service  # noqa: E402
 from netra_api.db.models import SourceRow, SourceVersionRow  # noqa: E402
 from netra_api.platform.auth_context import AuthContext  # noqa: E402
@@ -59,7 +59,7 @@ async def main() -> None:
     if not spec.reranker_enabled or not spec.rrf_enabled:
         raise RuntimeError("E4 must enable RRF and BGE reranking")
     cases = load_golden_cases(DATASET, dataset_id=spec.dataset_id, dataset_version=spec.dataset_version)
-    settings = Settings()
+    settings = ContentSettings()
     settings.reranker_enabled = True
     settings.reranker_model_id = "BAAI/bge-reranker-v2-m3"
     settings.reranker_batch_size = 4
@@ -82,7 +82,7 @@ async def main() -> None:
     except PackageNotFoundError:
         flagembedding_version = "unknown"
 
-    engine = create_engine(settings)
+    engine = create_engine(application_database_url(), pool_size=settings.database_pool_size)
     factory = create_session_factory(engine)
     try:
         async with factory() as session:

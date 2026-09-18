@@ -12,7 +12,7 @@ import math
 from collections.abc import Callable
 from typing import Any, Protocol, Sequence
 
-from netra_api.config import Settings
+from netra_api.content.settings import ContentSettings
 from netra_api.content.retrieval.exact_search import SearchCandidate
 from netra_api.content.retrieval.service import RetrievalProviderUnavailableError
 
@@ -38,9 +38,9 @@ class BGEReranker:
     order established by RRF.
     """
 
-    def __init__(self, settings: Settings | None = None,
+    def __init__(self, settings: ContentSettings | None = None,
                  model_factory: Callable[..., Any] | None = None) -> None:
-        self.settings = settings or Settings()
+        self.settings = settings or ContentSettings()
         self._model_factory = model_factory
         self._model: Any | None = None
         self._model_lock = asyncio.Lock()

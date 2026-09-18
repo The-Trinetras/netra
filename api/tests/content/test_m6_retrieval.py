@@ -2,7 +2,7 @@ from uuid import uuid4
 
 import pytest
 
-from netra_api.config import Settings
+from netra_api.content.settings import ContentSettings
 from netra_api.content.retrieval.exact_search import SearchCandidate
 from netra_api.content.retrieval.semantic_search import PineconeSemanticSearch
 from netra_api.content.retrieval.service import (HybridRetrievalService, RetrievalProviderUnavailableError,
@@ -54,7 +54,7 @@ async def test_hybrid_pipeline_uses_frozen_limits_and_final_maximum():
     semantic = Search([SearchCandidate(evidence_id=str(i), score=1) for i in range(20, 40)])
     reranker = Reranker()
     service = HybridRetrievalService(lexical, semantic, Resolver(), reranker,
-                                     Settings())
+                                     ContentSettings())
     result = await service.search(_auth(), RetrievalQuery(query_text="query", top_k=50))
     assert lexical.top_k == 20
     assert semantic.top_k == 20

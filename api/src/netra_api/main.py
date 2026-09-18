@@ -1,60 +1,59 @@
-"""Netra FastAPI application entrypoint."""
+"""ASGI application factory.
+
+Run (after an authorized, locked dependency install):
+
+    uvicorn --factory netra_api.main:create_app
+
+FastAPI is imported only here, so every service and transport module stays
+testable without it. Routes:
+
+- GET /health/live — unauthenticated liveness plus registered-capability booleans.
+- GET /health/telemetry — tracing counters (created/exported/dropped, flush outcome).
+- WS  /v1/ws — authenticated protocol v1 WebSocket (PROPOSED path; M5 review).
+
+Session creation, source selection/upload and job-status HTTP routes are not
+exposed: no committed contract defines them yet (see docs/team/handoffs/M1.md).
+"""
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator, Callable
-from contextlib import asynccontextmanager
-from typing import Any
+from typing import Any, Optional
 
-from fastapi import FastAPI, HTTPException, Request
-from sqlalchemy import text
-
-from netra_api.bootstrap import ApplicationResources, build_application_resources
+from netra_api.bootstrap import Composition, IntegrationDependencies, build_production
 from netra_api.config import Settings
+from netra_api.transport.http.health import liveness
+from netra_api.transport.websocket.endpoint import serve
 
-ResourceFactory = Callable[[Settings], ApplicationResources]
+WEBSOCKET_PATH = "/v1/ws"
 
 
 def create_app(
-    settings: Settings | None = None,
-    *,
-    resource_factory: ResourceFactory = build_application_resources,
-) -> FastAPI:
-    """Construct the API without making network calls or mutating schema."""
+    settings: Optional[Settings] = None,
+    dependencies: Optional[IntegrationDependencies] = None,
+    composition: Optional[Composition] = None,
+) -> Any:
+    from fastapi import FastAPI, WebSocket
 
-    resources = resource_factory(settings or Settings())
+    composition = composition or build_production(settings, dependencies)
+    app = FastAPI(title="Netra API", docs_url=None, redoc_url=None, openapi_url=None)
 
-    @asynccontextmanager
-    async def lifespan(application: FastAPI) -> AsyncIterator[None]:
-        application.state.resources = resources
-        try:
-            yield
-        finally:
-            await resources.close()
+    @app.get("/health/live")
+    async def health_live() -> dict:
+        # Liveness never depends on AX, Modal or any provider.
+        return liveness(composition.registered)
 
-    application = FastAPI(title="Netra API", version="0.1.0", lifespan=lifespan)
+    @app.get("/health/telemetry")
+    async def health_telemetry() -> dict:
+        return composition.telemetry_diagnostics()
 
-    @application.get("/health/live", tags=["health"])
-    async def liveness() -> dict[str, str]:
-        return {"status": "live", "service": "netra-api"}
+    @app.on_event("shutdown")
+    async def flush_telemetry() -> None:
+        import asyncio
 
-    @application.get("/health/ready", tags=["health"])
-    async def readiness(request: Request) -> dict[str, Any]:
-        runtime: ApplicationResources = request.app.state.resources
-        try:
-            async with runtime.engine.connect() as connection:
-                await connection.execute(text("SELECT 1"))
-        except Exception:
-            # Do not disclose connection details or provider exceptions.
-            raise HTTPException(
-                status_code=503,
-                detail={"status": "unavailable", "dependency": "postgresql"},
-            ) from None
-        return {"status": "ready", "dependencies": {"postgresql": "ready"}}
+        await asyncio.to_thread(composition.shutdown)
 
-    return application
+    @app.websocket(WEBSOCKET_PATH)
+    async def websocket_endpoint(websocket: WebSocket) -> None:
+        await serve(websocket, composition.services, composition.verifier)
 
-
-app = create_app()
-
-__all__ = ["app", "create_app"]
+    return app

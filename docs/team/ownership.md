@@ -9,6 +9,14 @@ edit unrelated work or bypass contract review.
 Use the [M1–M5 implementation prompts](prompts/README.md) to start parallel coding.
 Each prompt includes its role's deliverables and reads a shared coordination agreement.
 
+For already-started builds, use the [integration playbook](integration-playbook.md)
+and continuation prompts. Each member reports actual incomplete work and exact
+producer/consumer dependencies using the [handoff template](handoff-template.md).
+The playbook sequences interfaces, shared persistence, domain deltas, final API
+wiring, real client integration and AX comparisons; it does not re-merge M3/M4 work
+already in main. M2 serializes necessary root manifest/lock repairs under the
+[current dependency review](dependency-review.md).
+
 | Workstream | Owns | Implementation guide / domain rule |
 |---|---|---|
 | M1 | Coordinator, identity/session context, routing, tool policy, handoffs, cancellation/version semantics; server speech/transport | [M1](M1.md) / [coordinator](../../.claude/rules/coordinator.md) |
@@ -35,12 +43,31 @@ All consumers review changes to their boundary before integration.
 
 ## Coordination and build order
 
+### Arize AX ownership — approved 18 September 2026
+
+Follow the [AX integration plan](../architecture/arize-ax-integration.md) and each
+role prompt's AX update. M1 owns the shared tracing boundary, redaction, context,
+background export and lifecycle; domain owners own their spans. M2 reviews tracing
+pins/worker correlation and supplies source/relevance fixtures. M3 supplies media
+provenance and original-source labels. M4 owns Tutor spans, dataset snapshots,
+external Prometheus scoring, AX uploads/recovery and paired comparison artifacts.
+M5 owns real client measurements/accessibility and M1/M5-reviewed correlation.
+M1 and M4 jointly demonstrate trace-to-case/experiment linkage and trace completeness.
+AX outage cannot affect student execution; Alyx remains an engineering assistant.
+All owners retain existing module boundaries and independent acceptance evidence.
+
+### Product and evaluation integration
+
 First connect a labelled fixed-evidence desktop/API journey: selection, question,
 answer, STOP and exact return. Then integrate real PDF evidence, a missing-evidence
 repair and optional tutoring/history. Separately validate uploaded-video and YouTube
 playback and analysis readiness. Finally test recovery, duplicate requests, stale
 audio and keyboard/NVDA operation using the same scenario. This is a target build
 order, not current pass evidence. The AgentSpec's two-day allocation is an estimate.
+The AX integration requires complete reliability and evaluation gates regardless
+of that estimate; do not reduce quality for a quick pilot. Free-tier sizing needs
+no high-volume infrastructure. Integrate traces with each domain slice, then run
+the frozen dataset through resumable scoring and confirmed AX paired comparisons.
 
 M1/M4 coordinate handoffs and history; M2/M3 coordinate source identity/table storage;
 M3/M5 coordinate player time and visual exploration; M1/M5 coordinate speech,

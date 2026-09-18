@@ -112,3 +112,13 @@ general web ingestion and additional formats are deferred. M3 owns visual/table
 extraction semantics; M2 owns storage, source versions and reading-block mappings.
 Removing automatic learning labels/review does not authorize dropping databases,
 projections, schemas or existing code. Factual history needs M4/M2 schema review.
+
+## Arize AX integration
+
+Follow the [AX plan](../../docs/architecture/arize-ax-integration.md). Instrument
+ingestion/retrieval, authoritative checks and worker attempts through M1's boundary.
+Review job correlation/persistence, exporter lifecycle and minimal telemetry pins;
+no undocumented schema fields or changed transactions on telemetry failure.
+AX holds sanitized derived copies, not canonical state. Supply versioned source
+and relevance fixtures to M4; preserve independent evaluation artifacts. No new
+collector/broker or high-volume pipeline is needed. Modal image review stays isolated.

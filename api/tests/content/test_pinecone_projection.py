@@ -3,7 +3,7 @@ from uuid import uuid4
 
 import pytest
 
-from netra_api.config import Settings
+from netra_api.content.settings import ContentSettings
 from netra_api.content.providers.pinecone import PineconeVectorIndex, VectorIndexProviderError
 from netra_api.content.projection.pinecone import PineconeProjectionService
 from netra_api.content.retrieval.chunks import SearchChunkProjection
@@ -28,7 +28,7 @@ class _FakeClient:
 
 
 def _settings(**values):
-    return Settings(pinecone_api_key="test-key", pinecone_index_name="test-index", **values)
+    return ContentSettings(pinecone_api_key="test-key", pinecone_index_name="test-index", **values)
 
 
 @pytest.mark.asyncio

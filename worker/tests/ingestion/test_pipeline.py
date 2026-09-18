@@ -4,7 +4,7 @@ from uuid import uuid4
 import fitz
 import pytest
 
-from netra_api.config import Settings
+from netra_api.content.settings import ContentSettings
 from netra_api.content.providers.llamaparse import ParsedBlock
 from netra_api.content.providers.pymupdf import PdfParseResult, PdfParseStatus
 from netra_api.content.retrieval.chunks import SearchChunk, SearchChunkProjection
@@ -201,7 +201,7 @@ async def test_embedding_batches_and_marks_stage_only_after_valid_results():
     version.ingestion_state = SourceVersionIngestionState.BLOCKS_BUILT
     chunks = Chunks([_chunk(version), _chunk(version)])
     embedder = Embedder(3)
-    await EmbedTextJob(Versions(version), chunks, embedder, Settings(gemini_embedding_dimension=3)).handle(
+    await EmbedTextJob(Versions(version), chunks, embedder, ContentSettings(gemini_embedding_dimension=3)).handle(
         EmbedTextPayload(**_payload(version)))
     assert len(embedder.calls) == 1
     assert len(chunks.saved) == 2
@@ -213,7 +213,7 @@ async def test_embedding_dimension_failure_does_not_mark_embedded():
     data = _pdf(); version = _version(uuid4(), data)
     version.ingestion_state = SourceVersionIngestionState.BLOCKS_BUILT
     with pytest.raises(ValueError, match="incompatible"):
-        await EmbedTextJob(Versions(version), Chunks([_chunk(version)]), Embedder(2), Settings(gemini_embedding_dimension=3)).handle(
+        await EmbedTextJob(Versions(version), Chunks([_chunk(version)]), Embedder(2), ContentSettings(gemini_embedding_dimension=3)).handle(
             EmbedTextPayload(**_payload(version)))
     assert version.ingestion_state == SourceVersionIngestionState.BLOCKS_BUILT
 
@@ -241,7 +241,7 @@ async def test_projection_uses_persisted_embedding_and_marks_projected_only_afte
         account_id=uuid4(), text="chunk", block_ids=[], embedding_version=spec.version, embedding=[0.1, 0.2, 0.3], embedding_spec=spec)
     index = Index()
     await SearchProjectionJob(Versions(version), ProjectionChunks(version, [chunk]), index,
-                              Settings(gemini_embedding_dimension=3)).handle(
+                              ContentSettings(gemini_embedding_dimension=3)).handle(
         SearchProjectionPayload(idempotency_key=str(uuid4()), source_version_id=version.source_version_id))
     assert len(index.calls) == 1
     assert index.calls[0][1][0][0] == str(chunk.chunk_id)
@@ -259,7 +259,7 @@ async def test_projection_replay_reuses_deterministic_vector_id():
         embedding_version=spec.version, embedding=[0.1, 0.2, 0.3], embedding_spec=spec)
     index = Index()
     job = SearchProjectionJob(Versions(version), ProjectionChunks(version, [chunk]), index,
-                              Settings(gemini_embedding_dimension=3))
+                              ContentSettings(gemini_embedding_dimension=3))
     payload = SearchProjectionPayload(idempotency_key=str(uuid4()), source_version_id=version.source_version_id)
     await job.handle(payload)
     await job.handle(payload)
@@ -275,7 +275,7 @@ async def test_projection_failure_preserves_canonical_chunks_and_stage():
         account_id=uuid4(), text="canonical", block_ids=[], embedding_version=spec.version, embedding=[0.1] * 3, embedding_spec=spec)
     with pytest.raises(Exception, match="pinecone unavailable"):
         await SearchProjectionJob(Versions(version), ProjectionChunks(version, [chunk]), Index(True),
-                                  Settings(gemini_embedding_dimension=3)).handle(
+                                  ContentSettings(gemini_embedding_dimension=3)).handle(
             SearchProjectionPayload(idempotency_key=str(uuid4()), source_version_id=version.source_version_id))
     assert chunk.text == "canonical"
     assert version.ingestion_state == SourceVersionIngestionState.EMBEDDED
@@ -308,7 +308,7 @@ async def test_ingestion_pipeline_runs_from_pdf_to_projection():
 
     embedding_chunks = Chunks(chunk_store.values)
     await EmbedTextJob(versions, embedding_chunks, Embedder(3),
-                       Settings(gemini_embedding_dimension=3)).handle(
+                       ContentSettings(gemini_embedding_dimension=3)).handle(
         EmbedTextPayload(**_payload(version)))
     assert version.ingestion_state == SourceVersionIngestionState.EMBEDDED
 
@@ -323,7 +323,7 @@ async def test_ingestion_pipeline_runs_from_pdf_to_projection():
     index = Index()
     await SearchProjectionJob(
         versions, ProjectionChunks(version, projections), index,
-        Settings(gemini_embedding_dimension=3),
+        ContentSettings(gemini_embedding_dimension=3),
     ).handle(SearchProjectionPayload(
         idempotency_key=str(uuid4()), source_version_id=version.source_version_id,
     ))
@@ -333,3 +333,38 @@ async def test_ingestion_pipeline_runs_from_pdf_to_projection():
 
 async def _async_set(instance, attribute, value):
     setattr(instance, attribute, value)
+
+
+class _NoWrites:
+    async def replace_blocks(self, *_):
+        raise AssertionError("a replayed stage must not rewrite blocks")
+
+    async def replace_chunks(self, *_):
+        raise AssertionError("a replayed stage must not replace embedded chunks")
+
+
+class _NoReads:
+    async def get(self, _key):
+        raise AssertionError("a replayed stage must not re-read parsed output")
+
+
+@pytest.mark.asyncio
+async def test_build_blocks_replay_after_embedding_is_a_noop():
+    version = _version(uuid4(), _pdf())
+    version.ingestion_state = SourceVersionIngestionState.EMBEDDED
+    versions = Versions(version)
+    await BuildBlocksJob(versions, _NoReads(), _NoWrites(), _NoWrites()).handle(
+        BuildBlocksPayload(**_payload(version, parsed_object_key="parsed.json")))
+    assert version.ingestion_state == SourceVersionIngestionState.EMBEDDED
+
+
+@pytest.mark.asyncio
+async def test_build_blocks_for_another_source_is_permanent():
+    from netra_worker.runtime.errors import PermanentJobError
+
+    version = _version(uuid4(), _pdf())
+    version.ingestion_state = SourceVersionIngestionState.PARSING
+    payload = _payload(version, parsed_object_key="parsed.json") | {"source_id": uuid4()}
+    with pytest.raises(PermanentJobError):
+        await BuildBlocksJob(Versions(version), _NoReads(), _NoWrites(), _NoWrites()).handle(
+            BuildBlocksPayload(**payload))

@@ -193,7 +193,21 @@ The second encounter changes the next action, not just the greeting. A fresh con
 
 **Primary proof—deterministic source and evidence tests:** Use the fixed acceptance fixture to check source IDs and versions, graph axes and units, table values, equation structure and the exact restored reading position. In the missing-axes case, assert that the insufficient transcript result is recorded, that it triggers a changed retrieval action, and that an explanation is accepted only after the required graph evidence is validated. Repeat with unreadable evidence: the run must retain the gap and stop or ask within its limits. Retain student answers, stated reasoning and assistance separately. These checks establish the core behaviour; source review checks the meaning of the explanation.
 
-**Secondary evaluation:** Ragas organizes repeatable retrieval-and-answer evaluations; Prometheus-2 supplies rubric-based feedback on source support, relevance and teaching usefulness. Model scores supplement deterministic checks and source review. Original-media review and client tests verify visual fidelity, NVDA focus, STOP latency and independent operation. Judge execution stays outside the student's answer deadline; runs record the test set, rubric, model configuration, failures and human disagreements. Evaluator integration details are retained in Appendix A.
+**Secondary evaluation (Modal revision, 17 September 2026):** Prometheus-2 7B hosted on Modal/A100 40 GB is the primary model judge, alongside deterministic checks, source review and human calibration. Follow the [model/evaluation plan](model-evaluation-plan.md) for authenticated hosting, bounded credits, grading format and reference answers. Custom Ragas-style scripts remain separate from the dependency-blocked Ragas package. AWS GPU access is not required; Lightning AI and Kaggle are alternative evaluation hosts. Original-media and client tests establish visual fidelity, NVDA focus, STOP and return behaviour. Evaluation stays outside student turns; report checkpoint/rubric/case versions, scores, unscored cases, costs and disagreements. Hosted evaluation remains incomplete until verified, even if the student demo works.
+
+**Observability and experiments (approved 18 September 2026):** Follow the
+[Arize AX integration plan](arize-ax-integration.md). AX replaces historical
+LangSmith tracing and provides datasets, experiments and comparison views. Alyx
+helps engineers investigate and propose improvements; it is not a product agent.
+Netra owns sanitized OpenTelemetry instrumentation, bounded background export and
+an offline runner that calls Modal Prometheus-2, persists outputs/results, then
+publishes AX experiments. Require complete correlated traces, measured low response
+overhead, reviewed reference datasets, human error analysis, named evaluations,
+calibrated rubrics and reproducible paired comparisons. Track missing outcomes and
+recover uploads without repeating producer/judge work. Keep independent artifacts
+outside AX retention and keep student execution independent of AX/Modal availability.
+Free-tier capacity is adequate for the expected workload; avoid high-volume
+infrastructure without reducing correctness, recovery or evaluation quality.
 
 ## 11. What this deliberately does not do
 
@@ -210,13 +224,20 @@ Exactly two agents remain. MCP is not required for these bounded integrations.
 
 **Two-day target:** One supported chapter-and-lecture journey, from accessible selection through explanation and optional tutoring to interruption and return. Five engineers have **80 team person-hours** at eight focused hours each per day. This is a work allocation, not a claim that every integration will pass.
 
+**Quality requirement, 18 September:** the time allocation below is a sequencing
+estimate, not a quick-pilot completion bar. Add domain tracing as each path lands;
+complete the AX reliability, dataset/judge and before/after comparison gates in the
+[integration checklist](../team/integration-checklist.md). A single trace/scored
+case checks connectivity only. Report incomplete gates rather than weakening them
+to fit the schedule; no long-term scaling work is required.
+
 M1 owns routing/session integration; M2 owns source preparation and retrieval; M3 owns visual/video evidence; M4 owns Tutor, history and evaluation; M5 owns the accessible desktop. Use agreed interfaces and labelled fixed responses to connect the journey before depending on live model output. Test real provider and player access early; tune prompts after the path works.
 
 | phase | work and acceptance gate | team hours |
 |---|---|---|
-| Day 1, first block | Connect a minimal desktop/API journey with fixed evidence: select a source, ask, hear an answer, STOP and restore position. In parallel, check RDS/PgBouncer/S3 access, extraction, model adapters and YouTube player/analysis availability; test the Prometheus-2 scoring adapter on one fixed case. **Gate:** keyboard/NVDA operation works; failed dependencies are identified before feature integration. | 20 |
+| Day 1, first block | Connect the fixed-evidence desktop/API journey: select a source, ask, hear an answer, STOP and restore position. Check database/storage, extraction, model adapters and YouTube capabilities. Prepare and fixture-test the Prometheus-2 Modal scorer; after separate deployment authorization, check one authenticated fixed case and measured resource use. **Gate:** keyboard/NVDA works; dependency failures are explicit; hosted-evaluator readiness is tracked separately. | 20 |
 | Day 1, second block | Replace fixed PDF evidence with retrieval for the graph, table and equation. Connect Tutor and saved question/assistance records. M3/M5 integrate playback and actual timestamp capture in parallel. **Gate:** complete PDF study-and-teaching path, including one missing-evidence repair; video capability reported separately. | 20 |
-| Day 2, first block | Connect uploaded-video evidence and YouTube discovery, selection and supported playback/analysis. Run the chapter/lecture comparison and Ragas evaluations using the configured judge. **Gate:** matched source references and timestamps; unsupported links fail explicitly; any replayed outputs remain labelled. | 20 |
+| Day 2, first block | Connect uploaded-video evidence and YouTube discovery, selection and supported playback/analysis. Run the chapter/lecture comparison, deterministic/source review, calibrated Prometheus-2 scoring and custom Ragas-style metrics. Hosted execution requires authorization and remaining credit. **Gate:** matched references/timestamps; unsupported links fail explicitly; model-evaluation completion requires recorded results, cost and shutdown, with skipped cases disclosed. | 20 |
 | Day 2, final block | Freeze feature additions. Fix and repeat NVDA/focus, STOP, reconnect, duplicate-request and stale-audio tests; inspect source fidelity and Tutor feedback; rehearse the same acceptance case. **Gate:** demonstrate passed paths and disclose remaining failures. | 20 |
 
 **If time runs out:** Each gate leaves a smaller working journey. A PDF-only result can demonstrate reading, visual exploration, tutoring and return, but it must be reported as **incomplete against the video target**. Do not mask missing integration with an unlabelled replay. Seek independent-use feedback as early as the first working path; absence of blind-user testing remains an explicit limitation. Coding assistants accelerate changes; owners still review and test them.
@@ -253,8 +274,9 @@ The next team inherits source-linked history, shared contracts, provider adapter
 | claim | how to check | checked? |
 |---|---|---|
 | Insufficient tool evidence changes the next action | Inject a transcript without axes; verify the recorded gap triggers graph retrieval, validate the returned axes/values and inspect the bounded stop for unreadable evidence | Design reviewed; runtime acceptance test required |
-| Supporting infrastructure and secondary evaluation work together | Verify database and storage access, then one fixed evaluation case through the configured judge adapter | End-to-end check required |
+| Supporting infrastructure and evaluation work together | Verify database/storage and deterministic/source checks; separately verify authenticated Prometheus-2 on Modal, calibrated grading, credit limits, interruption recovery and shutdown without student-path coupling | End-to-end checks required; hosted scoring pending until executed |
 | The implementation supports the complete journey | Run the application through the prepared scenario | Full integration test required |
+| AX tracing and experiment comparison are reliable | Check sanitized complete traces, measured background-export overhead, outage/recovery, versioned datasets, calibrated external scores and matched before/after experiments backed by independent artifacts | Approved target; implementation and live AX evidence pending |
 | Selected providers, models and quotas support the inputs | Check pinned adapters and run authorized smoke tests with representative sources | Account/runtime tests required |
 | YouTube playback and analysis are both available | Verify player behaviour, then actual visual/audio analysis on the same selected video | Separate integration gates; URL access not assumed |
 | Keyboard, NVDA and speech controls work together | Test launch, file selection, focus, shortcut conflicts and interruption on Windows | Acceptance tests required |
@@ -272,8 +294,15 @@ The next team inherits source-linked history, shared contracts, provider adapter
 
 These retain the existing implementation choices; the evidence-driven behaviour and acceptance checks above are the focus of the AgentSpec.
 
+**Engineering observability:** M1 owns shared tracing/export to AX; each domain
+owns its spans. M4 owns dataset snapshots, the external evaluation runner, AX
+adapter and paired comparison artifacts. M2 reviews telemetry pins/job links and
+Modal image isolation; M3 supplies original-media truth and M5 real client measures.
+Keep domain logic independent of AX SDKs and Alyx suggestions under human review.
+The [AX plan](arize-ax-integration.md) governs architecture and completion.
+
 **Models and supporting services:** Gemini for Coordinator; Groq for Tutor; model-based content interpretation through provider adapters. An adapter contains the code for one provider so its API details do not spread through business logic. LangGraph runs the bounded agent loops. Deepgram/ElevenLabs handle speech; LlamaParse/Tesseract handle document extraction; Marengo/Pegasus handle video retrieval/analysis. Tavily remains behind discovery; general web extraction is deferred. These calls stay behind adapters with named operations, instructions and budgets. Gemini video analysis remains an evaluation candidate.
 
 Runtime versions stay in the repository baseline and dependency lockfile. API and worker use Docker Compose on EC2. The target database is PostgreSQL on Amazon RDS; PgBouncer pools database connections, and private S3 stores source files. Local development can connect to these services through configured secure connections without deploying the entire application just to evaluate it. PostgreSQL is the authoritative structured record; Pinecone and Neo4j hold rebuildable derived data.
 
-**Evaluator integration:** Prometheus-2 is a separate evaluator model. Its custom integration supplies the task, retrieved text, candidate answer, reference where available and an explicit scoring rubric. Adapt and test its documented grading format against the selected Ragas metrics. Configure judge and embedding models explicitly. Self-hosting consumes compute while avoiding proprietary judge-token charges. See [Ragas metrics](https://docs.ragas.io/en/stable/concepts/metrics/overview/) and [Prometheus evaluation](https://github.com/prometheus-eval/prometheus-eval).
+**Evaluator integration:** Use `prometheus-eval/prometheus-7b-v2.0` on Modal/A100 40 GB as the primary model judge under the [model/evaluation plan](model-evaluation-plan.md). M4 owns the isolated deployment source, authenticated HTTPX adapter and offline runner; M2 reviews image/version pins and cost/lifecycle controls. The checkpoint's grading template uses a task, candidate, source-checked reference and anchored rubric; parse scores strictly and calibrate against human labels. Keep GPU/Modal dependencies outside API/worker locks and keep the evaluator out of student turns. $30 credits imply approximately 14.3 GPU-only hours, not guaranteed all-in runtime; enforce spend caps and verify actual shutdown. Lightning AI/Kaggle are recorded host alternatives, not silent model substitutions. Ragas stays uninstalled; custom metrics are not benchmark-equivalent scores. Human/source and accessibility checks remain required. See [Prometheus evaluation](https://github.com/prometheus-eval/prometheus-eval).

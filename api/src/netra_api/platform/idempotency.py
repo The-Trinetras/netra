@@ -127,3 +127,35 @@ def check_expected_version(expected_version: int, actual_version: int) -> None:
 
     if expected_version != actual_version:
         raise SessionVersionConflictError(expected_version, actual_version)
+
+
+def fingerprint_message(message_type: str, payload: BaseModel) -> str:
+    """Fingerprint one logical client action: its message type plus its payload.
+
+    The type participates so a request_id reused for a different message
+    type with a coincidentally identical payload shape still conflicts.
+    The envelope's message_id and sequence are excluded on purpose: they
+    are fresh per transmitted frame (message-flow.md flow 3), so a genuine
+    retransmission must fingerprint identically despite them.
+    """
+
+    canonical = message_type + "\n" + payload.model_dump_json(exclude_none=False)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def resolve_recorded(
+    recorded: Optional[RecordedRequest], payload_fingerprint: str, result_model: type[TResult]
+) -> Optional[TResult]:
+    """Async-repository form of replay_or_conflict.
+
+    Durable repositories load the recorded entry inside their own
+    transaction, then call this with it. Semantics are identical: no entry
+    -> None; matching fingerprint -> prior result, replayed without any
+    version check; mismatched fingerprint -> IdempotencyConflictError.
+    """
+
+    if recorded is None:
+        return None
+    if recorded.payload_fingerprint != payload_fingerprint:
+        raise IdempotencyConflictError("request_id reused for a different request")
+    return result_model.model_validate(recorded.result)

@@ -1,6 +1,6 @@
 import inspect
 
-from netra_api.config import Settings
+from netra_api.content.settings import ContentSettings
 from netra_worker import main
 
 
@@ -10,7 +10,7 @@ def test_main_import_does_not_start_worker():
 
 
 def test_build_pools_registers_expected_types_and_configured_concurrency():
-    settings = Settings(parse_workers=4, block_workers=5, embed_workers=2,
+    settings = ContentSettings(parse_workers=4, block_workers=5, embed_workers=2,
                         projection_workers=6, activation_workers=1,
                         worker_poll_interval_seconds=0.25)
     pools = main.build_pools(settings, object())

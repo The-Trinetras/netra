@@ -3,6 +3,11 @@ namespace Netra.Desktop.State;
 public enum PlaybackStatus
 {
     Idle,
+
+    // Play() was requested and the player is opening the media; nothing is
+    // audible yet, so it is not reported (or acknowledged) as playing. It is
+    // still the active speaking response for STOP and press-to-interrupt.
+    Loading,
     Playing,
     Paused,
     Stopped,

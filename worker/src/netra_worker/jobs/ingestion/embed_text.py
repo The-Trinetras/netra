@@ -7,11 +7,11 @@ from uuid import UUID
 
 from pydantic import Field
 
-from netra_api.config import Settings
+from netra_api.content.settings import ContentSettings
 from netra_api.content.retrieval.chunks import SearchChunk
 from netra_api.content.retrieval.embeddings import EmbeddingProvider, EmbeddingSpec
 from netra_api.content.sources.models import SourceVersionIngestionState
-from netra_api.platform.observability import instrument_stage
+from netra_api.content.telemetry import instrument_stage
 
 from netra_worker.jobs.ingestion.base import IngestionJobPayload, IngestionVersionStore
 
@@ -27,9 +27,9 @@ class EmbeddingChunkStore(Protocol):
 
 class EmbedTextJob:
     def __init__(self, versions: IngestionVersionStore, chunks: EmbeddingChunkStore,
-                 embedder: EmbeddingProvider, settings: Settings | None = None) -> None:
+                 embedder: EmbeddingProvider, settings: ContentSettings | None = None) -> None:
         self.versions, self.chunks, self.embedder = versions, chunks, embedder
-        self.settings = settings or Settings()
+        self.settings = settings or ContentSettings()
 
     @instrument_stage("embed_chunks")
     async def handle(self, payload: EmbedTextPayload) -> None:

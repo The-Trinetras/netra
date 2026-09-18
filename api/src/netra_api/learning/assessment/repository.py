@@ -11,7 +11,7 @@ the assessment_attempts migration, not here.
 
 from __future__ import annotations
 
-from typing import Protocol
+from typing import Optional, Protocol
 from uuid import UUID
 
 from netra_api.learning.assessment.models import AssessmentAttempt
@@ -37,7 +37,19 @@ class AssessmentHistoryRepository(Protocol):
     def list_for_account(self, auth: AuthContext) -> list[AssessmentAttempt]:
         ...
 
-    def get(self, auth: AuthContext, attempt_id: UUID) -> AssessmentAttempt:
-        """Raise netra_api.platform.errors.AuthorizationError if attempt_id
-        does not belong to auth.account_id."""
+    def get(self, auth: AuthContext, attempt_id: UUID) -> Optional[AssessmentAttempt]:
+        """Return one attempt, or None when no such attempt exists.
+
+        Raise netra_api.platform.errors.AuthorizationError if attempt_id
+        exists but does not belong to auth.account_id.
+
+        "Absent" and "not yours" are deliberately different outcomes here,
+        and neither may be collapsed into the other. Returning None for an
+        unknown id is what lets a caller ask "has this turn already been
+        committed?" without treating a genuine authorization failure as a
+        cache miss — see
+        netra_api.learning.assessment.service.LearningService.find_committed_attempt,
+        which relies on exactly that distinction to make a retransmitted
+        submission replay instead of fail.
+        """
         ...

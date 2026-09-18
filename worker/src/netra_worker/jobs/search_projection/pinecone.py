@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Protocol
 from uuid import UUID
 
-from netra_api.config import Settings
+from netra_api.content.settings import ContentSettings
 from netra_api.content.projection.pinecone import PineconeProjectionService
 from netra_api.content.retrieval.chunks import SearchChunkProjection
 from netra_api.content.providers.pinecone import VectorIndexProvider
@@ -13,7 +13,7 @@ from netra_api.content.sources.models import SourceVersionIngestionState
 
 from netra_worker.runtime.job_repository import JobPayload
 from netra_worker.jobs.ingestion.base import IngestionVersionStore
-from netra_api.platform.observability import instrument_stage
+from netra_api.content.telemetry import instrument_stage
 
 
 class SearchProjectionPayload(JobPayload):
@@ -39,9 +39,9 @@ class _IngestionProjectionReader:
 
 class SearchProjectionJob:
     def __init__(self, versions: IngestionVersionStore, chunks: ProjectionChunkReader,
-                 index: VectorIndexProvider, settings: Settings | None = None) -> None:
+                 index: VectorIndexProvider, settings: ContentSettings | None = None) -> None:
         self.versions, self.chunks, self.index = versions, chunks, index
-        self.settings = settings or Settings()
+        self.settings = settings or ContentSettings()
 
     @instrument_stage("project_vectors")
     async def handle(self, payload: SearchProjectionPayload) -> None:

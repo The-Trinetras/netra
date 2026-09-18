@@ -14,7 +14,7 @@ from typing import Protocol
 
 import asyncio
 
-from netra_api.config import Settings
+from netra_api.content.settings import ContentSettings
 
 
 class ObjectStorageProvider(Protocol):
@@ -33,8 +33,8 @@ class ObjectStorageProvider(Protocol):
 class Boto3ObjectStorage:
     """Async application boundary around boto3's synchronous S3 client."""
 
-    def __init__(self, settings: Settings | None = None, client=None) -> None:
-        self.settings = settings or Settings()
+    def __init__(self, settings: ContentSettings | None = None, client=None) -> None:
+        self.settings = settings or ContentSettings()
         self._client = client
 
     def _get_client(self):

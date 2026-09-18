@@ -8,7 +8,7 @@ from typing import Any, Protocol, Sequence
 
 from pydantic import BaseModel, Field
 
-from netra_api.config import Settings
+from netra_api.content.settings import ContentSettings
 
 
 class VectorIndexError(RuntimeError):
@@ -47,8 +47,8 @@ class VectorIndexProvider(Protocol):
 class PineconeVectorIndex:
     """Non-blocking adapter around the synchronous Pinecone 9.x client."""
 
-    def __init__(self, settings: Settings | None = None, client: Any | None = None) -> None:
-        self.settings = settings or Settings()
+    def __init__(self, settings: ContentSettings | None = None, client: Any | None = None) -> None:
+        self.settings = settings or ContentSettings()
         self._client = client
         self._index: Any | None = None
 

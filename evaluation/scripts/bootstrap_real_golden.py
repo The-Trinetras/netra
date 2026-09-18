@@ -24,7 +24,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "api" / "src"))
 sys.path.insert(0, str(ROOT / "worker" / "src"))
 
-from netra_api.config import Settings  # noqa: E402
+from netra_api.content.settings import ContentSettings, application_database_url  # noqa: E402
 from netra_api.content.chunking import ChunkBlock, StructureAwareChunker  # noqa: E402
 from netra_api.content.ingestion.structure import build_reading_blocks  # noqa: E402
 from netra_api.content.providers.llamaparse import ParsedBlock  # noqa: E402
@@ -141,7 +141,7 @@ async def _state(factory):
         return await AsyncSourceRepository(session).get_version_internal(VERSION_ID)
 
 
-async def _run_pipeline(factory, settings: Settings) -> None:
+async def _run_pipeline(factory, settings: ContentSettings) -> None:
     storage = Boto3ObjectStorage(settings)
     await _put_artifacts(storage)
     await _ensure_historical_identity(factory)
@@ -203,14 +203,14 @@ async def _run_pipeline(factory, settings: Settings) -> None:
 
 async def main() -> None:
     parsed_count, block_count, chunk_count, golden = validate_locked_fixture()
-    settings = Settings()
+    settings = ContentSettings()
     if not settings.s3_bucket or not settings.aws_region:
         raise RuntimeError("S3_BUCKET and AWS_REGION are required")
     if not settings.gemini_api_key:
         raise RuntimeError("GEMINI_API_KEY is required")
     if not settings.pinecone_api_key or not settings.pinecone_index_name:
         raise RuntimeError("Pinecone configuration is required")
-    engine = create_engine(settings)
+    engine = create_engine(application_database_url(), pool_size=settings.database_pool_size)
     factory = create_session_factory(engine)
     try:
         await _run_pipeline(factory, settings)

@@ -9,7 +9,7 @@ from uuid import UUID
 from netra_api.content.providers.pinecone import VectorIndexProvider
 from netra_api.content.retrieval.chunks import SearchChunkProjection
 from netra_api.content.retrieval.embeddings import EmbeddingProvider, EmbeddingResult, EmbeddingSpec
-from netra_api.config import Settings
+from netra_api.content.settings import ContentSettings
 
 
 class ProjectionChunkReader(Protocol):
@@ -21,9 +21,9 @@ class PineconeProjectionService:
     """Projects only validated canonical chunks; it never writes PostgreSQL."""
 
     def __init__(self, chunks: ProjectionChunkReader, embedder: EmbeddingProvider,
-                 index: VectorIndexProvider, settings: Settings | None = None) -> None:
+                 index: VectorIndexProvider, settings: ContentSettings | None = None) -> None:
         self.chunks, self.embedder, self.index = chunks, embedder, index
-        self.settings = settings or Settings()
+        self.settings = settings or ContentSettings()
 
     async def project_source_version(self, source_version_id: UUID) -> int:
         chunks = await self.chunks.list_projection_chunks(source_version_id)

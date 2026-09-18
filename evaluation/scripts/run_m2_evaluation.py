@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "api" / "src"))
 sys.path.insert(0, str(ROOT / "evaluation" / "scripts"))
 
-from netra_api.config import Settings  # noqa: E402
+from netra_api.content.settings import ContentSettings, application_database_url  # noqa: E402
 from netra_api.content.retrieval.factory import build_postgres_retrieval_service  # noqa: E402
 from netra_api.platform.auth_context import AuthContext  # noqa: E402
 from netra_api.platform.database import create_engine, create_session_factory  # noqa: E402
@@ -108,14 +108,14 @@ async def run(args: argparse.Namespace) -> int:
             print("health=FAIL", file=sys.stderr)
             return 2
 
-    settings = Settings()
+    settings = ContentSettings()
     settings.reranker_enabled = spec.reranker_enabled
     if settings.embedding_model != spec.embedding_model:
         raise ValueError("runtime embedding model does not match experiment manifest")
     if settings.embedding_dimension != spec.embedding_dimension:
         raise ValueError("runtime embedding dimension does not match experiment manifest")
 
-    engine = create_engine(settings)
+    engine = create_engine(application_database_url(), pool_size=settings.database_pool_size)
     factory = create_session_factory(engine)
     try:
         async with factory() as session:

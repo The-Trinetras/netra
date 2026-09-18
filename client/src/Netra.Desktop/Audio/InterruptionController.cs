@@ -1,4 +1,5 @@
 using System.Threading;
+using Netra.Desktop.Diagnostics;
 using Netra.Desktop.Networking;
 using Netra.Desktop.Protocol.Dto;
 
@@ -22,6 +23,8 @@ public sealed class InterruptionController
 
     private readonly IPlaybackController _playbackController;
     private readonly ConnectionManager _connectionManager;
+    private readonly Func<string?> _announcedGenerationId;
+    private readonly PlaybackTimeline? _timeline;
 
     // Guarded by _lock: StopAsync runs on the UI thread while ShouldPlay is
     // consulted from the WebSocket receive loop, so this is genuinely
@@ -32,10 +35,20 @@ public sealed class InterruptionController
     private readonly HashSet<string> _cancelledGenerationIds = new();
     private readonly Queue<string> _cancellationOrder = new();
 
-    public InterruptionController(IPlaybackController playbackController, ConnectionManager connectionManager)
+    // announcedGenerationId: the generation the server most recently
+    // announced with response.segment. STOP during a network wait (text or
+    // audio still in flight, nothing playing yet) must fence THAT generation
+    // too, or its audio would start after the student pressed STOP.
+    public InterruptionController(
+        IPlaybackController playbackController,
+        ConnectionManager connectionManager,
+        Func<string?>? announcedGenerationId = null,
+        PlaybackTimeline? timeline = null)
     {
         _playbackController = playbackController;
         _connectionManager = connectionManager;
+        _announcedGenerationId = announcedGenerationId ?? (() => null);
+        _timeline = timeline;
         _connectionManager.Disconnected += OnDisconnected;
     }
 
@@ -58,24 +71,45 @@ public sealed class InterruptionController
 
     public async Task StopAsync(CancelReason reason, CancellationToken cancellationToken)
     {
-        var activeGenerationId = _playbackController.CurrentSnapshot.GenerationId;
+        var playingGenerationId = _playbackController.CurrentSnapshot.GenerationId;
+        var announcedGenerationId = _announcedGenerationId();
+        _timeline?.Record(PlaybackMilestone.StopRequested, playingGenerationId ?? announcedGenerationId, detail: reason.ToString());
 
         // Local stop happens synchronously, before any network call.
         _playbackController.StopImmediately();
+        _timeline?.Record(PlaybackMilestone.LocalStopReturned, playingGenerationId ?? announcedGenerationId);
 
-        if (activeGenerationId is not null)
+        if (playingGenerationId is not null)
         {
-            Fence(activeGenerationId);
+            Fence(playingGenerationId);
         }
 
-        await _connectionManager.SendResponseCancelAsync(
-            new ResponseCancelPayload
-            {
-                CancelRequestId = Guid.NewGuid(),
-                GenerationId = activeGenerationId,
-                Reason = reason,
-            },
-            cancellationToken).ConfigureAwait(false);
+        if (announcedGenerationId is not null)
+        {
+            Fence(announcedGenerationId);
+        }
+
+        // The newest generation is the one the server is still producing.
+        var cancelGenerationId = announcedGenerationId ?? playingGenerationId;
+        try
+        {
+            await _connectionManager.SendResponseCancelAsync(
+                new ResponseCancelPayload
+                {
+                    CancelRequestId = Guid.NewGuid(),
+                    GenerationId = cancelGenerationId,
+                    Reason = reason,
+                },
+                cancellationToken).ConfigureAwait(false);
+            _timeline?.Record(PlaybackMilestone.CancelSent, cancelGenerationId);
+        }
+        catch (Exception)
+        {
+            // Local silence already happened; the cancel could not be sent
+            // (e.g. disconnected). Record it and let the caller surface it.
+            _timeline?.Record(PlaybackMilestone.CancelFailed, cancelGenerationId);
+            throw;
+        }
     }
 
     // A disconnect fences whatever generation was active, exactly like a
@@ -86,12 +120,18 @@ public sealed class InterruptionController
     private void OnDisconnected(object? sender, EventArgs e)
     {
         var activeGenerationId = _playbackController.CurrentSnapshot.GenerationId;
+        var announcedGenerationId = _announcedGenerationId();
 
         _playbackController.StopImmediately();
 
         if (activeGenerationId is not null)
         {
             Fence(activeGenerationId);
+        }
+
+        if (announcedGenerationId is not null)
+        {
+            Fence(announcedGenerationId);
         }
     }
 

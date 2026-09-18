@@ -11,8 +11,9 @@ from netra_api.content.ingestion.structure import build_reading_blocks
 from netra_api.content.providers.llamaparse import ParsedBlock
 from netra_api.content.reading.blocks import ReadingBlock
 from netra_api.content.retrieval.chunks import SearchChunk
-from netra_api.platform.observability import instrument_stage, start_span
+from netra_api.content.telemetry import instrument_stage, stage_span, tracer_of
 
+from netra_worker.runtime.errors import PermanentJobError
 from netra_worker.jobs.ingestion.base import IngestionJobPayload, IngestionVersionStore
 
 
@@ -51,18 +52,24 @@ class BuildBlocksJob:
     @instrument_stage("build_reading_blocks_and_chunks")
     async def handle(self, payload: BuildBlocksPayload) -> None:
         version = await self.versions.get_version_internal(payload.source_version_id)
-        if version.source_id != payload.source_id or version.ingestion_state.value not in {"parsing", "blocks_built"}:
-            raise RuntimeError("source version is not ready for block construction")
+        if version.source_id != payload.source_id:
+            raise PermanentJobError("job payload does not match the source version")
+        if "blocks_built" in version.completed_stages:
+            # Redelivery after this stage committed. Rebuilding would replace
+            # chunks that later stages have already embedded and projected.
+            return
+        if version.ingestion_state.value != "parsing":
+            raise PermanentJobError("source version is not ready for block construction")
         content_hash, parsed = await self.parsed_documents.get(payload.parsed_object_key)
         if content_hash != version.content_hash:
             raise RuntimeError("parsed document content hash mismatch")
-        with start_span("build_reading_blocks", component="ingestion",
+        with stage_span(tracer_of(self), "ingestion.reading_blocks", operation="build_reading_blocks",
                         source_version_id=payload.source_version_id):
             reading_blocks = build_reading_blocks(payload.source_version_id, parsed)
         if not reading_blocks:
             raise RuntimeError("parsed document produced no reading blocks")
         await self.blocks.replace_blocks(payload.source_version_id, reading_blocks)
-        with start_span("build_search_chunks", component="ingestion",
+        with stage_span(tracer_of(self), "ingestion.search_chunks", operation="build_search_chunks",
                         source_version_id=payload.source_version_id):
             search_chunks = self.chunker.chunk([ChunkBlock.from_reading_block(block) for block in reading_blocks])
         await self.chunks.replace_chunks(payload.source_version_id, search_chunks)

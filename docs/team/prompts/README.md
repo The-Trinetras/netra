@@ -1,5 +1,14 @@
 # Parallel implementation prompts
 
+**Continuing a previous build?** Use the [M1–M5 continuation prompts and integration
+playbook](../integration-playbook.md), not a fresh scaffold task. It includes the
+observed merge state, required incomplete-work reports, dependency review, merge
+waves and prompts for review, post-merge completion, evaluation and publication.
+M3/M4's earlier builds are already in main; M2's laptop build must be published.
+Recheck branch tips before acting. The continuation prompts explicitly authorize
+owned branch publication and necessary reviewed dependency-file repairs; they do
+not authorize arbitrary installs, live providers, deployment or a main merge.
+
 Give each teammate their complete prompt below in their own checkout. Each prompt
 directs the agent to read this shared implementation agreement and the repository's
 authorities; no second prompt or manually copied preamble is needed.
@@ -18,6 +27,55 @@ explicitly agreed integration commit containing it. Documentation baseline commi
 worktrees and role branches. Do not run five agents against one mutable checkout.
 
 ## Shared implementation agreement
+
+### Arize AX integration update — 18 September 2026
+
+All members must read the [AX integration plan](../../architecture/arize-ax-integration.md)
+and their ARIZE AX INTEGRATION UPDATE section. Use a common agreed commit containing
+this revision; members already working apply it incrementally without resets or
+discarding changes. The historical prompt-pack baseline alone is insufficient.
+
+AX replaces historical LangSmith tracing and provides datasets, experiments and
+comparison views. Netra owns controlled tracing and a resumable offline runner;
+Prometheus-2 on Modal remains the external judge. Alyx is an engineering assistant,
+not a third product agent. Keep auto-accept off and review its suggestions/labels.
+Preserve operational logs and canonical stores; keep independent evaluation artifacts.
+
+M1 owns the shared tracing adapter/lifecycle, M2 ingestion/retrieval/jobs and dependency
+review, M3 media/provenance, M4 Tutor spans and the dataset/judge/AX comparison workflow,
+and M5 actual client measurements. No student response waits on AX or evaluation.
+Implement bounded background export, sanitization, context isolation, visible loss,
+shutdown/recovery and trace reconciliation. Use all required spans for the expected
+Free-tier evaluation workload; no sampling or high-volume architecture is needed.
+Roughly 2,500 requests is a sizing estimate, not a reason to remove needed traces.
+
+Complete the five-step evaluation workflow and all reliability/calibration/comparison
+gates. A quick pilot, one trace or one scored case is not sufficient. Frozen paired
+cases, versioned judge settings, persisted outputs/results, recoverable uploads and
+honest missing-case counts are required. Account features, compatible dependency
+pins and live checks remain explicitly pending, not inferred from this approval.
+This revision changes documentation; invoked role prompts authorize owned code under
+the execution controls below, not automatic installation, credentials or deployment.
+
+### Model and evaluation update — 17 September 2026
+
+All five prompts include the [model/evaluation decision](../../architecture/model-evaluation-plan.md).
+Use a common agreed commit containing this update, not the older prompt pack alone;
+publication/push of this local documentation commit is a separate action. For a
+member already implementing, apply the MODEL AND EVALUATION UPDATE section to
+their existing work without resetting, restarting or discarding changes.
+
+Keep Coordinator Gemini `gemini-3.8-flash` and Tutor Groq `openai/gpt-oss-120b`.
+Prometheus-2 7B on Modal/A100 40 GB is now the primary model evaluator, alongside
+deterministic/source checks and human calibration. This supersedes the earlier
+Gemini/deferred-Prometheus plan. Lightning AI/Kaggle are alternative hosts; AWS
+GPU work remains excluded. M4 owns evaluation/ deployment source and HTTPX adapter;
+M2 reviews its isolated GPU environment, credit cap and lifecycle. This is a narrow
+external offline-compute exception, not a new production microservice or agent.
+GPU/Modal dependencies stay outside shared manifests/locks; Ragas stays uninstalled.
+Free account access and live behaviour remain unverified. This documentation update
+authorizes no downloads, provisioning, spending or paid overage. Each member applies
+their update section without restarting existing work or crossing owner boundaries.
 
 These are implementation tasks, not the completed documentation migration. When a
 teammate invokes a role prompt, it authorizes application code, runtime prompts,
@@ -67,7 +125,9 @@ historical plans/audits are not active requirements or current pass evidence.
 
 - Exactly two product agents, Coordinator and Tutor. No extra agent, unrestricted
   agent chat, raw database handles for agents, model-generated SQL, new framework,
-  MCP integration, microservice or Kubernetes.
+  MCP integration, production microservice or Kubernetes. The isolated external
+  Prometheus-2 evaluator and managed AX integration follow the approved plans above;
+  they do not add an application microservice or product agent.
 - PostgreSQL is authoritative; private S3 stores source bytes; Pinecone/Neo4j are
   rebuildable. Enforce service-boundary authorization and authoritative evidence
   access/deletion/version checks. Source sessions stay pinned. Retrieved content

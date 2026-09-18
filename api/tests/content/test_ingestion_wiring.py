@@ -1,3 +1,4 @@
+import os
 from datetime import datetime, timezone
 from hashlib import sha256
 from uuid import NAMESPACE_URL, uuid4, uuid5
@@ -6,7 +7,7 @@ import pytest
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from netra_api.config import Settings
+from netra_api.content.settings import ContentSettings
 from netra_api.content.sources.ingestion import (
     SOURCE_VERSION_INGESTION_REQUESTED,
     SourceIngestionService,
@@ -23,7 +24,10 @@ pytestmark = pytest.mark.integration
 
 @pytest.fixture
 async def db_session() -> AsyncSession:
-    engine = create_engine(Settings())
+    url = os.environ.get("NETRA_TEST_DATABASE_URL")
+    if not url:
+        pytest.skip("NETRA_TEST_DATABASE_URL (a disposable local database) is not set")
+    engine = create_engine(url)
     factory: async_sessionmaker[AsyncSession] = create_session_factory(engine)
     async with factory() as session:
         yield session

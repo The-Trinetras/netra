@@ -1,3 +1,4 @@
+import os
 from datetime import datetime, timezone
 from uuid import uuid4
 
@@ -5,7 +6,7 @@ import pytest
 from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from netra_api.config import Settings
+from netra_api.content.settings import ContentSettings
 from netra_api.content.reading.blocks import BlockType, ReadingBlock, Sentence
 from netra_api.content.reading.postgres import AsyncReadingBlockRepository
 from netra_api.content.retrieval.chunks import AsyncSearchChunkRepository, SearchChunk
@@ -21,7 +22,10 @@ pytestmark = pytest.mark.integration
 
 @pytest.fixture
 async def db_session():
-    engine = create_engine(Settings())
+    url = os.environ.get("NETRA_TEST_DATABASE_URL")
+    if not url:
+        pytest.skip("NETRA_TEST_DATABASE_URL (a disposable local database) is not set")
+    engine = create_engine(url)
     factory: async_sessionmaker[AsyncSession] = create_session_factory(engine)
     async with factory() as session:
         yield session
@@ -128,6 +132,10 @@ async def test_activation_deactivates_previous_version_and_replay_is_idempotent(
 
         replay = await repo.activate_version(auth, source.source_id, second.source_version_id, 2)
         assert replay.is_active
+        # A redelivered activation job still carries the expectation it was
+        # enqueued with (the previously active version number).
+        redelivered = await repo.activate_version_internal(source.source_id, second.source_version_id, 1)
+        assert redelivered.is_active
         assert len([version for version in await repo.list_versions(auth, source.source_id) if version.is_active]) == 1
     finally:
         await _cleanup(db_session, source.source_id)

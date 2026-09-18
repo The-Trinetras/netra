@@ -10,7 +10,7 @@ import asyncio
 import os
 import time
 
-from netra_api.config import Settings
+from netra_api.content.settings import ContentSettings
 from netra_api.content.retrieval.exact_search import SearchCandidate
 from netra_api.content.retrieval.reranker import BGEReranker
 
@@ -18,7 +18,7 @@ from netra_api.content.retrieval.reranker import BGEReranker
 async def main() -> None:
     if os.getenv("NETRA_BGE_LIVE_SMOKE") != "1":
         raise SystemExit("Set NETRA_BGE_LIVE_SMOKE=1 to explicitly enable model loading")
-    settings = Settings(reranker_enabled=True)
+    settings = ContentSettings(reranker_enabled=True)
     reranker = BGEReranker(settings)
     candidates = [
         SearchCandidate(evidence_id="passage-a", score=0.0,

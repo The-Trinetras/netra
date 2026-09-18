@@ -1,0 +1,16 @@
+{
+  "evaluation_id": "factual_correctness_v1",
+  "status": "draft_uncalibrated",
+  "criteria": "Is the tutor's response factually correct when compared with the source-checked reference answer, including values, units and the direction of relationships?",
+  "score1": "The response's main conclusion is wrong: an incorrect value, wrong unit, reversed relationship or a correct-sounding answer to a different quantity.",
+  "score2": "The main conclusion is partly right but relies on an incorrect step, value or unit that a student could learn as fact.",
+  "score3": "The main conclusion matches the reference, but a supporting statement contains a factual error or an ambiguous unit.",
+  "score4": "The response matches the reference in all substantive facts; only a minor imprecision in wording remains.",
+  "score5": "The response is fully consistent with the reference answer in every value, unit and relationship, and any alternative but valid reasoning reaches the same correct result.",
+  "requires_reference": true,
+  "applies_to_modes": [],
+  "unit": "ordinal_1_5",
+  "author": "M4 draft (Claude-assisted, codex/m4-tutor-followup)",
+  "reviewer": null,
+  "notes": "DRAFT. Not calibrated. Alternative correct reasoning must not be penalised for differing from the reference wording; calibration cases must include such responses."
+}

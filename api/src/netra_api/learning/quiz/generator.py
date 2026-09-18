@@ -29,7 +29,10 @@ class QuizGenerationRequest(BaseModel):
     explanation_level: ExplanationLevel
     evidence_refs: list[EvidenceRef] = Field(min_length=1, max_length=12)
     """Grounds the generated question in already-authorized evidence
-    (CLAUDE.md "Evidence rules") rather than the model inventing content."""
+    (CLAUDE.md "Evidence rules") rather than the model inventing content.
+    An implementation reports which of these it used in
+    QuestionDraft.evidence_ids; the Tutor binds those ids to resolved
+    evidence and refuses a draft that cites anything else."""
 
 
 class QuizGenerator(Protocol):

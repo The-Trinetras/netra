@@ -50,7 +50,7 @@ from pathlib import Path
 from typing import Callable, Optional, Protocol, Sequence
 from uuid import NAMESPACE_URL, uuid5
 
-from netra_api.content.retrieval.evidence import Evidence, EvidenceResolver, resolved_evidence
+from netra_api.content.retrieval.evidence import Evidence, EvidenceResolution, EvidenceResolver
 from netra_api.coordinator.handoff import (
     CoordinatorToTutorHandoff,
     ProposedLearningEvent,
@@ -73,7 +73,13 @@ from netra_api.learning.assessment.service import LearningService
 from netra_api.learning.quiz.generator import QuizGenerationRequest, QuizGenerator
 from netra_api.learning.quiz.models import ApprovedQuestion, QuestionDraft
 from netra_api.learning.quiz.repository import PendingQuestionRepository
-from netra_api.learning.quiz.validator import validate_question_for_approval
+from netra_api.learning.quiz.validator import (
+    QuestionValidationError,
+    bind_draft_to_evidence,
+    evidence_refs_for,
+    validate_question_for_approval,
+)
+from netra_api.learning.tutor.evidence_versions import SourceVersionComparison, compare_source_version
 from netra_api.learning.tutor.policies import assert_not_coordinator_state
 from netra_api.learning.tutor.providers.groq import GroqTutorModelConfig, GroqTutorProvider
 from netra_api.learning.tutor.state import TutorTurnState
@@ -163,6 +169,10 @@ class TutorServices:
     Substituting this does NOT implement grounding and must never be
     described as such: production keeps the fail-closed default until the
     M3/M4 decision lands.
+
+    Reference binding (netra_api.learning.quiz.validator.bind_draft_to_evidence)
+    runs before this seam and cannot be substituted: the validator only
+    ever receives the evidence the draft is bound to.
     """
 
 
@@ -414,10 +424,25 @@ async def _run_check_understanding(
         )
     )
 
-    # Structural validation AND evidence grounding. The default validator
-    # is the production one, which fails closed on the open grounding
-    # decision; nothing below runs until that decision lands.
-    services.grounding_validator(draft, evidence)
+    # The draft's concept is model output. It must be the concept that was
+    # requested, or the question — and every attempt and projection that
+    # later hangs off it — would be filed under a concept the handoff never
+    # targeted (learning.md: "Do not silently create concepts ... from
+    # Tutor output").
+    if draft.concept_id != concept_id:
+        raise QuestionValidationError("question draft targets a concept that was not requested")
+
+    # Reference binding is always enforced here and is not part of the
+    # injectable seam: a draft citing nothing, or citing evidence this turn
+    # did not resolve, is refused (UngroundedDraftError, a bounded failed
+    # result) no matter which grounding validator is installed.
+    bound = bind_draft_to_evidence(draft, evidence)
+
+    # Structural validation AND the support check, over only the evidence
+    # the draft cites. The default validator is the production one, which
+    # fails closed on the open support decision; nothing below runs until
+    # that decision lands.
+    services.grounding_validator(draft, bound)
 
     question = ApprovedQuestion(
         question_id=_derive_question_id(state.handoff, concept_id),
@@ -428,6 +453,7 @@ async def _run_check_understanding(
         options=list(draft.options),
         answer_key=draft.answer_key,
         created_at=datetime.now(timezone.utc),
+        evidence_refs=evidence_refs_for(bound),
     )
 
     _ensure_can_continue(state)
@@ -441,7 +467,9 @@ async def _run_check_understanding(
         # is never read here, so there is no path by which it reaches a
         # public segment (learning.md "Quiz privacy").
         segments=[PublicSegment(kind="question", text=persisted.prompt[:MAX_PUBLIC_SEGMENT_CHARS])],
-        evidence=evidence,
+        # Only what the question is bound to: citing every resolved item
+        # would claim support from evidence the question never used.
+        evidence=bound,
         events=_exposure_events(state.handoff),
         pending_question_id=persisted.question_id,
     )
@@ -695,14 +723,38 @@ def _resolve_evidence(state: TutorTurnState, services: TutorServices) -> list[Ev
     An agent-supplied body under an evidence ID is never trusted
     (agent-boundaries.md); only what the resolver authorizes against
     PostgreSQL is used, and unresolved references simply do not appear.
+
+    Resolved evidence is then checked against the source version the
+    handoff declared for it (see
+    netra_api.learning.tutor.evidence_versions). Evidence whose resolved
+    version differs from, or cannot be compared with, the declared one is
+    dropped exactly like an unresolved reference: the Tutor never teaches
+    from a version the handoff was not built against.
     """
 
     _ensure_can_continue(state)
     state.budget.register_tool_call()
-    resolutions = services.evidence_resolver.resolve(
-        state.auth, [ref.evidence_id for ref in state.handoff.evidence_refs]
-    )
-    return resolved_evidence(resolutions)
+    refs = list(state.handoff.evidence_refs)
+    resolutions = services.evidence_resolver.resolve(state.auth, [ref.evidence_id for ref in refs])
+    if len(resolutions) != len(refs):
+        # The resolver contract is one resolution per requested id, in
+        # order. Anything else means refs and resolutions cannot be paired,
+        # so no declared version can be checked: use nothing.
+        return []
+
+    accepted: list[Evidence] = []
+    for ref, evidence in zip(refs, _resolved_or_none(resolutions)):
+        if evidence is None or evidence.evidence_id != ref.evidence_id:
+            continue
+        if compare_source_version(ref, evidence) is SourceVersionComparison.MATCH:
+            accepted.append(evidence)
+    return accepted
+
+
+def _resolved_or_none(resolutions: Sequence[EvidenceResolution]) -> list[Optional[Evidence]]:
+    """Resolutions narrowed to their evidence, keeping positions aligned."""
+
+    return [resolution.evidence for resolution in resolutions]
 
 
 async def _decide(state: TutorTurnState, services: TutorServices, prompt: str) -> str:

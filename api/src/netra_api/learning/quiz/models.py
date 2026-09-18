@@ -22,8 +22,11 @@ from __future__ import annotations
 from datetime import datetime
 from enum import Enum
 from typing import Optional
+from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
+
+from netra_api.content.retrieval.evidence import EvidenceTrust
 
 
 class QuestionKind(str, Enum):
@@ -54,12 +57,31 @@ class AnswerKey(BaseModel):
     rubric: Optional[str] = None
 
 
+class QuestionEvidenceRef(BaseModel):
+    """Which authorized evidence an approved question was written from.
+
+    Stored with the question so an answer can be traced back to the exact
+    source version the question was grounded in, and so a later check (on
+    deletion or a version change, for example) has canonical identities to
+    re-validate. Only identities are kept; evidence text stays in its own
+    authoritative store. Built only from resolver-returned Evidence by
+    netra_api.learning.quiz.validator.evidence_refs_for, never from
+    model output.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    evidence_id: str
+    source_version_id: UUID
+    trust: EvidenceTrust
+
+
 class QuestionDraft(BaseModel):
     """A quiz question the Tutor has proposed but not yet validated/persisted.
 
     Not deliverable to a student: it has not passed
-    netra_api.learning.quiz.validator.validate_question_draft and has no
-    question_id/version yet.
+    netra_api.learning.quiz.validator.validate_question_for_approval and
+    has no question_id/version yet.
     """
 
     concept_id: str
@@ -67,6 +89,14 @@ class QuestionDraft(BaseModel):
     prompt: str = Field(min_length=1, max_length=2000)
     options: list[QuestionOption] = Field(default_factory=list)
     answer_key: AnswerKey
+    evidence_ids: list[str] = Field(default_factory=list, max_length=12)
+    """The evidence ids the draft claims it was written from.
+
+    Model-proposed, therefore untrusted: a citation is only a claim until
+    netra_api.learning.quiz.validator.bind_draft_to_evidence binds each
+    id to evidence this turn actually resolved. Empty is representable so
+    an uncited draft reaches validation and is refused there with a
+    recorded reason, rather than failing as an opaque parse error."""
 
 
 class ApprovedQuestion(BaseModel):
@@ -85,6 +115,14 @@ class ApprovedQuestion(BaseModel):
     options: list[QuestionOption] = Field(default_factory=list)
     answer_key: AnswerKey
     created_at: datetime
+    evidence_refs: list[QuestionEvidenceRef] = Field(default_factory=list, max_length=12)
+    """The authorized evidence this question was bound to at approval.
+
+    Defaults to empty only so that a record written before binding existed
+    stays readable; the Tutor's approval path always populates it. Like
+    answer_key, server-side only: StudentFacingQuestion does not carry it.
+    PROPOSED persistence shape for M2's pending_questions migration (see
+    docs/team/handoffs/M4.md, D2)."""
 
 
 class StudentFacingQuestion(BaseModel):

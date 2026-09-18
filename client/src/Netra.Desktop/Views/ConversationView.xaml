@@ -1,0 +1,77 @@
+<UserControl x:Class="Netra.Desktop.Views.ConversationView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:dto="clr-namespace:Netra.Desktop.Protocol.Dto">
+
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" Text="Netra Study Session" FontSize="20" Margin="0,0,0,8" />
+
+        <ListBox x:Name="TranscriptList" Grid.Row="1"
+                 ItemsSource="{Binding Transcript}"
+                 AutomationProperties.Name="Conversation transcript"
+                 TabIndex="0">
+            <ListBox.ItemTemplate>
+                <DataTemplate>
+                    <TextBlock>
+                        <Run Text="{Binding Speaker, Mode=OneWay}" FontWeight="Bold" />
+                        <Run Text=": " />
+                        <Run Text="{Binding Text, Mode=OneWay}" />
+                    </TextBlock>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+
+        <TextBlock x:Name="StatusRegion" Grid.Row="2" Margin="0,8,0,0"
+                   Text="{Binding StatusMessage}"
+                   AutomationProperties.LiveSetting="Polite"
+                   AutomationProperties.Name="Status" />
+
+        <TextBlock x:Name="InterimRegion" Grid.Row="3" Margin="0,4,0,8"
+                   Text="{Binding InterimTranscript}"
+                   FontStyle="Italic"
+                   AutomationProperties.LiveSetting="Polite"
+                   AutomationProperties.Name="Live captioning" />
+
+        <Grid Grid.Row="4">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <TextBox x:Name="InputBox" Grid.Column="0"
+                     Text="{Binding InputText, UpdateSourceTrigger=PropertyChanged}"
+                     AutomationProperties.Name="Message input"
+                     TabIndex="1" Margin="0,0,8,0" VerticalContentAlignment="Center">
+                <TextBox.InputBindings>
+                    <KeyBinding Key="Return" Command="{Binding SubmitCommand}" />
+                </TextBox.InputBindings>
+            </TextBox>
+
+            <Button Grid.Column="1" Content="Send" Command="{Binding SubmitCommand}"
+                    AutomationProperties.Name="Send" TabIndex="2" Margin="0,0,4,0" Padding="8,4" />
+            <Button Grid.Column="2" Content="Stop" Command="{Binding StopCommand}"
+                    AutomationProperties.Name="Stop" TabIndex="3" Margin="0,0,4,0" Padding="8,4" />
+            <Button Grid.Column="3" Content="Previous" Command="{Binding NavigationCommandRequest}"
+                    CommandParameter="{x:Static dto:NavigationCommandType.Previous}"
+                    AutomationProperties.Name="Previous" TabIndex="4" Margin="0,0,4,0" Padding="8,4" />
+            <Button Grid.Column="4" Content="Repeat" Command="{Binding NavigationCommandRequest}"
+                    CommandParameter="{x:Static dto:NavigationCommandType.Repeat}"
+                    AutomationProperties.Name="Repeat" TabIndex="5" Margin="0,0,4,0" Padding="8,4" />
+            <Button Grid.Column="5" Content="Next" Command="{Binding NavigationCommandRequest}"
+                    CommandParameter="{x:Static dto:NavigationCommandType.Next}"
+                    AutomationProperties.Name="Next" TabIndex="6" Padding="8,4" />
+        </Grid>
+    </Grid>
+</UserControl>

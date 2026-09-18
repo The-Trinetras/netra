@@ -263,16 +263,9 @@ public sealed class ConversationViewModel : ViewModelBase, IDisposable
             // Initialize()). TryAdvanceSessionVersion only ever moves the
             // counter forward, which is correct for OUR mutations but wrong
             // for accepting a freshly-reconciled snapshot on connect —
-            // Initialize() is the right primitive here.
-            _sessionState.Initialize(_sessionState.SessionId, snapshot.SessionVersion);
-            _sessionState.InteractionMode = snapshot.InteractionMode;
-            _sessionState.ActiveSourceVersionId = snapshot.ActiveSourceVersionId;
-            _sessionState.CurrentBlockId = snapshot.CurrentBlockId;
-            _sessionState.CurrentSentenceId = snapshot.CurrentSentenceId;
-            _sessionState.LastAcknowledgedSentenceId = snapshot.LastAcknowledgedSentenceId;
-            _sessionState.ActiveTutorLessonId = snapshot.ActiveLesson?.LessonId.ToString();
-            _sessionState.PendingQuestionId = snapshot.PendingQuestion?.QuestionId;
-            _sessionState.LastResultSetId = snapshot.LastResultSet?.ResultSetId;
+            // Initialize() is the right primitive here (SnapshotReconciler),
+            // shared with the HTTP source-selection path.
+            SnapshotReconciler.Apply(_sessionState, snapshot);
 
             StatusMessage = $"Session restored: {snapshot.InteractionMode}.";
         });

@@ -3,14 +3,18 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:library="clr-namespace:Netra.Desktop.Library">
 
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="VisibleWhenTrue" />
+    </UserControl.Resources>
+
     <Grid Margin="12">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
         <Button x:Name="SelectFileButton" Grid.Row="0"
@@ -39,7 +43,50 @@
                    AutomationProperties.LiveSetting="Polite"
                    AutomationProperties.Name="Library status" />
 
-        <Grid Grid.Row="3" Margin="0,0,0,8">
+        <!-- Live mode only: the account's sources on the server. Selecting an
+             item only moves focus; Open (button or Enter) pins that version. -->
+        <StackPanel Grid.Row="3" Margin="0,0,0,12"
+                    Visibility="{Binding IsServerCatalogAvailable, Converter={StaticResource VisibleWhenTrue}}">
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                <TextBlock x:Name="ServerSourcesHeading" Text="Your sources" FontWeight="SemiBold"
+                           VerticalAlignment="Center" Margin="0,0,8,0"
+                           AutomationProperties.HeadingLevel="Level2" />
+                <Button Content="Refresh"
+                        Command="{Binding RefreshSourcesCommand}"
+                        AutomationProperties.Name="Refresh your sources"
+                        TabIndex="2" Padding="8,4" />
+            </StackPanel>
+
+            <ListBox x:Name="ServerSourcesList"
+                     ItemsSource="{Binding AvailableSources}"
+                     SelectedItem="{Binding SelectedAvailableSource, Mode=TwoWay}"
+                     AutomationProperties.Name="Your sources"
+                     AutomationProperties.LabeledBy="{Binding ElementName=ServerSourcesHeading}"
+                     MaxHeight="200" TabIndex="3">
+                <ListBox.ItemContainerStyle>
+                    <Style TargetType="ListBoxItem">
+                        <Setter Property="AutomationProperties.Name" Value="{Binding AccessibleLabel, Mode=OneWay}" />
+                    </Style>
+                </ListBox.ItemContainerStyle>
+                <ListBox.ItemTemplate>
+                    <DataTemplate DataType="{x:Type library:CatalogSource}">
+                        <TextBlock Text="{Binding AccessibleLabel, Mode=OneWay}" />
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+                <ListBox.InputBindings>
+                    <KeyBinding Key="Return" Command="{Binding OpenSourceCommand}"
+                                CommandParameter="{Binding SelectedItem, ElementName=ServerSourcesList}" />
+                </ListBox.InputBindings>
+            </ListBox>
+
+            <Button x:Name="OpenServerSourceButton" Content="Open for study"
+                    Command="{Binding OpenSourceCommand}"
+                    CommandParameter="{Binding SelectedItem, ElementName=ServerSourcesList}"
+                    AutomationProperties.Name="Open the selected source for study"
+                    TabIndex="4" HorizontalAlignment="Left" Padding="8,4" Margin="0,8,0,0" />
+        </StackPanel>
+
+        <Grid Grid.Row="4" Margin="0,0,0,8">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
@@ -48,7 +95,7 @@
             <TextBox Grid.Column="0"
                      Text="{Binding VideoSearchQuery, UpdateSourceTrigger=PropertyChanged}"
                      AutomationProperties.Name="Find a lecture: topic, title or lecturer"
-                     TabIndex="2" Margin="0,0,8,0" VerticalContentAlignment="Center">
+                     TabIndex="5" Margin="0,0,8,0" VerticalContentAlignment="Center">
                 <TextBox.InputBindings>
                     <KeyBinding Key="Return" Command="{Binding SearchVideosCommand}" />
                 </TextBox.InputBindings>
@@ -57,35 +104,47 @@
             <Button Grid.Column="1" Content="Search"
                     Command="{Binding SearchVideosCommand}"
                     AutomationProperties.Name="Search for a lecture"
-                    TabIndex="3" Padding="8,4" />
+                    TabIndex="6" Padding="8,4" />
         </Grid>
 
-        <ListBox Grid.Row="4"
-                 ItemsSource="{Binding VideoResults}"
-                 SelectedItem="{Binding SelectedVideoResult, Mode=OneWay}"
-                 AutomationProperties.Name="Numbered lecture results"
-                 TabIndex="4">
-            <ListBox.ItemTemplate>
-                <DataTemplate DataType="{x:Type library:VideoDiscoveryResult}">
-                    <TextBlock>
-                        <Run Text="{Binding Ordinal, Mode=OneWay}" />
-                        <Run Text=". " />
-                        <Run Text="{Binding Title, Mode=OneWay}" />
-                        <Run Text=" — " />
-                        <Run Text="{Binding Lecturer, Mode=OneWay}" />
-                    </TextBlock>
-                </DataTemplate>
-            </ListBox.ItemTemplate>
-            <ListBox.InputBindings>
-                <KeyBinding Key="Return" Command="{Binding SelectVideoResultCommand}"
-                            CommandParameter="{Binding SelectedVideoResult}" />
-            </ListBox.InputBindings>
-        </ListBox>
+        <!-- SelectedVideoResult is the view model's RETAINED choice, so it is
+             only pushed to the list (OneWay). The command parameter is the
+             list's own current item: binding it to SelectedVideoResult (as
+             before) passed null until something was already selected, so
+             keyboard selection could never select anything. -->
+        <Grid Grid.Row="5">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
 
-        <Button Grid.Row="5" Content="Select this result"
-                Command="{Binding SelectVideoResultCommand}"
-                CommandParameter="{Binding SelectedVideoResult}"
-                AutomationProperties.Name="Select this lecture result"
-                TabIndex="5" HorizontalAlignment="Left" Padding="8,4" Margin="0,8,0,0" />
+            <ListBox x:Name="VideoResultsList" Grid.Row="0"
+                     ItemsSource="{Binding VideoResults}"
+                     SelectedItem="{Binding SelectedVideoResult, Mode=OneWay}"
+                     AutomationProperties.Name="Numbered lecture results"
+                     TabIndex="7">
+                <ListBox.ItemTemplate>
+                    <DataTemplate DataType="{x:Type library:VideoDiscoveryResult}">
+                        <TextBlock>
+                            <Run Text="{Binding Ordinal, Mode=OneWay}" />
+                            <Run Text=". " />
+                            <Run Text="{Binding Title, Mode=OneWay}" />
+                            <Run Text=" — " />
+                            <Run Text="{Binding Lecturer, Mode=OneWay}" />
+                        </TextBlock>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+                <ListBox.InputBindings>
+                    <KeyBinding Key="Return" Command="{Binding SelectVideoResultCommand}"
+                                CommandParameter="{Binding SelectedItem, ElementName=VideoResultsList}" />
+                </ListBox.InputBindings>
+            </ListBox>
+
+            <Button x:Name="SelectVideoResultButton" Grid.Row="1" Content="Select this result"
+                    Command="{Binding SelectVideoResultCommand}"
+                    CommandParameter="{Binding SelectedItem, ElementName=VideoResultsList}"
+                    AutomationProperties.Name="Select this lecture result"
+                    TabIndex="8" HorizontalAlignment="Left" Padding="8,4" Margin="0,8,0,0" />
+        </Grid>
     </Grid>
 </UserControl>

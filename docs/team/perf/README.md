@@ -5,6 +5,11 @@ instruments in `api/tests/perf/` as the only addition. Every number here comes f
 the listed instrument on the listed machine. **None of it is live-provider latency,
 AX ingestion, audible audio or NVDA behaviour.**
 
+Change labels in this file are working labels. The ranked IDs in
+`docs/team/integration-status.md` are C-1 → OPT-1, G-2 → OPT-2, T-1 → OPT-3,
+G-1 → OPT-4 and C-2 → OPT-5. They are distinct from the slice IDs C-1 and C-2
+used in that document.
+
 ## Evidence classes
 
 | Class | Instrument | What is real | What is a stand-in |
@@ -234,7 +239,7 @@ The candidate must meet all of the following:
 |---|---|---|---|
 | 1. Marker in logs (turn path / dispatch path) | present in both, including the note LangGraph adds to the exception | absent in both | yes |
 | 2. Type and stack kept | – | "unhandled error while dispatching navigation.command: ValueError" plus file/line frames | yes |
-| 3. Client frame | `error` with `INTERNAL_ERROR` | unchanged | yes |
+| 3. Client frame (the threshold's "internal" meant the existing internal-error frame; its code is `INTERNAL_ERROR`) | `error` with `INTERNAL_ERROR` | unchanged | yes |
 | 4. Tests and suite | both tests fail | both pass; 1118 passed, 1 skipped | yes |
 
 Deployment gap, not changed here: the API process calls no `configure_logging`
@@ -250,6 +255,7 @@ From the repository root, with the app environment active:
 PYTHONPATH="api/src" python api/tests/perf/bench_tracing.py --label <label> --out docs/team/perf/results
 PYTHONPATH="api/src;api/tests/transport" python api/tests/perf/bench_turns_inmemory.py --label <label> --out docs/team/perf/results --iterations 40
 python api/tests/transport/tracing_overhead.py 300
+PYTHONPATH="api/src" python api/tests/perf/bench_generation_registry.py --label <label> --out docs/team/perf/results
 PYTHONPATH="api/src;worker/src" python api/tests/perf/run_journeys.py --database-url <disposable local database URL> --label <label> --out docs/team/perf/results
 ```
 

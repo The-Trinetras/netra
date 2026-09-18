@@ -14,6 +14,10 @@ production readiness.
   (real app composition, session routes, model adapters behind controlled
   transports, LangGraph execution, ElevenLabs framing), slice D (WPF client
   live mode against the real server).
+- **Optimization and reliability phase (local evidence only):** 6 defects fixed
+  with predeclared thresholds (OPT-1 to OPT-6), and 7 findings recorded for
+  owners. The database-backed journey measurement is still pending because the
+  PostgreSQL host was paused. See the section below and `docs/team/perf/`.
 - **Remaining in C:** M3 media service + worker multimedia composition,
   twelvelabs/tavily SDK verification, lecture journey, LlamaParse provider.
 - **Next slice:** E — OpenTelemetry pins and a real OTLP exporter behind
@@ -102,6 +106,72 @@ Defects found and fixed in the evaluation workflow:
 - **Fix before any GPU use:** `RunAllowance` charges the endpoint's `gpu_seconds`. That excludes cold start, weight download and loading, and the 60 s scale-down idle, so the soft budget undercounts. Authenticated `/result` and reconcile requests also wake the A100, because the web app lives on the GPU class.
 - Modal credits, workspace budget and spend limit are not accessible without Modal authentication.
 
+### Measured optimization and reliability phase (2026-09-19)
+
+This phase audited all ten layers with local evidence only.
+
+- **Unverified:** live provider latency and quality, AX ingestion, Modal, audible audio and NVDA.
+- **The database-backed journey run (E2) did not happen.** Docker Desktop, which
+  hosts the disposable PostgreSQL, was paused manually during this phase, and
+  the CLI cannot resume it.
+- The E2 harness, `api/tests/perf/run_journeys.py`, is written but uncommitted
+  and has not been run. Conclusions about PostgreSQL time, TCP transport and
+  SQL statements per turn are therefore **unverified**.
+- Instruments, baselines, the thresholds declared before each change, and
+  before/after tables are in [perf/README.md](perf/README.md), with raw results in
+  `docs/team/perf/results/`. That file's working labels map to these IDs:
+  C-1 → OPT-1, G-2 → OPT-2, T-1 → OPT-3, G-1 → OPT-4, C-2 → OPT-5.
+
+Ranked findings:
+
+| Rank | ID | Layer | Finding | Class | Evidence | Outcome |
+|---|---|---|---|---|---|---|
+| 1 | OPT-1 | agent runtime, reliability | A disconnect cancels the turn task, but the Coordinator model call and the Tutor run were separate tasks and kept running. Provider spend continued, and the cancelled Tutor run could persist a question or commit an attempt while the retransmission re-ran the turn. | defect | Fixture (E1): 20/20 model calls orphaned; 20/20 cancelled Tutor runs persisted their question | fixed `4032878`: 0/20 and 0/20 |
+| 2 | OPT-2 | guardrails, security | The dispatcher's catch-all handlers logged exception messages. A message can carry private answer data (pydantic prints input values), and the API process configures no redacting formatter. | defect | Regression tests: the marker was present in the logs | fixed `80dac66`: exception type and stack only |
+| 3 | OPT-3 | observability | Timed-out export calls were resubmitted while still running. A slow collector received each batch up to 3 times while the counters reported 100% loss. A stalled collector built an unbounded backlog of pending calls, and a shutdown race could count one span lost twice. | defect | Tracing bench (E3), slow collector: 1024 duplicates; 600/600 delivered but counted lost. Stalled: 7 queued calls; 640 duplicates. | fixed `c72a362`: 0 duplicates, exact accounting, at most 1 call in flight |
+| 4 | OPT-4 | memory and state, reliability | The generation registry kept every session for the life of the process. Every navigation creates a generation, and every app launch opens a new session. | defect | tracemalloc: 3000 sessions hold 209–419 MB | fixed `8455f30`: 512 sessions retained, 39–75 MB |
+| 5 | OPT-5 | instructions and policy (failure semantics) | When the budget ran out inside the Tutor, the student heard "a required service is unavailable" instead of the documented limit reply. | defect | Regression test; reconnect journey 10/10 | fixed `2e4306f` |
+| 6 | OPT-6 | agent runtime (docs) | The engine docstring said LangGraph was not installed. | defect (docs) | – | fixed `559cbcf` |
+| 7 | OPT-7 | evaluation cost | `GET /result/{id}` is served by the A100 class. A reconciliation lookup after scale-down therefore cold-starts the GPU and loads the model just to read a Modal Dict. | defect, deferred | Code reading, `evaluation/deploy/prometheus_modal.py` | Serve `/result` from a CPU function over the same Dict; needs M4/M2 review and a Modal run |
+| 8 | OPT-8 | evaluation cost | By design (pinned by an M4 test), `RunAllowance` counts the inference seconds the endpoint reports. A second cold start within one invocation (a gap longer than the 60 s scale-down) is covered only by the fixed 600 s margin. | risk | Code and the pinned test | M4 decision: count the larger of reported and wall-clock time, or count each such gap as a cold start |
+| 9 | OPT-9 | deployment, reliability | The API process calls no `configure_logging` (the worker does). `api.Dockerfile` and `docker-compose.yml` are empty placeholders. | gap | Code reading | M2/M1 deployment work |
+| 10 | OPT-10 | agent runtime, cost | Answering a pending check spends 2 Coordinator model decisions (search, then delegate) before deterministic grading. | hypothesis | E1: 2 calls per answer | Live cost of about two provider round trips per answer is unmeasured; routing is an M1/M4 decision |
+| 11 | OPT-11 | policy | The repair flow uses the whole approved budget (3 Coordinator decisions + 1 Tutor). One rejected output, or a drop during a decision, ends the turn with the limit reply. | observation | E1 | Budget unchanged (approved 4/6/20) |
+| 12 | OPT-12 | observability | There is no span per Tutor provider attempt or for the learning commit (AX plan item 3). | gap | Span inventory | M4 |
+| 13 | OPT-13 | memory and state (database) | `session_request_records` and dialogue entries have no retention. The ordered dialogue fetch uses the `session_id` index, then sorts. | hypothesis | Schema reading | Retention policy plus a reviewed migration; measure in E2 |
+
+**Verified, no change needed:**
+
+| Area | Finding |
+|---|---|
+| Provider SDK retries | Off in both adapters: a 503 costs exactly 1 HTTP call through google-genai and through groq, so no attempt escapes the shared budget. |
+| Budget | Constants 4/6/20 in code; prompts carry no budget numbers (the runtime passes the remaining counts). |
+| Bounded structures | Turn registry is an LRU of 256. Prompt context: 12 entries or 6000 chars of dialogue, 12000 chars of evidence, the last 6 feedback items. Metric labels come from closed sets. |
+| Cancellation elsewhere | Tool dispatch, hybrid retrieval and the worker's job attempt already cancel their children. |
+| Speech cache | The key includes the account or source-version scope. |
+| LangGraph | Within noise: grounded-repair medians 6.78 ms (LangGraph) vs 6.82 ms (direct), n = 40 each. |
+| Tracing cost | About 11 µs per span on the response path, about 0.8 ms per turn, and no wait on export even with a stalled collector. |
+
+**Test results for this phase:**
+
+- `$PY -m pytest -q -p no:cacheprovider` (default suite): 1118 passed, 1 skipped, 47 deselected (was 1106 passed, 1 skipped).
+- 12 new regression tests. Each failed on the pre-change code and passes after it:
+  - `test_cancellation_scope.py` (2)
+  - the Tutor-budget test in `test_coordinator_journey.py` (1)
+  - `test_tracing.py` (3)
+  - `test_generation_retention.py` (4)
+  - `test_unexpected_error_logging.py` (2)
+- Tracing tests repeated 15/15 and 10/10 without failure.
+- **Not run in this phase:**
+  - The integration suite (`-m integration`, 47 tests): it needs the paused PostgreSQL.
+  - The .NET client tests: no client code changed, but not re-run.
+
+**Reproduction:** the commands are in [perf/README.md](perf/README.md#reproduction).
+
+**Rollback:** each change is one commit and can be undone with `git revert <sha>`
+(`4032878`, `2e4306f`, `559cbcf`, `c72a362`, `8455f30`, `80dac66`). The
+instruments and results (`4e2e2af`) change no product code.
+
 ## Identity and environment
 
 | Item | Value |
@@ -137,7 +207,16 @@ Defects found and fixed in the evaluation workflow:
 | `5d3e55b` | C | ElevenLabs adapter (not registered in production: D-QUOTA) |
 | `f8c2e8a` | D | Client live mode: typed API client, Credential Manager source, server source catalog, live tests; library keyboard fix |
 | `37c0f9a` | D | Projection test isolation; slice C/D record |
-| (next) | D redo | Re-review of slice D: retryable start (`LiveSession`), typed credential rejection, total failure wording, request timeout, re-entrancy, selection keep, path prefix; live tests in the app's real order; mutation-checked |
+| `1337360` | D redo | Re-review of slice D: retryable start (`LiveSession`), typed credential rejection, total failure wording, request timeout, re-entrancy, selection keep, path prefix; live tests in the app's real order; mutation-checked |
+| `5b4072f`, `73185fe` | docs | Slice D redo record; AX/Modal live readiness check (names only) |
+| `c454490`, `a999b1d`, `8ced847` | eval | Source-grounded dataset `netra-grounded-v1`, offline workflow, review package and report |
+| `4e2e2af` | perf | Measurement instruments, baselines and predeclared thresholds |
+| `4032878` | perf | OPT-1: cancel the model call and Tutor run with their turn |
+| `2e4306f` | perf | OPT-5: budget exhausted in the Tutor reported as the turn limit |
+| `559cbcf` | docs | OPT-6: engine docstring corrected |
+| `c72a362` | perf | OPT-3: one export call in flight, no duplicate delivery, exact loss |
+| `8455f30` | perf | OPT-4: generation registry releases idle sessions |
+| `80dac66` | perf | OPT-2: unexpected errors logged by type and stack, not message |
 
 ## Test counts (latest)
 
@@ -155,6 +234,7 @@ Defects found and fixed in the evaluation workflow:
 | same, slice D redo, no live server | 135 | 131 | 0 | 4 (3 live + 1 opt-in credential read) | — |
 | same, slice D redo, `NETRA_LIVE_SERVER_INFO` set (3 consecutive live runs identical: 18 frames) | 135 | 134 | 0 | 1 (opt-in credential read) | — |
 | Python default / integration after the redo | 1121 / 47 | 1073 / 46 | 0 / 0 | 1 / 1 | 47 / 1074 |
+| Python default, after the optimization phase (`80dac66`); integration not run (PostgreSQL host paused) | 1166 | 1118 | 0 | 1 | 47 |
 
 Slice D redo mutation check (each fix undone in turn, its test must fail, then
 restored byte-for-byte): 8/8 detected — rejected credential retried, no Open
@@ -263,6 +343,7 @@ cache so every run is identical.
 | D-open-2 | Each app launch creates a new session; resuming the previous session after restart needs a persisted session id | M1/M5 decision |
 | D-open-3 | `NetraHttpClient` scaffold is unused (no auth, no typed errors); `NetraApiClient` supersedes it for the session routes | Remove or merge after M5 review |
 | D-open-4 | The HTTP session/source route shapes are an integration proposal | Formal M1/M5 sign-off |
+| OPT-7 to OPT-13 | Evaluation `/result` wakes the GPU; the run allowance's cold-start accounting; API logging configuration and empty deployment files; answer routing cost; budget headroom; missing Tutor and learning-commit spans; request and dialogue retention | See "Measured optimization and reliability phase". Each row names its owner. |
 
 ## Decisions needed
 

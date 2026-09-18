@@ -36,6 +36,49 @@ production readiness.
    integration aid; credential issuance (PKCE) and the production credential
    store are still undecided (D-CRED).
 
+### Evaluation dataset package (overnight, 2026-09-19)
+
+Offline only: no Modal, GPU, provider or AX call. **Slice E (tracing exporter)
+had not been started**; there was no slice E work to preserve.
+
+- **Package:** `evaluation/datasets/netra_grounded_v1.json`, snapshot
+  `netra-grounded-v1@2ad465bddd7e51a5`, 59 cases:
+  - 21 development (exposed chapter-4 family);
+  - 16 calibration candidates;
+  - 22 held-out *candidates* (new unexposed miniatures, not frozen).
+- **Review status:** 0 gold references, 58 suggested, 1 deliberately missing.
+- **Where to start:**
+  - report: `evaluation/review/netra_grounded_v1/report.md`
+  - worksheet: `evaluation/review/netra_grounded_v1/worksheet.md`
+  - template: `evaluation/review/netra_grounded_v1/review_template.json`
+- **Checks:** `eval_cli.py check` → 0 errors, 1 warning (the same walkthrough
+  question on two calibration renderings).
+  - 117 excerpts verified verbatim.
+  - 54 calculations recomputed exactly.
+  - 9 withheld items verified against registry facts.
+  - 141 deterministic assertions (77 critical).
+  - Every reference passes its own assertions.
+- **Tests:**
+  - evaluation suite: 164 passed, 1 skipped (was 131);
+  - default Python suite: 1106 passed, 1 skipped.
+- **Minimum review batch to unlock meaningful scoring:** 10 calibration cases
+  (listed in the report).
+  - Then real Netra outputs (live keys), an authorized judge run, and human
+    labels of those outputs.
+
+Defects found and fixed in the evaluation workflow:
+
+| ID | Defect | Fix |
+|---|---|---|
+| E-1 | Frozen outputs recorded no citations or structured facts, so citation/pending-question/grade checks were impossible | `FrozenOutput.cited_evidence_ids` / `structured`; absent ⇒ `not_evaluable`, never a pass |
+| E-2 | `init-run` accepted an unfrozen held-out split | Refused unless `verify_frozen_heldout` passes |
+| E-3 | No path to import real outputs; fixture text could be labelled as Netra output | `import-outputs`; origin set by the run's producer; units outside the run refused |
+| E-4 | tutor-reference-v1 `ohm-dev-01`'s reference relied on R = V/I, which the case did not supply | Equation excerpt added in the new dataset; recorded in the case |
+| E-5 | Two v1 references (and early drafts) were behaviour descriptions, not the score-5 response Prometheus expects | Rewritten as exemplary responses; justification moved to `rationale` |
+| E-6 | AX dataset rows carried no evidence, source versions, family, provenance or withheld markers | Added; withheld text never exported; rejected cases refused |
+| E-7 | `ProducerConfig` could not record the Coordinator model, retrieval configuration or a dirty-tree patch | Optional fields added |
+| E-8 | Fixture inconsistencies: M1 vs M3 page locators for the same pack; M2 vs M4 renderings of table 4.1; M1 placeholder figure text | Registered as separate sources, never mixed; placeholder excluded; reported |
+
 ### Live readiness check: AX tracing and Prometheus-2 on Modal (2026-09-19)
 
 **Not ready: nothing can authenticate yet.** Names only; no value was read or printed.

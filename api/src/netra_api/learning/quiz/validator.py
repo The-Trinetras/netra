@@ -13,8 +13,11 @@ rather than stubbed.
 
 from __future__ import annotations
 
+from enum import Enum
+from typing import Sequence
+
 from netra_api.content.retrieval.evidence import Evidence
-from netra_api.learning.quiz.models import QuestionDraft, QuestionKind
+from netra_api.learning.quiz.models import QuestionDraft, QuestionEvidenceRef, QuestionKind
 from netra_api.platform.errors import NetraError
 
 CHOICE_KINDS = frozenset({QuestionKind.MULTIPLE_CHOICE, QuestionKind.TRUE_FALSE})
@@ -51,15 +54,92 @@ def validate_question_draft(draft: QuestionDraft) -> None:
         raise QuestionValidationError(f"{draft.kind.value} requires answer_key.rubric for Tutor grading")
 
 
-def validate_draft_is_grounded(draft: QuestionDraft, evidence: list[Evidence]) -> None:
+class UngroundedDraftReason(str, Enum):
+    """Why a draft's evidence citations could not be bound.
+
+    Internal diagnostics for logs and tests. Like EvidenceRejectionReason,
+    never echoed to a student or into model context.
+    """
+
+    NO_CITATION = "no_citation"
+    DUPLICATE_CITATION = "duplicate_citation"
+    UNRESOLVED_CITATION = "unresolved_citation"
+    """The draft names an id this turn did not resolve: never supplied,
+    refused by the resolver, or dropped for a source-version mismatch."""
+
+
+class UngroundedDraftError(QuestionValidationError):
+    """A draft's citations do not bind to this turn's authorized evidence."""
+
+    def __init__(self, reason: UngroundedDraftReason) -> None:
+        self.reason = reason
+        super().__init__(f"question draft is not bound to authorized evidence: {reason.value}")
+
+
+def bind_draft_to_evidence(draft: QuestionDraft, evidence: Sequence[Evidence]) -> list[Evidence]:
+    """Return the authorized evidence a draft cites, in citation order.
+
+    D2, first half — reference binding. learning.md: "Validate that
+    questions and reference answers are supported by the selected
+    evidence." A draft citing nothing, citing an item twice, or citing an
+    id this turn did not resolve cannot be supported by any definition of
+    "supported", so it is refused before the support check runs. This is
+    deterministic, makes no model call and decides no product policy: it
+    only enforces that each citation points at authorized content.
+
+    ``evidence`` must be exactly what this turn resolved through the
+    authorized resolver, after the Tutor's source-version check
+    (netra_api.learning.tutor.agent._resolve_evidence).
+
+    Binding never approves a question on its own. Passing it shows the
+    draft cites authorized evidence, not that the evidence supports it;
+    validate_draft_is_grounded (the second half) still decides that and
+    still fails closed. Do not report binding as grounding.
+
+    M3's gates (ValidationReport.is_source_verified, citable_tables,
+    MomentEvidence.supports_visual_claim) decide whether derived
+    multimedia becomes citable Evidence at all; the resolver only returns
+    registered evidence, and nothing here upgrades DERIVED trust.
+    """
+
+    if not draft.evidence_ids:
+        raise UngroundedDraftError(UngroundedDraftReason.NO_CITATION)
+    if len(set(draft.evidence_ids)) != len(draft.evidence_ids):
+        raise UngroundedDraftError(UngroundedDraftReason.DUPLICATE_CITATION)
+
+    by_id = {item.evidence_id: item for item in evidence}
+    bound: list[Evidence] = []
+    for evidence_id in draft.evidence_ids:
+        item = by_id.get(evidence_id)
+        if item is None:
+            raise UngroundedDraftError(UngroundedDraftReason.UNRESOLVED_CITATION)
+        bound.append(item)
+    return bound
+
+
+def evidence_refs_for(bound: Sequence[Evidence]) -> list[QuestionEvidenceRef]:
+    """Canonical identities of bound evidence, for storing with a question."""
+
+    return [
+        QuestionEvidenceRef(
+            evidence_id=item.evidence_id,
+            source_version_id=item.source_version_id,
+            trust=item.trust,
+        )
+        for item in bound
+    ]
+
+
+def validate_draft_is_grounded(draft: QuestionDraft, evidence: Sequence[Evidence]) -> None:
     """Check that a draft question and its answer key are supported by evidence.
 
-    learning.md: "Validate that questions and reference answers are
-    supported by the selected evidence." Structural validation cannot do
-    this. A draft can be perfectly well-formed and still ask about
-    something the source never said, or carry a reference answer the
-    evidence contradicts, and approving it would put a fabricated claim
-    in front of a student as an assessable fact.
+    D2, second half — support. Receives only the evidence the draft is
+    already bound to (bind_draft_to_evidence). Structural validation and
+    binding cannot establish support: a draft can be well-formed, cite
+    authorized evidence, and still ask about something the source never
+    said, or carry a reference answer the evidence contradicts. Approving
+    it would put a fabricated claim in front of a student as an
+    assessable fact.
 
     Left unimplemented deliberately. What counts as "supported" is a
     product decision spanning M3 and M4 that has not been made: whether
@@ -78,13 +158,15 @@ def validate_draft_is_grounded(draft: QuestionDraft, evidence: list[Evidence]) -
     )
 
 
-def validate_question_for_approval(draft: QuestionDraft, evidence: list[Evidence]) -> None:
+def validate_question_for_approval(draft: QuestionDraft, evidence: Sequence[Evidence]) -> None:
     """Run every check a draft must pass before it may become an ApprovedQuestion.
 
-    Structural checks first, then grounding. Callers must use this rather
-    than validate_question_draft alone: a structurally valid question is
-    not an approvable one.
+    Structural checks, then reference binding, then support. Callers must
+    use this rather than validate_question_draft alone: a structurally
+    valid question is not an approvable one. Fails closed at the support
+    step until the D2 decision is implemented.
     """
 
     validate_question_draft(draft)
-    validate_draft_is_grounded(draft, evidence)
+    bound = bind_draft_to_evidence(draft, evidence)
+    validate_draft_is_grounded(draft, bound)

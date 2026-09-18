@@ -50,3 +50,43 @@ measured total cost and verified shutdown under separate execution authorization
 AX completion additionally requires confirmed dataset/experiment ingestion, complete
 linked traces and a reproducible before/after comparison. No AX client or runner
 command is implemented by this documentation revision.
+
+## Implemented offline tooling (M4 follow-up, `codex/m4-tutor-followup`)
+
+Local tooling now exists; **no live scoring, upload, deployment or calibration has
+been executed**, and every judge score in the test suites is scripted fixture data.
+
+| Piece | File | State |
+|---|---|---|
+| Ordinal results with explicit not-applicable/missing/invalid/failed | `scripts/eval_results.py` | Implemented, fixture-tested |
+| Prometheus-2 absolute/pairwise templates (model card @ `66ffb1f`, FastChat `mistral`) and strict `[RESULT]` parsing | `scripts/prometheus.py` | Implemented, fixture-tested |
+| Dataset snapshots, content hashes, label provenance, held-out freeze gate | `scripts/eval_dataset.py` | Implemented; freeze refuses non-gold held-out cases |
+| Append-only artifacts (manifest, frozen outputs, results, uploads) with resume | `scripts/eval_store.py` | Implemented, fixture-tested |
+| Authenticated HTTPX judge transport, safe error mapping, run allowance | `scripts/judge_client.py` | Implemented; HTTPX path only substitute-run (see handoff) |
+| Resumable judge runner with uncertain-completion reconciliation | `scripts/judge_runner.py` | Implemented, fixture-tested |
+| AX upload with ambiguous-upload reconciliation and id mapping | `scripts/ax_upload.py` | Logic implemented; **AX SDK client pending a reviewed pin** (`PendingAxSdkClient` fails closed) |
+| Calibration statistics, paired comparison, pairwise swap consistency | `scripts/calibration.py`, `scripts/comparison.py` | Implemented, fixture-tested |
+| Ragas-style retrieval metrics (Ragas not installed) | `scripts/ragas_style.py` | Implemented; needs human relevance labels |
+| Modal deployment source | `deploy/prometheus_modal.py` | Written, **not deployed**; import fails closed until GPU-environment pins are reviewed with M2 |
+| Named rubrics `source_support_v1`, `factual_correctness_v1`, `question_relevance_v1`, `teaching_usefulness_v1` | `rubrics/*.json` | **Draft, uncalibrated, unreviewed** |
+| Reference dataset `tutor-reference-v1` (11 synthetic Ohm's Law development cases) | `datasets/tutor_reference_v1.json` | **Draft**: references are suggestions, no held-out split, no human error analysis yet |
+
+Commands (run from the repository root; artifacts go outside the repository):
+
+```text
+python evaluation/scripts/eval_cli.py validate evaluation/datasets/tutor_reference_v1.json
+python evaluation/scripts/eval_cli.py init-run --artifacts <dir> --run-id <id> --dataset evaluation/datasets/tutor_reference_v1.json --split development --criteria source_support_v1,factual_correctness_v1 --producer <producer.json> --judge-config <judge.json>
+python evaluation/scripts/eval_cli.py replay-fixtures --artifacts <dir> --run-id <id> --dataset evaluation/datasets/tutor_reference_v1.json
+python evaluation/scripts/eval_cli.py status --artifacts <dir> --run-id <id>
+python evaluation/scripts/eval_cli.py calibrate --artifacts <dir> --run-id <id> --labels <human_labels.json>
+python evaluation/scripts/eval_cli.py compare --artifacts <dir> --dataset <dataset> --baseline <id> --candidate <id> --out <dir>
+```
+
+`judge --live` and `upload --live` are external actions requiring explicit execution
+authorization; without `--live` they refuse. `judge` reads the endpoint URL and proxy
+token only from `NETRA_EVAL_JUDGE_URL`, `NETRA_EVAL_MODAL_PROXY_TOKEN_ID` and
+`NETRA_EVAL_MODAL_PROXY_TOKEN_SECRET`. After any live batch, stop the Modal app
+explicitly and record billed usage from the account; the runner's cost figure is a
+GPU-only estimate. `replay-fixtures` exercises the scorer on authored fixture text and
+must never be reported as Netra output; real candidate outputs require the integrated
+Tutor path (wave 6). Remaining gates are listed in `docs/team/handoffs/M4.md`.

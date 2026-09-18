@@ -30,6 +30,18 @@ from netra_api.platform.errors import AuthorizationError, NetraError, TurnBudget
 REPO_ROOT = Path(__file__).resolve().parents[3]
 EXAMPLE_HANDOFF = REPO_ROOT / "shared" / "contracts" / "examples" / "handoffs" / "coordinator_to_tutor.json"
 
+SOURCE_VERSION = UUID("0b6f3c1e-5a2d-4e8f-9c7b-1d2e3f4a5b6c")
+"""The source version every default test handoff declares and every
+default resolved Evidence carries.
+
+The committed contract example declares ``"src-ver-104"``, which is not a
+UUID. The Tutor cannot compare that with a resolved Evidence's UUID
+source version and therefore refuses the evidence (INT-03, see
+netra_api.learning.tutor.evidence_versions); the example is rewritten
+to this UUID so the default doubles describe a consistent, resolvable
+reference. Tests of the refusal itself build their handoffs explicitly.
+"""
+
 
 def _load_handoff(deadline_at: datetime | None = None, **overrides) -> CoordinatorToTutorHandoff:
     """Parse the committed example, optionally with a live deadline.
@@ -41,6 +53,8 @@ def _load_handoff(deadline_at: datetime | None = None, **overrides) -> Coordinat
     """
 
     data = json.loads(EXAMPLE_HANDOFF.read_text())
+    for ref in data["evidence_refs"]:
+        ref["source_version_id"] = str(SOURCE_VERSION)
     if deadline_at is not None:
         data["deadline_at"] = deadline_at.isoformat()
     data.update(overrides)
@@ -86,9 +100,10 @@ class _FakeProvider:
 
 
 class _FakeResolver:
-    def __init__(self, evidence=None, reject=False):
+    def __init__(self, evidence=None, reject=False, source_version_id=SOURCE_VERSION):
         self._evidence = evidence
         self.reject = reject
+        self.source_version_id = source_version_id
 
     def resolve(self, auth, evidence_ids, pinned_source_version_id=None):
         if self.reject:
@@ -102,7 +117,7 @@ class _FakeResolver:
                 evidence=self._evidence
                 or Evidence(
                     evidence_id=eid,
-                    source_version_id=uuid4(),
+                    source_version_id=self.source_version_id,
                     locator="p. 41",
                     text="Congestion control limits the sending rate to protect the network.",
                     provenance="textbook chapter 4",
@@ -188,6 +203,7 @@ class _FakeQuizGenerator:
             prompt="Does congestion control protect the network as a whole?",
             options=[QuestionOption(option_id="true", text="True"), QuestionOption(option_id="false", text="False")],
             answer_key=AnswerKey(correct_answer="true"),
+            evidence_ids=["ev-27"],
         )
 
     async def generate(self, request):
@@ -385,6 +401,7 @@ async def test_approved_check_delivers_the_prompt_but_never_the_answer_key():
         prompt="Does congestion control protect the whole network?",
         options=[QuestionOption(option_id="true", text="True"), QuestionOption(option_id="false", text="False")],
         answer_key=AnswerKey(correct_answer="true", rubric="SECRET-CHECK-RUBRIC"),
+        evidence_ids=["ev-27"],
     )
     services = _services(
         quiz_generator=_FakeQuizGenerator(draft=draft),
@@ -436,6 +453,7 @@ async def test_approved_check_still_rejects_a_structurally_invalid_draft():
         prompt="Does congestion control protect the whole network?",
         options=[QuestionOption(option_id="true", text="True")],
         answer_key=AnswerKey(correct_answer="nonexistent-option"),
+        evidence_ids=["ev-27"],
     )
     services = _services(
         quiz_generator=_FakeQuizGenerator(draft=bad_draft),
@@ -1124,3 +1142,192 @@ async def test_commit_uses_the_authenticated_account_not_the_handoff():
     await run_turn(state, services)
 
     assert services.learning_service.proposals[0].account_id == state.auth.account_id
+
+
+# --- declared vs resolved source version (INT-03) --------------------------
+
+
+def _handoff_declaring(source_version_id: str, **overrides):
+    return _live_handoff(
+        evidence_refs=[
+            {"evidence_id": "ev-27", "source_version_id": source_version_id, "evidence_version": 1}
+        ],
+        **overrides,
+    )
+
+
+async def test_evidence_from_a_different_source_version_is_not_taught_from():
+    """The resolver returned the evidence, but for another version of the
+    document than the handoff was built against. Teaching from it would mix
+    versions inside a pinned session."""
+
+    services = _services(evidence_resolver=_FakeResolver(source_version_id=uuid4()))
+    state, result = _run(_handoff_declaring(str(SOURCE_VERSION), mode="explain"), services)
+    result = await result
+
+    assert result.status == "needs_more_evidence"
+    assert result.evidence_ids == []
+    assert services.provider.calls == 0
+
+
+async def test_a_declared_version_that_is_not_a_uuid_cannot_be_verified_and_is_refused():
+    """The committed contract example declares "src-ver-104". Nothing can
+    establish that it names the UUID the resolver returned, so it is
+    refused rather than assumed equal (fail closed)."""
+
+    services = _services()
+    state, result = _run(_handoff_declaring("src-ver-104", mode="explain"), services)
+    result = await result
+
+    assert result.status == "needs_more_evidence"
+    assert services.provider.calls == 0
+
+
+async def test_a_differently_spelled_but_identical_uuid_is_the_same_version():
+    """Representation differences are not version differences: the check
+    compares canonical UUID values, not strings."""
+
+    services = _services()
+    spelled = "{" + str(SOURCE_VERSION).upper() + "}"
+    state, result = _run(_handoff_declaring(spelled, mode="explain"), services)
+    result = await result
+
+    assert result.status == "completed"
+    assert result.evidence_ids == ["ev-27"]
+
+
+async def test_only_the_references_whose_version_matches_are_used():
+    handoff = _live_handoff(
+        mode="explain",
+        evidence_refs=[
+            {"evidence_id": "ev-good", "source_version_id": str(SOURCE_VERSION), "evidence_version": 1},
+            {"evidence_id": "ev-stale", "source_version_id": str(uuid4()), "evidence_version": 1},
+        ],
+    )
+    services = _services()
+    state, result = _run(handoff, services)
+    result = await result
+
+    assert result.evidence_ids == ["ev-good"]
+    assert "[ev-stale]" not in services.provider.prompts[0]
+
+
+async def test_a_resolver_that_breaks_the_one_per_id_contract_yields_no_evidence():
+    """Resolutions that cannot be paired with their declaring references
+    cannot be version-checked, so none are used."""
+
+    class _ShortResolver(_FakeResolver):
+        def resolve(self, auth, evidence_ids, pinned_source_version_id=None):
+            return super().resolve(auth, evidence_ids, pinned_source_version_id)[:-1]
+
+    handoff = _live_handoff(
+        mode="explain",
+        evidence_refs=[
+            {"evidence_id": "ev-a", "source_version_id": str(SOURCE_VERSION), "evidence_version": 1},
+            {"evidence_id": "ev-b", "source_version_id": str(SOURCE_VERSION), "evidence_version": 1},
+        ],
+    )
+    services = _services(evidence_resolver=_ShortResolver())
+    state, result = _run(handoff, services)
+    result = await result
+
+    assert result.status == "needs_more_evidence"
+    assert services.provider.calls == 0
+
+
+# --- D2 reference binding inside the check path -----------------------------
+
+
+async def test_an_uncited_draft_is_refused_even_with_an_approving_grounding_seam():
+    """Binding is not part of the injectable seam: substituting the
+    grounding validator in a test (or by mistake in composition) cannot
+    let an uncited question through."""
+
+    draft = _FakeQuizGenerator().draft.model_copy(update={"evidence_ids": []})
+    services = _services(
+        quiz_generator=_FakeQuizGenerator(draft=draft), grounding_validator=_approving_grounding
+    )
+    state, result = _run(_live_handoff(mode="check_understanding"), services)
+    result = await result
+
+    assert result.status == "failed"
+    assert result.public_segments == []
+    assert services.pending_questions.persisted == []
+
+
+async def test_a_draft_citing_evidence_the_turn_did_not_resolve_is_refused():
+    draft = _FakeQuizGenerator().draft.model_copy(update={"evidence_ids": ["ev-invented"]})
+    services = _services(
+        quiz_generator=_FakeQuizGenerator(draft=draft), grounding_validator=_approving_grounding
+    )
+    state, result = _run(_live_handoff(mode="check_understanding"), services)
+    result = await result
+
+    assert result.status == "failed"
+    assert services.pending_questions.persisted == []
+
+
+async def test_a_draft_citing_version_mismatched_evidence_is_refused():
+    """Evidence dropped by the source-version check is not resolved
+    evidence, so a question cannot be bound to it either."""
+
+    services = _services(
+        evidence_resolver=_FakeResolver(source_version_id=uuid4()),
+        grounding_validator=_approving_grounding,
+    )
+    state, result = _run(_live_handoff(mode="check_understanding"), services)
+    result = await result
+
+    assert result.status == "needs_more_evidence"
+    assert services.pending_questions.persisted == []
+
+
+async def test_the_grounding_seam_receives_only_the_cited_evidence():
+    seen: list[list[str]] = []
+
+    def _recording_grounding(draft, evidence):
+        seen.append([item.evidence_id for item in evidence])
+        validate_question_draft(draft)
+
+    handoff = _live_handoff(
+        mode="check_understanding",
+        evidence_refs=[
+            {"evidence_id": "ev-cited", "source_version_id": str(SOURCE_VERSION), "evidence_version": 1},
+            {"evidence_id": "ev-other", "source_version_id": str(SOURCE_VERSION), "evidence_version": 1},
+        ],
+    )
+    draft = _FakeQuizGenerator().draft.model_copy(update={"evidence_ids": ["ev-cited"]})
+    services = _services(
+        quiz_generator=_FakeQuizGenerator(draft=draft), grounding_validator=_recording_grounding
+    )
+    state, result = _run(handoff, services)
+    result = await result
+
+    assert seen == [["ev-cited"]]
+    assert result.evidence_ids == ["ev-cited"]
+
+
+async def test_the_persisted_question_records_the_evidence_it_was_bound_to():
+    services = _services(grounding_validator=_approving_grounding)
+    state, result = _run(_live_handoff(mode="check_understanding"), services)
+    await result
+
+    (ref,) = services.pending_questions.persisted[0].evidence_refs
+    assert ref.evidence_id == "ev-27"
+    assert ref.source_version_id == SOURCE_VERSION
+
+
+async def test_a_draft_for_a_concept_that_was_not_requested_is_refused():
+    """The draft's concept_id is model output; filing the question under an
+    unrequested concept would create history (and graph edges) for a
+    concept the handoff never targeted."""
+
+    draft = _FakeQuizGenerator().draft.model_copy(update={"concept_id": "concept-invented"})
+    services = _services(
+        quiz_generator=_FakeQuizGenerator(draft=draft), grounding_validator=_approving_grounding
+    )
+    state, result = _run(_live_handoff(mode="check_understanding"), services)
+    result = await result
+
+    assert result.status == "failed"
+    assert services.pending_questions.persisted == []

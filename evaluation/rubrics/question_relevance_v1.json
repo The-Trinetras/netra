@@ -1,0 +1,16 @@
+{
+  "evaluation_id": "question_relevance_v1",
+  "status": "draft_uncalibrated",
+  "criteria": "Does the tutor's response address the student's actual request first and stay focused on it, instead of answering a different question or detouring into unrequested checks?",
+  "score1": "The response does not address the student's request, answers a different question, or starts an unrequested quiz.",
+  "score2": "The response touches the request but most of it is about something else, or it withholds the answer behind unnecessary prerequisite questions.",
+  "score3": "The response answers the request but buries it among loosely related material.",
+  "score4": "The response answers the request directly with only brief, relevant additions.",
+  "score5": "The response answers exactly what the student asked, first and completely, and any offer of further depth or a check is optional and clearly separated.",
+  "requires_reference": true,
+  "applies_to_modes": [],
+  "unit": "ordinal_1_5",
+  "author": "M4 draft (Claude-assisted, codex/m4-tutor-followup)",
+  "reviewer": null,
+  "notes": "DRAFT. Not calibrated."
+}

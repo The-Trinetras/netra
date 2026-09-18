@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from netra_api.content.settings import ContentSettings
 from netra_api.content.providers.pinecone import PineconeVectorIndex
-from netra_api.content.retrieval.embeddings import GeminiEmbeddingProvider
+from netra_api.content.retrieval.embeddings import EmbeddingSpec, GeminiEmbeddingProvider
 from netra_api.content.retrieval.exact_search import PostgresExactSearch
 from netra_api.content.retrieval.postgres_evidence import AsyncPostgresEvidenceResolver
 from netra_api.content.retrieval.reranker import BGEReranker
@@ -42,7 +42,7 @@ def build_postgres_retrieval_service(session: AsyncSession,
     index = PineconeVectorIndex(settings)
     return build_hybrid_retrieval_service(
         PostgresExactSearch(session),
-        PineconeSemanticSearch(embeddings, index, settings.pinecone_namespace),
+        PineconeSemanticSearch(embeddings, index, settings.pinecone_namespace, EmbeddingSpec.from_settings(settings)),
         AsyncPostgresEvidenceResolver(session),
         settings,
         tracer,

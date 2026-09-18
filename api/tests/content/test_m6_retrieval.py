@@ -2,6 +2,8 @@ from uuid import uuid4
 
 import pytest
 
+from netra_api.content.retrieval.embeddings import EmbeddingSpec
+
 from netra_api.content.settings import ContentSettings
 from netra_api.content.retrieval.exact_search import SearchCandidate
 from netra_api.content.retrieval.semantic_search import PineconeSemanticSearch
@@ -109,12 +111,53 @@ class Index:
         return []
 
 
+SPEC_1 = EmbeddingSpec(model="gemini-embedding-001", dimension=1, version="gemini-embedding-001:1")
+
+
 @pytest.mark.asyncio
-async def test_semantic_search_always_scopes_account_and_optional_versions():
+async def test_semantic_search_always_scopes_account_spec_and_optional_versions():
     auth = _auth()
     index = Index()
     versions = [uuid4(), uuid4()]
-    await PineconeSemanticSearch(Embedder(), index).search(auth, "query", versions, 99)
+    await PineconeSemanticSearch(Embedder(), index, spec=SPEC_1).search(auth, "query", versions, 99)
     assert index.args[2] == 20
-    assert index.args[3] == {"account_id": str(auth.account_id),
+    assert index.args[3] == {"account_id": str(auth.account_id), "embedding_spec": SPEC_1.version,
                              "source_version_id": {"$in": [str(i) for i in versions]}}
+
+
+@pytest.mark.asyncio
+async def test_query_embedding_with_another_dimension_is_refused():
+    from netra_api.content.retrieval.semantic_search import IncompatibleEmbeddingError
+
+    spec_3 = EmbeddingSpec(model="gemini-embedding-001", dimension=3, version="gemini-embedding-001:3")
+    with pytest.raises(IncompatibleEmbeddingError):
+        await PineconeSemanticSearch(Embedder(), Index(), spec=spec_3).search(_auth(), "query", None, 5)
+
+
+@pytest.mark.asyncio
+async def test_matches_from_another_spec_or_account_are_dropped_even_if_the_index_returns_them():
+    from netra_api.content.providers.pinecone import VectorMatch
+
+    auth = _auth()
+
+    class LeakyIndex(Index):
+        async def query(self, namespace, embedding, top_k, metadata_filter=None):
+            await super().query(namespace, embedding, top_k, metadata_filter)
+            return [
+                VectorMatch(id="ok", score=0.9, metadata={"embedding_spec": SPEC_1.version,
+                                                          "account_id": str(auth.account_id)}),
+                VectorMatch(id="old-spec", score=0.95, metadata={"embedding_spec": "gemini-embedding-001:768",
+                                                                 "account_id": str(auth.account_id)}),
+                VectorMatch(id="other-account", score=0.99, metadata={"embedding_spec": SPEC_1.version,
+                                                                      "account_id": str(uuid4())}),
+            ]
+
+    hits = await PineconeSemanticSearch(Embedder(), LeakyIndex(), spec=SPEC_1).search(auth, "query", None, 5)
+    assert [hit.evidence_id for hit in hits] == ["ok"]
+
+
+@pytest.mark.asyncio
+async def test_empty_version_scope_searches_nothing():
+    index = Index()
+    assert await PineconeSemanticSearch(Embedder(), index, spec=SPEC_1).search(_auth(), "query", [], 5) == []
+    assert index.args is None

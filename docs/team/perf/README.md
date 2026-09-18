@@ -147,6 +147,17 @@ The candidate must meet all of the following:
    enlarged: decisions used stay at or below 4.
 4. The new regression test fails on the pre-fix code, and the full default suite passes.
 
+**C-2 result** (`results/turns-inmemory-c2-candidate.json`; the C-1 candidate is its baseline):
+
+| Threshold | Before | After | Met |
+|---|---|---|---|
+| 1. Delegation with the 4th decision | "I can't answer that right now because a required service is unavailable." | Limit reply with supported findings; `budget_exhausted` with `limit=model_decisions`; no pending question | yes |
+| 2. Recovered text after a drop | the unavailable message, 10/10 | "I stopped before finishing this answer. Supported by the material: …", 10/10 | yes |
+| 3. Other journeys and budget | – | message kinds identical; decisions used 4, never more | yes |
+| 4. Regression test and suite | test fails | test passes; 1109 passed, 1 skipped | yes |
+
+Rollback: `git revert` the C-2 commit.
+
 ## Reproduction
 
 From the repository root, with the app environment active:

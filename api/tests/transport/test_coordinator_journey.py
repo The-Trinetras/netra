@@ -246,6 +246,24 @@ async def test_invalid_model_output_exhausts_the_shared_budget_with_a_bounded_re
     await _close(socket, task)
 
 
+async def test_budget_exhausted_inside_the_tutor_is_reported_as_the_limit_not_an_outage():
+    # One rejected output, then the repair script: the 4th decision delegates,
+    # and the Tutor's own decision would be the 5th on the shared budget.
+    model = ScriptedModel([final({"action": "answer"}), *_repair_script()])
+    journey = await build_journey(model=model)
+    socket, task = await _open(journey)
+    responses = await _submit(socket, _turn(), until="response.segment")
+    text = next(m for m in responses if m["type"] == "response.segment")["payload"]["text"]
+    assert text.startswith("I stopped before finishing this answer.")
+    assert "Supported by the material" in text and "ev-fig02" in text
+    assert "service is unavailable" not in text
+    assert model.calls == MAX_MODEL_DECISIONS_PER_TURN
+    assert journey.trace.of_kind("budget_exhausted")[0].detail["limit"] == "model_decisions"
+    assert journey.tutor.budgets[0].model_decisions_used == MAX_MODEL_DECISIONS_PER_TURN  # not enlarged
+    assert journey.pending.questions == {}
+    await _close(socket, task)
+
+
 async def test_stop_during_model_decision_cancels_silently_and_retry_cannot_revive_it():
     model = ScriptedModel(_repair_script(), delay=0.3)
     journey = await build_journey(model=model)

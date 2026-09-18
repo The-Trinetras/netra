@@ -51,7 +51,7 @@ from netra_api.coordinator.providers.gemini import (
 from netra_api.coordinator.state import CoordinatorTurnState, TurnOutcome
 from netra_api.coordinator.tool_registry import ToolContext, ToolGateway, ToolRegistry
 from netra_api.coordinator.tutor_gateway import HandoffRejectedError, TutorGateway
-from netra_api.platform.errors import NetraError, TurnCancelledError
+from netra_api.platform.errors import NetraError, TurnBudgetExceededError, TurnCancelledError
 from netra_api.platform.observability import TurnTrace
 from netra_api.platform.tracing import DISABLED_TRACER, Tracer
 from netra_api.session.outputs import PlannedSegment
@@ -343,6 +343,13 @@ class CoordinatorEngine:
             )
         except TurnCancelledError:
             return self._cancelled(trace)
+        except TurnBudgetExceededError:
+            # The Tutor spends the same budget: running out there is this turn's
+            # limit, reported like any other (supported findings + stated gaps).
+            budget = turn.budget
+            if budget.is_expired():
+                return self._limited(ledger, trace, "deadline")
+            return self._limited(ledger, trace, "model_decisions" if budget.remaining_model_decisions == 0 else "tool_calls")
         except HandoffRejectedError as rejected:
             trace.record("handoff_rejected", check=rejected.check)
             if rejected.check in ("evidence_version_unavailable", "handoff_evidence_not_validated"):

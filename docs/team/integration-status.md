@@ -10,16 +10,27 @@ production readiness.
 ## Checkpoint
 
 - **Done:** slice A (runtime + baseline), slice B (database, migrations,
-  transactions, learning persistence, worker projection/cancellation).
-- **Current slice:** C — API/worker/service composition: real FastAPI app,
-  real WebSocket, M2/M3/M4 services through `bootstrap.compose`, LangGraph.
-- **Next action:** read `bootstrap.py`/`main.py`, register real M2
-  repositories + `PostgresLearningStore` + `TutorRunner` in production
-  composition, boot uvicorn against the disposable database and drive
-  `/v1/ws` with a real WebSocket client.
-- **Known crash boundary to close in C:** a learning commit and the session's
-  `pending_question` reference live in different transactions; reconnect must
-  reconcile an already-answered question (see C-open-1).
+  transactions, learning persistence, worker projection/cancellation), slice C
+  (real app composition, session routes, model adapters behind controlled
+  transports, LangGraph execution, ElevenLabs framing), slice D (WPF client
+  live mode against the real server).
+- **Remaining in C:** M3 media service + worker multimedia composition,
+  twelvelabs/tavily SDK verification, lecture journey, LlamaParse provider.
+- **Next slice:** E — OpenTelemetry pins and a real OTLP exporter behind
+  `platform/tracing.py`'s `SpanExporter`; stalled/failing collector tests;
+  overhead on the real server path.
+
+### How to run the client against the real local server (slice D)
+
+1. `source D:/Agentathon/netra-integration-envs/env.sh`
+2. `PYTHONPATH="api/src;worker/src" $PY api/tests/server/serve_for_client.py --database-url "$NETRA_TEST_DATABASE_URL" --info-file <scratch>\live-server.json`
+   (seeds a test account + ready source on the disposable DB; writes the endpoint
+   and a **test** token to the local info file; delete the file afterwards).
+3. Tests: `NETRA_LIVE_SERVER_INFO=<scratch>\live-server.json dotnet test client/Netra.sln --no-restore`.
+4. App (manual, not yet run by a person): `cmdkey /generic:Netra:api /user:netra /pass:<token>`,
+   `set NETRA_API_ENDPOINT=ws://127.0.0.1:<port>/v1/ws`, start `Netra.Desktop`.
+   Remove with `cmdkey /delete:Netra:api`. This is an operator integration aid;
+   credential issuance (PKCE) is still undecided.
 
 ## Identity and environment
 
@@ -48,6 +59,13 @@ production readiness.
 | `4d6cd5c` | B/C | INT-03 evidence identity: async resolver, `evidence_version` carried and compared, canonical UUID source version in contract |
 | `0cbcc33` | B | INT-08 migration 0008 + `PostgresLearningStore` + atomic answer commit |
 | `850e334` | B | Neo4j writer, projection pool, cancellation classification, lease tracking |
+| `108e0b5` | docs | Slice A/B evidence |
+| `9359275` | C | Real M2/M4 composition, session/source routes, operator token provisioning CLI, stale-question reconciliation, real server journey |
+| `61d1aa6` | C | Gemini/Groq adapters (pinned SDKs, controlled transports); retrieval reduced mode |
+| `e7ac1a2` | C | Composed turns run through the pinned LangGraph graph; Postgres checkpoint resume |
+| `0f226b7` | C | Durable answer journey over the real server |
+| `5d3e55b` | C | ElevenLabs adapter (not registered in production: D-QUOTA) |
+| (next) | D | Client live mode: typed API client, Credential Manager source, server source catalog, live tests; library keyboard fix; projection test isolation |
 
 ## Test counts (latest)
 
@@ -57,6 +75,11 @@ production readiness.
 | same at `850e334` | 1093 | 1050 | 0 | 1 | 42 |
 | `NETRA_TEST_DATABASE_URL=… $PY -m pytest -q -p no:cacheprovider -m integration` at `4ede791` | 19 | 18 | 1 | 0 | 1037 |
 | same at `850e334` | 42 | 41 | 0 | 1 | 1051 |
+| default run, slice D | 1121 | 1073 | 0 | 1 | 47 |
+| integration run, slice D (twice) | 47 | 46 | 0 | 1 | 1074 |
+| `dotnet test client/Netra.sln --no-restore` at `4ede791` | 88 | 88 | 0 | 0 | — |
+| same, slice D, no live server | 114 | 112 | 0 | 2 (live, visibly skipped) | — |
+| same, slice D, `NETRA_LIVE_SERVER_INFO` set | 114 | 114 | 0 | 0 | — |
 
 The default configuration deselects `integration` tests (`addopts = -m 'not integration'`):
 a green default run is **not** database acceptance. The single skip in each run
@@ -82,12 +105,19 @@ incomplete (partial) · unverified (fixture only) · blocked (decision/hardware/
 | Pending questions, attempts, atomic commit + outbox | working (real local) | `test_postgres_learning_store.py` (8) |
 | Outbox → job → projection handler | working (real local, Neo4j double) | `test_learning_projection_pipeline.py` (4) |
 | Neo4j writer | unverified against a server | driver-signature contract tests only (D-NEO4J) |
-| Evidence identity M2 → M1 → M4 | working (fixture + real resolver type) | INT-03 tests; real-resolver journey pending in C |
-| FastAPI app boot, real WebSocket | unverified | slice C |
-| LangGraph integration | fixture | `test_langgraph_wiring_when_pinned_package_is_installed` now runs (package installed) |
+| Evidence identity M2 → M1 → M4 | working (real local) | INT-03 tests; Coordinator → Tutor journey over real retrieval + async resolver |
+| FastAPI app boot, real WebSocket, auth at routes and upgrade | working (real local) | `api/tests/server/` (4, uvicorn over TCP) |
+| Session creation, source listing, explicit pin, replay/conflict | working (real local) | Python server journey + C# `LiveServerTests` |
+| Coordinator → Tutor with Gemini/Groq adapters | working (real local, controlled transports) | no live provider call made |
+| LangGraph execution + Postgres checkpoint resume | working (real local) | graph state is not checkpointed across restarts (runtime objects in state) |
+| Speech framing (ElevenLabs adapter) | unverified live; framing real local | not registered in production (D-QUOTA) |
+| WPF client → real server: HTTP session/pin, WS resume, navigation, audio frames, STOP fence, playback acks, reconnect | working (real local, stand-in synthesizer, ScriptedPlayer) | `LiveServerTests` (2): 8 frames admitted/assembled; after STOP 1 in-flight frame, then none; ack persisted; reconnect restores version/pin/ack |
+| Library view keyboard paths | working (real WPF binding, off-screen window) | `LibraryViewBindingTests` (3); **NVDA announcement not verified** (needs a person) |
+| Audible playback, NVDA, real App startup in live mode | blocked (needs Windows/NVDA session with a person) | not claimed |
+| Voice input | disabled | not claimed; INT-11a mic protocol unapproved |
+| Upload / YouTube discovery in client | fixture | upload/job contract empty; no discovery route |
 | Optional-check support (D2) | blocked (decision P-1) | binding enforced; support fails closed |
 | Factual activity/assistance/reasoning records (D3) | blocked (review) | proposal code only; no table |
-| Real client connection | blocked on routes/credential issuance (INT-10) | slice D |
 | AX exporter | unwired (no OTel pins) | slice E |
 | Prometheus/AX evaluation | blocked on live authorization | slice F |
 
@@ -110,16 +140,28 @@ incomplete (partial) · unverified (fixture only) · blocked (decision/hardware/
 | B-11 | Explicit cancellation retried as failure | M3 → M2 dispatcher | D-CANCEL | `JobCancelled` → terminal `cancelled` |
 | B-12 | Lease-based cancellation stopped renewed jobs at original expiry | M3 recorder ↔ dispatcher heartbeat | Code audit | `LeaseHolder.tracking(job)`; lease expiry is `LeaseLostError` |
 | B-13 | `alembic.ini` split `prepend_sys_path` on `:` (breaks Windows drive paths) | M2 tooling | Deprecation warning | `path_separator = os` |
+| C-1 | Every FastAPI route returned 422 | M1 `main.py` | Real uvicorn: framework types imported inside `create_app` under postponed annotations | Module-level imports; lifespan replaces deprecated `on_event` |
+| C-2 | Answered question could be restored after a crash between learning commit and session update (was C-open-1) | M4 store ↔ M1 session | Real server test | Compare-and-clear on resume and return-to-question |
+| C-3 | Differently spelled UUID counted as a new pin (was C-open-2) | M1 route ↔ M2 ids | — | Canonical UUID in route and fingerprint |
+| C-4 | Pinecone-path configuration failure escaped as an error instead of reduced mode | M2 retrieval → M1 tools | `EmbeddingConfigurationError` in real journey | Semantic failures classified unavailable → full-text only |
+| C-5 | Production composition registered no M2/M4 services | bootstrap | Real server | `production_dependencies` with one `AsyncSession` per call (`SessionScoped`) |
+| D-1 | Client could never connect: no endpoint, no credential source, no session creation | M5 ↔ M1 routes | `App.xaml.cs` built the socket with `credentials: null` | Explicit live mode (`NETRA_API_ENDPOINT` + Credential Manager), HTTP session creation, resume over `/v1/ws`; fixture mode says so |
+| D-2 | Keyboard/Enter and the "Select this result" button passed `null` for lecture results, so a result could never be selected | M5 XAML | `LibraryViewBindingTests` fails on the old binding (verified by reverting) | Parameter bound to the list's selected item |
+| D-3 | `LibraryViewModel` mutated bound collections after `ConfigureAwait(false)`; hidden by synchronous fixtures, breaks with a real network call | M5 | Code audit (WPF cross-thread rule) | Continuations stay on the UI thread |
+| D-4 | Reconnect leaked the previous socket and receive-loop token source | M5 `NetraWebSocketClient` | Code audit | Released on reconnect |
+| D-5 | Sends from independent paths were not serialized; WebSocket's documented contract is one outstanding send | M5 | **Not reproduced**: the managed `ClientWebSocket` serializes internally (test passes with or without the lock) | Send lock kept for contract conformance only |
+| D-6 | Projection pipeline test consumed other tests' outbox events in the shared DB (was C-open-5), and failed in the full integration run | test isolation | Full run failed; the test alone passed | Graph double scoped to the test's own attempts |
 
 ## Open items found (to fix in later slices)
 
 | ID | Item | Plan |
 |---|---|---|
-| C-open-1 | Learning commit and session `pending_question` are separate transactions; after a crash between them reconnect could restore an answered question | Reconcile on resume/return-to-question against `PostgresLearningStore.is_answered` (slice C) |
-| C-open-2 | `pin_source` compares raw strings, so a differently spelled UUID counts as a switch | Canonicalize at the route boundary (slice C) |
 | C-open-3 | Bounded-failure wording for a refused quiz draft says "a required service is unavailable" | Review with M5 wording; not changed yet |
 | C-open-4 | PyMuPDF provider imports the deprecated `fitz` alias | Use `import pymupdf` (same pinned package) |
-| C-open-5 | Outbox consumer tests claim any unprocessed event in the shared disposable DB | Acceptable for disposable DB; note for test isolation |
+| D-open-1 | `NetraWebSocketClient.CloseAsync` cancels its receive loop first, which aborts the socket, so no close handshake is sent | Close output first, then stop the loop; avoid a double `Disconnected` (M5) |
+| D-open-2 | Each app launch creates a new session; resuming the previous session after restart needs a persisted session id | M1/M5 decision |
+| D-open-3 | `NetraHttpClient` scaffold is unused (no auth, no typed errors); `NetraApiClient` supersedes it for the session routes | Remove or merge after M5 review |
+| D-open-4 | The HTTP session/source route shapes are an integration proposal | Formal M1/M5 sign-off |
 
 ## Decisions needed
 
@@ -128,6 +170,10 @@ incomplete (partial) · unverified (fixture only) · blocked (decision/hardware/
 | D-LIC | PyMuPDF 1.28.2 is AGPL-3.0 (or commercial) | Project owner decides; this integration accepts no obligation. Alternative: LlamaParse + Tesseract only. | Distribution, not local integration |
 | D-CONCEPT | No canonical concept records exist in PostgreSQL, so every attempt projection dead-letters (`CONCEPT_NOT_PROJECTED`) | Add a reviewed concept catalog (M4 semantics, M2 storage) populated from curated source metadata and projected first; do not MERGE concepts from attempt data | Neo4j projection only; attempts stay canonical |
 | D-NEO4J | Real Cypher never executed | Authorize pulling `neo4j:5.26.30` for a disposable local container (same controls as PostgreSQL) | Neo4j verification only |
+| D-QUOTA | Speech quota amount and a durable quota ledger | Approve an amount; store the ledger in PostgreSQL | Registering ElevenLabs in production |
+| D-CRED | Desktop credential issuance (PKCE sign-in) | Keep operator-provisioned tokens as a local integration aid only | Real student sign-in |
+| D-BUDGET | The turn budget is in memory, so a retransmission after a restart gets a fresh budget | Persist budget use per request id | Budget across restarts |
+| D-MIC | Mic protocol (INT-11a) | Approve before building the Deepgram adapter | Voice input |
 | D3 / P-1 / P-2 / P-3 | Factual activity schema; optional-check support definition; declined-check record; evidence change while a question is pending | See M4 handoff recommendations | Optional checks, history records |
 
 ## Independent work that can proceed

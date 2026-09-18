@@ -31,12 +31,21 @@ pytestmark = pytest.mark.integration
 
 
 class GraphDouble:
-    """LABELLED DOUBLE for Neo4j: one edge per attempt_id, properties set on create only."""
+    """LABELLED DOUBLE for Neo4j: one edge per attempt_id, properties set on create only.
 
-    def __init__(self, concepts=("ohms-law",), failures=0):
+    Scoped to this test's attempts: the pool claims every projection job in the
+    shared disposable database, including jobs left by other tests' committed
+    answers. Those are acknowledged without being recorded or failed, so the
+    assertions below describe only this test's attempts.
+    """
+
+    def __init__(self, attempts, concepts=("ohms-law",), failures=0):
+        self.owned = {a.attempt_id for a in attempts}
         self.concepts, self.failures, self.edges, self.calls = set(concepts), failures, {}, 0
 
     async def upsert_attempted(self, edge):
+        if edge.attempt_id not in self.owned:
+            return ProjectionWrite.PROJECTED
         self.calls += 1
         if self.failures:
             self.failures -= 1
@@ -131,7 +140,7 @@ async def test_a_committed_attempt_is_projected_once_even_when_the_event_is_rede
     assert len(jobs) == 1 and jobs[0].payload["attempt_id"] == str(attempt.attempt_id)
     assert "True" not in str(jobs[0].payload)  # the student's answer text never leaves PostgreSQL
 
-    graph = GraphDouble()
+    graph = GraphDouble([attempt])
 
     async def done():
         return (await _jobs(sessions, [attempt]))[0].status == "completed"
@@ -144,7 +153,7 @@ async def test_a_projection_outage_retries_and_never_erases_the_committed_attemp
     sessions, questions = env
     attempt = await _commit(sessions, questions)
     await _drain_outbox(sessions, [attempt])
-    graph = GraphDouble(failures=2)
+    graph = GraphDouble([attempt], failures=2)
 
     async def done():
         return (await _jobs(sessions, [attempt]))[0].status == "completed"
@@ -161,7 +170,7 @@ async def test_a_missing_concept_dead_letters_visibly_after_bounded_attempts(env
     sessions, questions = env
     attempt = await _commit(sessions, questions, concept="uncurated-concept")
     await _drain_outbox(sessions, [attempt])
-    graph = GraphDouble(concepts=())
+    graph = GraphDouble([attempt], concepts=())
 
     async def dead():
         return (await _jobs(sessions, [attempt]))[0].status == "dead_letter"
@@ -179,7 +188,7 @@ async def test_an_older_event_processed_last_cannot_overwrite_a_newer_attempt(en
     older = await _commit(sessions, questions, when=now - timedelta(minutes=5))
     newer = await _commit(sessions, questions, when=now)
     await _drain_outbox(sessions, [older, newer])
-    graph = GraphDouble()
+    graph = GraphDouble([older, newer])
     # Deliver the newer projection first, then replay the older one twice.
     handler = learning_projection_handler(graph)
     jobs = {job.payload["attempt_id"]: job for job in await _jobs(sessions, [older, newer])}

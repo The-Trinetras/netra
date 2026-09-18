@@ -10,7 +10,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -129,3 +129,74 @@ class OutboxRow(Base):
     claim_token: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True))
     claim_worker_id: Mapped[str | None] = mapped_column(String(200))
     claim_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class MultimediaCandidateRow(Base):
+    """One M3 extraction candidate (figure/chart/diagram/equation/table).
+
+    Stored with its source-check verdict and findings. ``citable`` is the
+    producing job's explicit decision; storage never upgrades it, and nothing
+    here registers DERIVED evidence (that stays with the API service layer).
+    """
+
+    __tablename__ = "multimedia_candidates"
+    __table_args__ = (
+        UniqueConstraint("idempotency_key", name="uq_multimedia_candidates_idempotency_key"),
+        Index("ix_multimedia_candidates_version_kind", "source_version_id", "kind"),
+        CheckConstraint("kind IN ('figure', 'chart', 'diagram', 'equation', 'table')",
+                        name="ck_multimedia_candidates_kind"),
+        CheckConstraint("object_index IS NULL OR object_index >= 0",
+                        name="ck_multimedia_candidates_object_index"),
+    )
+
+    candidate_id: Mapped[UUID] = uuid_column()
+    idempotency_key: Mapped[str] = mapped_column(String(500), nullable=False)
+    source_version_id: Mapped[UUID] = mapped_column(
+        ForeignKey("source_versions.source_version_id", ondelete="CASCADE"), nullable=False)
+    kind: Mapped[str] = mapped_column(String(32), nullable=False)
+    object_index: Mapped[int | None] = mapped_column(Integer)
+    object_ref: Mapped[str | None] = mapped_column(String(200))
+    structure: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    validation: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    findings: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, nullable=False, default=list)
+    citable: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class VideoEvidenceCandidateRow(Base):
+    """One derived, not-yet-citable video evidence candidate (M3 producer)."""
+
+    __tablename__ = "video_evidence_candidates"
+    __table_args__ = (
+        UniqueConstraint("idempotency_key", "ordinal", name="uq_video_evidence_candidates_batch"),
+        Index("ix_video_evidence_candidates_video", "video_id", "start_ms"),
+        CheckConstraint("start_ms >= 0 AND end_ms >= start_ms", name="ck_video_evidence_candidates_range"),
+    )
+
+    candidate_id: Mapped[UUID] = uuid_column()
+    idempotency_key: Mapped[str] = mapped_column(String(500), nullable=False)
+    ordinal: Mapped[int] = mapped_column(Integer, nullable=False)
+    video_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    source_version_id: Mapped[UUID] = mapped_column(
+        ForeignKey("source_versions.source_version_id", ondelete="CASCADE"), nullable=False)
+    locator: Mapped[str] = mapped_column(String(500), nullable=False)
+    start_ms: Mapped[int] = mapped_column(Integer, nullable=False)
+    end_ms: Mapped[int] = mapped_column(Integer, nullable=False)
+    kind: Mapped[str] = mapped_column(String(64), nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+    provenance: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class VideoProviderBindingRow(Base):
+    """Which provider asset backs a canonical Netra video (never the reverse)."""
+
+    __tablename__ = "video_provider_bindings"
+
+    video_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True)
+    provider: Mapped[str] = mapped_column(String(100), primary_key=True)
+    provider_index_id: Mapped[str] = mapped_column(String(200), primary_key=True)
+    provider_video_id: Mapped[str] = mapped_column(String(200), nullable=False)
+    model_name: Mapped[str] = mapped_column(String(200), nullable=False)
+    model_version: Mapped[str] = mapped_column(String(100), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

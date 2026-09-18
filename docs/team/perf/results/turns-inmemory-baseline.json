@@ -1,0 +1,3526 @@
+{
+  "label": "baseline",
+  "captured_at": "2026-09-18T23:12:27.184712+00:00",
+  "python": "3.13.15",
+  "iterations": 40,
+  "model_delay_ms": 0.0,
+  "summary": {
+    "grounded_repair|langgraph|tracing-off": {
+      "errors": 0,
+      "outcome_kinds": [
+        "session.snapshot",
+        "response.segment",
+        "response.segment",
+        "quiz.question"
+      ],
+      "complete_ms": {
+        "n": 40,
+        "median": 6.778,
+        "min": 3.719,
+        "max": 10.262,
+        "p90": 8.581
+      },
+      "first_text_ms": {
+        "n": 40,
+        "median": 6.748,
+        "min": 3.685,
+        "max": 10.213,
+        "p90": 8.55
+      },
+      "model_calls": {
+        "n": 40,
+        "median": 3.0,
+        "min": 3,
+        "max": 3,
+        "p90": 3
+      },
+      "prompt_chars_max": {
+        "n": 40,
+        "median": 4280.0,
+        "min": 4280,
+        "max": 4280,
+        "p90": 4280
+      },
+      "prompt_chars_total": {
+        "n": 40,
+        "median": 11040.0,
+        "min": 11040,
+        "max": 11040,
+        "p90": 11040
+      }
+    },
+    "grounded_repair|direct|tracing-off": {
+      "errors": 0,
+      "outcome_kinds": [
+        "session.snapshot",
+        "response.segment",
+        "response.segment",
+        "quiz.question"
+      ],
+      "complete_ms": {
+        "n": 40,
+        "median": 6.816,
+        "min": 3.072,
+        "max": 8.993,
+        "p90": 8.075
+      },
+      "first_text_ms": {
+        "n": 40,
+        "median": 6.787,
+        "min": 3.038,
+        "max": 8.962,
+        "p90": 8.037
+      },
+      "model_calls": {
+        "n": 40,
+        "median": 3.0,
+        "min": 3,
+        "max": 3,
+        "p90": 3
+      },
+      "prompt_chars_max": {
+        "n": 40,
+        "median": 4280.0,
+        "min": 4280,
+        "max": 4280,
+        "p90": 4280
+      },
+      "prompt_chars_total": {
+        "n": 40,
+        "median": 11040.0,
+        "min": 11040,
+        "max": 11040,
+        "p90": 11040
+      }
+    },
+    "grounded_repair|langgraph|tracing-local": {
+      "errors": 0,
+      "outcome_kinds": [
+        "session.snapshot",
+        "response.segment",
+        "response.segment",
+        "quiz.question"
+      ],
+      "complete_ms": {
+        "n": 40,
+        "median": 7.564,
+        "min": 4.227,
+        "max": 10.758,
+        "p90": 9.234
+      },
+      "first_text_ms": {
+        "n": 40,
+        "median": 7.529,
+        "min": 4.194,
+        "max": 10.728,
+        "p90": 9.205
+      },
+      "model_calls": {
+        "n": 40,
+        "median": 3.0,
+        "min": 3,
+        "max": 3,
+        "p90": 3
+      },
+      "prompt_chars_max": {
+        "n": 40,
+        "median": 4280.0,
+        "min": 4280,
+        "max": 4280,
+        "p90": 4280
+      },
+      "prompt_chars_total": {
+        "n": 40,
+        "median": 11040.0,
+        "min": 11040,
+        "max": 11040,
+        "p90": 11040
+      }
+    },
+    "missing_evidence|langgraph|tracing-off": {
+      "errors": 0,
+      "outcome_kinds": [
+        "session.snapshot",
+        "response.segment"
+      ],
+      "complete_ms": {
+        "n": 40,
+        "median": 5.215,
+        "min": 2.93,
+        "max": 25.625,
+        "p90": 6.898
+      },
+      "first_text_ms": {
+        "n": 40,
+        "median": 5.215,
+        "min": 2.93,
+        "max": 25.625,
+        "p90": 6.898
+      },
+      "model_calls": {
+        "n": 40,
+        "median": 2.0,
+        "min": 2,
+        "max": 2,
+        "p90": 2
+      },
+      "prompt_chars_max": {
+        "n": 40,
+        "median": 3310.0,
+        "min": 3310,
+        "max": 3310,
+        "p90": 3310
+      },
+      "prompt_chars_total": {
+        "n": 40,
+        "median": 6506.0,
+        "min": 6506,
+        "max": 6506,
+        "p90": 6506
+      }
+    },
+    "answer_check|langgraph|tracing-off": {
+      "errors": 0,
+      "outcome_kinds": [
+        "session.snapshot",
+        "response.segment"
+      ],
+      "complete_ms": {
+        "n": 40,
+        "median": 5.674,
+        "min": 2.972,
+        "max": 9.055,
+        "p90": 6.883
+      },
+      "first_text_ms": {
+        "n": 40,
+        "median": 5.674,
+        "min": 2.972,
+        "max": 9.055,
+        "p90": 6.883
+      },
+      "model_calls": {
+        "n": 40,
+        "median": 2.0,
+        "min": 2,
+        "max": 2,
+        "p90": 2
+      },
+      "prompt_chars_max": {
+        "n": 40,
+        "median": 3581.0,
+        "min": 3581,
+        "max": 3581,
+        "p90": 3581
+      },
+      "prompt_chars_total": {
+        "n": 40,
+        "median": 6775.0,
+        "min": 6775,
+        "max": 6775,
+        "p90": 6775
+      }
+    },
+    "stop_during_audio|-|tracing-off": {
+      "errors": 0,
+      "outcome_kinds": [],
+      "first_audio_frame_ms": {
+        "n": 40,
+        "median": 1.386,
+        "min": 0.393,
+        "max": 3.232,
+        "p90": 2.283
+      },
+      "frames_after_cancel": {
+        "n": 40,
+        "median": 0.0,
+        "min": 0,
+        "max": 0,
+        "p90": 0
+      }
+    },
+    "reconnect_recover|langgraph|tracing-off": {
+      "errors": 0,
+      "outcome_kinds": [
+        "session.snapshot",
+        "response.segment"
+      ],
+      "segment_text_prefixes": [
+        "Script exhausted."
+      ],
+      "model_calls_total": {
+        "n": 10,
+        "median": 4.0,
+        "min": 4,
+        "max": 4,
+        "p90": 4
+      },
+      "recover_first_text_ms": {
+        "n": 10,
+        "median": 234.558,
+        "min": 231.496,
+        "max": 236.237,
+        "p90": 236.013
+      },
+      "resume_snapshot_ms": {
+        "n": 10,
+        "median": 15.565,
+        "min": 10.461,
+        "max": 16.448,
+        "p90": 16.324
+      }
+    },
+    "disconnect_during_model|langgraph|tracing-off": {
+      "errors": 0,
+      "outcome_kinds": [],
+      "orphaned_completions": {
+        "n": 20,
+        "median": 1.0,
+        "min": 1,
+        "max": 1,
+        "p90": 1
+      }
+    },
+    "disconnect_during_tutor|langgraph|tracing-off": {
+      "errors": 0,
+      "outcome_kinds": [],
+      "orphaned_completions": {
+        "n": 20,
+        "median": 1.0,
+        "min": 1,
+        "max": 1,
+        "p90": 1
+      }
+    }
+  },
+  "samples": {
+    "grounded_repair|langgraph|tracing-off": [
+      {
+        "first_text_ms": 4.556600004434586,
+        "complete_ms": 4.588700016029179,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 5.45240001520142,
+        "complete_ms": 5.483900022227317,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 7.7321999706327915,
+        "complete_ms": 7.764899986796081,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 8.550099970307201,
+        "complete_ms": 8.58129997504875,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 7.770400028675795,
+        "complete_ms": 7.803999993484467,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 5.380699993111193,
+        "complete_ms": 5.410499987192452,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 4.347799986135215,
+        "complete_ms": 4.382300016004592,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 6.235700042452663,
+        "complete_ms": 6.27170002553612,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 4.521999973803759,
+        "complete_ms": 4.556100000627339,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 5.4917000234127045,
+        "complete_ms": 5.537300021387637,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 3.6854000063613057,
+        "complete_ms": 3.7187999696470797,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 6.151999987196177,
+        "complete_ms": 6.184099998790771,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 8.204000012483448,
+        "complete_ms": 8.23330000275746,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 6.749499996658415,
+        "complete_ms": 6.778799986932427,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 6.298399996012449,
+        "complete_ms": 6.328699993900955,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 8.362299995496869,
+        "complete_ms": 8.399599988479167,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 8.200999989639968,
+        "complete_ms": 8.232699998188764,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 3.903699980583042,
+        "complete_ms": 3.9345999830402434,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 6.353900011163205,
+        "complete_ms": 6.382999999914318,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 9.096599998883903,
+        "complete_ms": 9.136800013948232,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 8.350599964614958,
+        "complete_ms": 8.381499967072159,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 8.023400034289807,
+        "complete_ms": 8.053800032939762,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 6.746600032784045,
+        "complete_ms": 6.7770000314339995,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 6.240200018510222,
+        "complete_ms": 6.286300020292401,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 6.642199994530529,
+        "complete_ms": 6.673700001556426,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 10.21269999910146,
+        "complete_ms": 10.261900024488568,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 6.6759999608621,
+        "complete_ms": 6.706599961034954,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 8.362799999304116,
+        "complete_ms": 8.407199988141656,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 8.351499971468002,
+        "complete_ms": 8.381999970879406,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 9.241599997039884,
+        "complete_ms": 9.273100004065782,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 5.7336000027135015,
+        "complete_ms": 5.765099951531738,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 4.9931000103242695,
+        "complete_ms": 5.030800006352365,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 8.436599979177117,
+        "complete_ms": 8.466399973258376,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 9.117400040850043,
+        "complete_ms": 9.160000015981495,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 8.06580000789836,
+        "complete_ms": 8.096000005025417,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 6.870299985166639,
+        "complete_ms": 6.911800010129809,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 7.730400015134364,
+        "complete_ms": 7.759300002362579,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 7.957199995871633,
+        "complete_ms": 7.991999969817698,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 6.315700011327863,
+        "complete_ms": 6.3452000031247735,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 6.465599988587201,
+        "complete_ms": 6.502599979285151,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      }
+    ],
+    "grounded_repair|direct|tracing-off": [
+      {
+        "first_text_ms": 5.2130999974906445,
+        "complete_ms": 5.246599961537868,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 4.625300003681332,
+        "complete_ms": 4.660000035073608,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 8.036899962462485,
+        "complete_ms": 8.07459995849058,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 6.6710999817587435,
+        "complete_ms": 6.704100000206381,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 7.573299983050674,
+        "complete_ms": 7.607599953189492,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 5.63010002952069,
+        "complete_ms": 5.662400042638183,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 7.414799998514354,
+        "complete_ms": 7.44349998421967,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 3.749599971342832,
+        "complete_ms": 3.7811999791301787,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 3.5596000379882753,
+        "complete_ms": 3.5934000043198466,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 3.1882000039331615,
+        "complete_ms": 3.220299957320094,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 3.1299000256694853,
+        "complete_ms": 3.1615999760106206,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 7.722999958787113,
+        "complete_ms": 7.75309995515272,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 6.9694999838247895,
+        "complete_ms": 7.006299972999841,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 5.414100014604628,
+        "complete_ms": 5.450000055134296,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 5.938999995123595,
+        "complete_ms": 5.973800027277321,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 8.301800000481308,
+        "complete_ms": 8.337900042533875,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 6.57229998614639,
+        "complete_ms": 6.6080999677069485,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 6.76639995072037,
+        "complete_ms": 6.7955999984405935,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 6.458099989686161,
+        "complete_ms": 6.490399944595993,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 7.2345000226050615,
+        "complete_ms": 7.265000022016466,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 4.2431000038050115,
+        "complete_ms": 4.2776999762281775,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 5.040000018198043,
+        "complete_ms": 5.073700041975826,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 7.498299994040281,
+        "complete_ms": 7.555300020612776,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 7.850099995266646,
+        "complete_ms": 7.8786000376567245,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 3.0384999699890614,
+        "complete_ms": 3.0722999945282936,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 7.345899997744709,
+        "complete_ms": 7.374999986495823,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 6.178999959956855,
+        "complete_ms": 6.215100002009422,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 7.719999994151294,
+        "complete_ms": 7.751900004222989,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 6.807400030083954,
+        "complete_ms": 6.8373000249266624,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 7.637900009285659,
+        "complete_ms": 7.669000013265759,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 5.308399966452271,
+        "complete_ms": 5.3390999673865736,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 8.720299985725433,
+        "complete_ms": 8.752800000365824,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 6.871700054034591,
+        "complete_ms": 6.912900018505752,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 8.962000021710992,
+        "complete_ms": 8.99330002721399,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 5.444299953524023,
+        "complete_ms": 5.478499981109053,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 7.323900004848838,
+        "complete_ms": 7.353900000452995,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 6.317000021226704,
+        "complete_ms": 6.353400007355958,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 7.130099984351546,
+        "complete_ms": 7.159999979194254,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 7.114899985026568,
+        "complete_ms": 7.153399987146258,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 8.522899996023625,
+        "complete_ms": 8.577799948398024,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      }
+    ],
+    "grounded_repair|langgraph|tracing-local": [
+      {
+        "first_text_ms": 5.169700016267598,
+        "complete_ms": 5.199200008064508,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 8.611600031144917,
+        "complete_ms": 8.639600011520088,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 6.1518000438809395,
+        "complete_ms": 6.184099998790771,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 7.665800047107041,
+        "complete_ms": 7.6985000050626695,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 8.567499986384064,
+        "complete_ms": 8.59779998427257,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 6.519799993839115,
+        "complete_ms": 6.550799997057766,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 6.610699987504631,
+        "complete_ms": 6.6420999937690794,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 5.203699984122068,
+        "complete_ms": 5.232799972873181,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 7.562400016468018,
+        "complete_ms": 7.60199996875599,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 4.194199980702251,
+        "complete_ms": 4.227299999911338,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 4.660299979150295,
+        "complete_ms": 4.689999972470105,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 7.419399975333363,
+        "complete_ms": 7.453600002918392,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 8.050200005527586,
+        "complete_ms": 8.082500018645078,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 7.9005000297911465,
+        "complete_ms": 7.931999978609383,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 8.644699992146343,
+        "complete_ms": 8.673899981658906,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 7.698700006585568,
+        "complete_ms": 7.73100001970306,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 8.17849999293685,
+        "complete_ms": 8.207799983210862,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 9.20520001091063,
+        "complete_ms": 9.233999997377396,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 5.411399994045496,
+        "complete_ms": 5.441799992695451,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 5.557900003623217,
+        "complete_ms": 5.587699997704476,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 5.544300016481429,
+        "complete_ms": 5.576399969868362,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 8.546099998056889,
+        "complete_ms": 8.573900035116822,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 7.121700036805123,
+        "complete_ms": 7.153200043831021,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 7.128600031137466,
+        "complete_ms": 7.158600026741624,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 8.242900017648935,
+        "complete_ms": 8.2719000056386,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 6.716599978972226,
+        "complete_ms": 6.749599997419864,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 8.96949996240437,
+        "complete_ms": 9.00079996790737,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 10.728399967774749,
+        "complete_ms": 10.757600015494972,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 9.401799994520843,
+        "complete_ms": 9.434100007638335,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 7.4961999780498445,
+        "complete_ms": 7.525999972131103,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 4.513300023972988,
+        "complete_ms": 4.546899988781661,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 9.12240002071485,
+        "complete_ms": 9.15330002317205,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 7.431699952576309,
+        "complete_ms": 7.462399953510612,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 6.379599974025041,
+        "complete_ms": 6.417799973860383,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 8.330900047440082,
+        "complete_ms": 8.361600048374385,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 8.55490000685677,
+        "complete_ms": 8.584600000176579,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 6.032800010871142,
+        "complete_ms": 6.064100016374141,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 7.401199953164905,
+        "complete_ms": 7.432999962475151,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 9.82729997485876,
+        "complete_ms": 9.879999968688935,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      },
+      {
+        "first_text_ms": 9.622100042179227,
+        "complete_ms": 9.66020004125312,
+        "model_calls": 3,
+        "prompt_chars_total": 11040,
+        "prompt_chars_max": 4280,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment",
+          "response.segment",
+          "quiz.question"
+        ]
+      }
+    ],
+    "missing_evidence|langgraph|tracing-off": [
+      {
+        "first_text_ms": 4.881500033661723,
+        "complete_ms": 4.881500033661723,
+        "model_calls": 2,
+        "prompt_chars_total": 6506,
+        "prompt_chars_max": 3310,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ]
+      },
+      {
+        "first_text_ms": 5.754900048486888,
+        "complete_ms": 5.754900048486888,
+        "model_calls": 2,
+        "prompt_chars_total": 6506,
+        "prompt_chars_max": 3310,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ]
+      },
+      {
+        "first_text_ms": 7.212800031993538,
+        "complete_ms": 7.212800031993538,
+        "model_calls": 2,
+        "prompt_chars_total": 6506,
+        "prompt_chars_max": 3310,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ]
+      },
+      {
+        "first_text_ms": 5.887600011192262,
+        "complete_ms": 5.887600011192262,
+        "model_calls": 2,
+        "prompt_chars_total": 6506,
+        "prompt_chars_max": 3310,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ]
+      },
+      {
+        "first_text_ms": 5.991699988953769,
+        "complete_ms": 5.991699988953769,
+        "model_calls": 2,
+        "prompt_chars_total": 6506,
+        "prompt_chars_max": 3310,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ]
+      },
+      {
+        "first_text_ms": 6.828100013080984,
+        "complete_ms": 6.828100013080984,
+        "model_calls": 2,
+        "prompt_chars_total": 6506,
+        "prompt_chars_max": 3310,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ]
+      },
+      {
+        "first_text_ms": 5.752699973527342,
+        "complete_ms": 5.752699973527342,
+        "model_calls": 2,
+        "prompt_chars_total": 6506,
+        "prompt_chars_max": 3310,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ]
+      },
+      {
+        "first_text_ms": 4.497900023125112,
+        "complete_ms": 4.497900023125112,
+        "model_calls": 2,
+        "prompt_chars_total": 6506,
+        "prompt_chars_max": 3310,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ]
+      },
+      {
+        "first_text_ms": 4.2641000472940505,
+        "complete_ms": 4.2641000472940505,
+        "model_calls": 2,
+        "prompt_chars_total": 6506,
+        "prompt_chars_max": 3310,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ]
+      },
+      {
+        "first_text_ms": 6.898100022226572,
+        "complete_ms": 6.898100022226572,
+        "model_calls": 2,
+        "prompt_chars_total": 6506,
+        "prompt_chars_max": 3310,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ]
+      },
+      {
+        "first_text_ms": 2.929600013885647,
+        "complete_ms": 2.929600013885647,
+        "model_calls": 2,
+        "prompt_chars_total": 6506,
+        "prompt_chars_max": 3310,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ]
+      },
+      {
+        "first_text_ms": 5.1592999952845275,
+        "complete_ms": 5.1592999952845275,
+        "model_calls": 2,
+        "prompt_chars_total": 6506,
+        "prompt_chars_max": 3310,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ]
+      },
+      {
+        "first_text_ms": 5.940900009591132,
+        "complete_ms": 5.940900009591132,
+        "model_calls": 2,
+        "prompt_chars_total": 6506,
+        "prompt_chars_max": 3310,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ]
+      },
+      {
+        "first_text_ms": 25.624900008551776,
+        "complete_ms": 25.624900008551776,
+        "model_calls": 2,
+        "prompt_chars_total": 6506,
+        "prompt_chars_max": 3310,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ]
+      },
+      {
+        "first_text_ms": 4.942000028677285,
+        "complete_ms": 4.942000028677285,
+        "model_calls": 2,
+        "prompt_chars_total": 6506,
+        "prompt_chars_max": 3310,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ]
+      },
+      {
+        "first_text_ms": 4.099900019355118,
+        "complete_ms": 4.099900019355118,
+        "model_calls": 2,
+        "prompt_chars_total": 6506,
+        "prompt_chars_max": 3310,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ]
+      },
+      {
+        "first_text_ms": 7.59920000564307,
+        "complete_ms": 7.59920000564307,
+        "model_calls": 2,
+        "prompt_chars_total": 6506,
+        "prompt_chars_max": 3310,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ]
+      },
+      {
+        "first_text_ms": 3.134000056888908,
+        "complete_ms": 3.134000056888908,
+        "model_calls": 2,
+        "prompt_chars_total": 6506,
+        "prompt_chars_max": 3310,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ]
+      },
+      {
+        "first_text_ms": 4.488700011279434,
+        "complete_ms": 4.488700011279434,
+        "model_calls": 2,
+        "prompt_chars_total": 6506,
+        "prompt_chars_max": 3310,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ]
+      },
+      {
+        "first_text_ms": 6.246300006750971,
+        "complete_ms": 6.246300006750971,
+        "model_calls": 2,
+        "prompt_chars_total": 6506,
+        "prompt_chars_max": 3310,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ]
+      },
+      {
+        "first_text_ms": 5.420800007414073,
+        "complete_ms": 5.420800007414073,
+        "model_calls": 2,
+        "prompt_chars_total": 6506,
+        "prompt_chars_max": 3310,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ]
+      },
+      {
+        "first_text_ms": 6.576499959919602,
+        "complete_ms": 6.576499959919602,
+        "model_calls": 2,
+        "prompt_chars_total": 6506,
+        "prompt_chars_max": 3310,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ]
+      },
+      {
+        "first_text_ms": 4.6462000464089215,
+        "complete_ms": 4.6462000464089215,
+        "model_calls": 2,
+        "prompt_chars_total": 6506,
+        "prompt_chars_max": 3310,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ]
+      },
+      {
+        "first_text_ms": 4.759700037539005,
+        "complete_ms": 4.759700037539005,
+        "model_calls": 2,
+        "prompt_chars_total": 6506,
+        "prompt_chars_max": 3310,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ]
+      },
+      {
+        "first_text_ms": 4.81230003060773,
+        "complete_ms": 4.81230003060773,
+        "model_calls": 2,
+        "prompt_chars_total": 6506,
+        "prompt_chars_max": 3310,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ]
+      },
+      {
+        "first_text_ms": 4.903700028080493,
+        "complete_ms": 4.903700028080493,
+        "model_calls": 2,
+        "prompt_chars_total": 6506,
+        "prompt_chars_max": 3310,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ]
+      },
+      {
+        "first_text_ms": 6.196300033479929,
+        "complete_ms": 6.196300033479929,
+        "model_calls": 2,
+        "prompt_chars_total": 6506,
+        "prompt_chars_max": 3310,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ]
+      },
+      {
+        "first_text_ms": 6.498799950350076,
+        "complete_ms": 6.498799950350076,
+        "model_calls": 2,
+        "prompt_chars_total": 6506,
+        "prompt_chars_max": 3310,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ]
+      },
+      {
+        "first_text_ms": 4.767999984323978,
+        "complete_ms": 4.767999984323978,
+        "model_calls": 2,
+        "prompt_chars_total": 6506,
+        "prompt_chars_max": 3310,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ]
+      },
+      {
+        "first_text_ms": 7.701200025621802,
+        "complete_ms": 7.701200025621802,
+        "model_calls": 2,
+        "prompt_chars_total": 6506,
+        "prompt_chars_max": 3310,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ]
+      },
+      {
+        "first_text_ms": 3.750500036403537,
+        "complete_ms": 3.750500036403537,
+        "model_calls": 2,
+        "prompt_chars_total": 6506,
+        "prompt_chars_max": 3310,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ]
+      },
+      {
+        "first_text_ms": 6.713500013574958,
+        "complete_ms": 6.713500013574958,
+        "model_calls": 2,
+        "prompt_chars_total": 6506,
+        "prompt_chars_max": 3310,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ]
+      },
+      {
+        "first_text_ms": 3.5451999865472317,
+        "complete_ms": 3.5451999865472317,
+        "model_calls": 2,
+        "prompt_chars_total": 6506,
+        "prompt_chars_max": 3310,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ]
+      },
+      {
+        "first_text_ms": 3.851099987514317,
+        "complete_ms": 3.851099987514317,
+        "model_calls": 2,
+        "prompt_chars_total": 6506,
+        "prompt_chars_max": 3310,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ]
+      },
+      {
+        "first_text_ms": 4.975599993485957,
+        "complete_ms": 4.975599993485957,
+        "model_calls": 2,
+        "prompt_chars_total": 6506,
+        "prompt_chars_max": 3310,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ]
+      },
+      {
+        "first_text_ms": 5.9206000296399,
+        "complete_ms": 5.9206000296399,
+        "model_calls": 2,
+        "prompt_chars_total": 6506,
+        "prompt_chars_max": 3310,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ]
+      },
+      {
+        "first_text_ms": 3.927399986423552,
+        "complete_ms": 3.927399986423552,
+        "model_calls": 2,
+        "prompt_chars_total": 6506,
+        "prompt_chars_max": 3310,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ]
+      },
+      {
+        "first_text_ms": 5.178999970667064,
+        "complete_ms": 5.178999970667064,
+        "model_calls": 2,
+        "prompt_chars_total": 6506,
+        "prompt_chars_max": 3310,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ]
+      },
+      {
+        "first_text_ms": 5.251399998087436,
+        "complete_ms": 5.251399998087436,
+        "model_calls": 2,
+        "prompt_chars_total": 6506,
+        "prompt_chars_max": 3310,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ]
+      },
+      {
+        "first_text_ms": 5.4418999934569,
+        "complete_ms": 5.4418999934569,
+        "model_calls": 2,
+        "prompt_chars_total": 6506,
+        "prompt_chars_max": 3310,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ]
+      }
+    ],
+    "answer_check|langgraph|tracing-off": [
+      {
+        "first_text_ms": 3.4658999647945166,
+        "complete_ms": 3.4658999647945166,
+        "model_calls": 2,
+        "prompt_chars_total": 6775,
+        "prompt_chars_max": 3581,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ]
+      },
+      {
+        "first_text_ms": 6.072000018320978,
+        "complete_ms": 6.072000018320978,
+        "model_calls": 2,
+        "prompt_chars_total": 6775,
+        "prompt_chars_max": 3581,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ]
+      },
+      {
+        "first_text_ms": 3.836599993519485,
+        "complete_ms": 3.836599993519485,
+        "model_calls": 2,
+        "prompt_chars_total": 6775,
+        "prompt_chars_max": 3581,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ]
+      },
+      {
+        "first_text_ms": 5.653000029269606,
+        "complete_ms": 5.653000029269606,
+        "model_calls": 2,
+        "prompt_chars_total": 6775,
+        "prompt_chars_max": 3581,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ]
+      },
+      {
+        "first_text_ms": 6.725999992340803,
+        "complete_ms": 6.725999992340803,
+        "model_calls": 2,
+        "prompt_chars_total": 6775,
+        "prompt_chars_max": 3581,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ]
+      },
+      {
+        "first_text_ms": 7.070099993143231,
+        "complete_ms": 7.070099993143231,
+        "model_calls": 2,
+        "prompt_chars_total": 6775,
+        "prompt_chars_max": 3581,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ]
+      },
+      {
+        "first_text_ms": 5.544300016481429,
+        "complete_ms": 5.544300016481429,
+        "model_calls": 2,
+        "prompt_chars_total": 6775,
+        "prompt_chars_max": 3581,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ]
+      },
+      {
+        "first_text_ms": 5.695600004401058,
+        "complete_ms": 5.695600004401058,
+        "model_calls": 2,
+        "prompt_chars_total": 6775,
+        "prompt_chars_max": 3581,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ]
+      },
+      {
+        "first_text_ms": 5.328200000803918,
+        "complete_ms": 5.328200000803918,
+        "model_calls": 2,
+        "prompt_chars_total": 6775,
+        "prompt_chars_max": 3581,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ]
+      },
+      {
+        "first_text_ms": 5.758700019214302,
+        "complete_ms": 5.758700019214302,
+        "model_calls": 2,
+        "prompt_chars_total": 6775,
+        "prompt_chars_max": 3581,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ]
+      },
+      {
+        "first_text_ms": 3.872999979648739,
+        "complete_ms": 3.872999979648739,
+        "model_calls": 2,
+        "prompt_chars_total": 6775,
+        "prompt_chars_max": 3581,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ]
+      },
+      {
+        "first_text_ms": 6.413299997802824,
+        "complete_ms": 6.413299997802824,
+        "model_calls": 2,
+        "prompt_chars_total": 6775,
+        "prompt_chars_max": 3581,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ]
+      },
+      {
+        "first_text_ms": 6.404199986718595,
+        "complete_ms": 6.404199986718595,
+        "model_calls": 2,
+        "prompt_chars_total": 6775,
+        "prompt_chars_max": 3581,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ]
+      },
+      {
+        "first_text_ms": 2.9719999874942005,
+        "complete_ms": 2.9719999874942005,
+        "model_calls": 2,
+        "prompt_chars_total": 6775,
+        "prompt_chars_max": 3581,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ]
+      },
+      {
+        "first_text_ms": 4.039699968416244,
+        "complete_ms": 4.039699968416244,
+        "model_calls": 2,
+        "prompt_chars_total": 6775,
+        "prompt_chars_max": 3581,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ]
+      },
+      {
+        "first_text_ms": 3.4697000519372523,
+        "complete_ms": 3.4697000519372523,
+        "model_calls": 2,
+        "prompt_chars_total": 6775,
+        "prompt_chars_max": 3581,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ]
+      },
+      {
+        "first_text_ms": 6.670600036159158,
+        "complete_ms": 6.670600036159158,
+        "model_calls": 2,
+        "prompt_chars_total": 6775,
+        "prompt_chars_max": 3581,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ]
+      },
+      {
+        "first_text_ms": 5.625999998301268,
+        "complete_ms": 5.625999998301268,
+        "model_calls": 2,
+        "prompt_chars_total": 6775,
+        "prompt_chars_max": 3581,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ]
+      },
+      {
+        "first_text_ms": 5.647099984344095,
+        "complete_ms": 5.647099984344095,
+        "model_calls": 2,
+        "prompt_chars_total": 6775,
+        "prompt_chars_max": 3581,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ]
+      },
+      {
+        "first_text_ms": 3.020100004505366,
+        "complete_ms": 3.020100004505366,
+        "model_calls": 2,
+        "prompt_chars_total": 6775,
+        "prompt_chars_max": 3581,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ]
+      },
+      {
+        "first_text_ms": 6.987400003708899,
+        "complete_ms": 6.987400003708899,
+        "model_calls": 2,
+        "prompt_chars_total": 6775,
+        "prompt_chars_max": 3581,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ]
+      },
+      {
+        "first_text_ms": 6.121499987784773,
+        "complete_ms": 6.121499987784773,
+        "model_calls": 2,
+        "prompt_chars_total": 6775,
+        "prompt_chars_max": 3581,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ]
+      },
+      {
+        "first_text_ms": 6.62870000815019,
+        "complete_ms": 6.62870000815019,
+        "model_calls": 2,
+        "prompt_chars_total": 6775,
+        "prompt_chars_max": 3581,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ]
+      },
+      {
+        "first_text_ms": 5.47149998601526,
+        "complete_ms": 5.47149998601526,
+        "model_calls": 2,
+        "prompt_chars_total": 6775,
+        "prompt_chars_max": 3581,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ]
+      },
+      {
+        "first_text_ms": 5.8862000005319715,
+        "complete_ms": 5.8862000005319715,
+        "model_calls": 2,
+        "prompt_chars_total": 6775,
+        "prompt_chars_max": 3581,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ]
+      },
+      {
+        "first_text_ms": 5.576399969868362,
+        "complete_ms": 5.576399969868362,
+        "model_calls": 2,
+        "prompt_chars_total": 6775,
+        "prompt_chars_max": 3581,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ]
+      },
+      {
+        "first_text_ms": 9.054900030605495,
+        "complete_ms": 9.054900030605495,
+        "model_calls": 2,
+        "prompt_chars_total": 6775,
+        "prompt_chars_max": 3581,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ]
+      },
+      {
+        "first_text_ms": 6.145099992863834,
+        "complete_ms": 6.145099992863834,
+        "model_calls": 2,
+        "prompt_chars_total": 6775,
+        "prompt_chars_max": 3581,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ]
+      },
+      {
+        "first_text_ms": 5.6173999910242856,
+        "complete_ms": 5.6173999910242856,
+        "model_calls": 2,
+        "prompt_chars_total": 6775,
+        "prompt_chars_max": 3581,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ]
+      },
+      {
+        "first_text_ms": 4.3200000072829425,
+        "complete_ms": 4.3200000072829425,
+        "model_calls": 2,
+        "prompt_chars_total": 6775,
+        "prompt_chars_max": 3581,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ]
+      },
+      {
+        "first_text_ms": 8.350699965376407,
+        "complete_ms": 8.350699965376407,
+        "model_calls": 2,
+        "prompt_chars_total": 6775,
+        "prompt_chars_max": 3581,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ]
+      },
+      {
+        "first_text_ms": 6.634300050791353,
+        "complete_ms": 6.634300050791353,
+        "model_calls": 2,
+        "prompt_chars_total": 6775,
+        "prompt_chars_max": 3581,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ]
+      },
+      {
+        "first_text_ms": 6.883300025947392,
+        "complete_ms": 6.883300025947392,
+        "model_calls": 2,
+        "prompt_chars_total": 6775,
+        "prompt_chars_max": 3581,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ]
+      },
+      {
+        "first_text_ms": 5.823200044687837,
+        "complete_ms": 5.823200044687837,
+        "model_calls": 2,
+        "prompt_chars_total": 6775,
+        "prompt_chars_max": 3581,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ]
+      },
+      {
+        "first_text_ms": 5.174699996132404,
+        "complete_ms": 5.174699996132404,
+        "model_calls": 2,
+        "prompt_chars_total": 6775,
+        "prompt_chars_max": 3581,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ]
+      },
+      {
+        "first_text_ms": 5.309299973305315,
+        "complete_ms": 5.309299973305315,
+        "model_calls": 2,
+        "prompt_chars_total": 6775,
+        "prompt_chars_max": 3581,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ]
+      },
+      {
+        "first_text_ms": 4.074299999047071,
+        "complete_ms": 4.074299999047071,
+        "model_calls": 2,
+        "prompt_chars_total": 6775,
+        "prompt_chars_max": 3581,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ]
+      },
+      {
+        "first_text_ms": 5.480099993292242,
+        "complete_ms": 5.480099993292242,
+        "model_calls": 2,
+        "prompt_chars_total": 6775,
+        "prompt_chars_max": 3581,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ]
+      },
+      {
+        "first_text_ms": 6.27020001411438,
+        "complete_ms": 6.27020001411438,
+        "model_calls": 2,
+        "prompt_chars_total": 6775,
+        "prompt_chars_max": 3581,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ]
+      },
+      {
+        "first_text_ms": 6.751900014933199,
+        "complete_ms": 6.751900014933199,
+        "model_calls": 2,
+        "prompt_chars_total": 6775,
+        "prompt_chars_max": 3581,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ]
+      }
+    ],
+    "stop_during_audio|-|tracing-off": [
+      {
+        "first_audio_frame_ms": 1.4942000270821154,
+        "frames_after_cancel": 0,
+        "error": false,
+        "kinds": []
+      },
+      {
+        "first_audio_frame_ms": 0.7621000404469669,
+        "frames_after_cancel": 0,
+        "error": false,
+        "kinds": []
+      },
+      {
+        "first_audio_frame_ms": 1.2983999913558364,
+        "frames_after_cancel": 0,
+        "error": false,
+        "kinds": []
+      },
+      {
+        "first_audio_frame_ms": 1.5548999654129148,
+        "frames_after_cancel": 0,
+        "error": false,
+        "kinds": []
+      },
+      {
+        "first_audio_frame_ms": 1.4802999794483185,
+        "frames_after_cancel": 0,
+        "error": false,
+        "kinds": []
+      },
+      {
+        "first_audio_frame_ms": 1.255100010894239,
+        "frames_after_cancel": 0,
+        "error": false,
+        "kinds": []
+      },
+      {
+        "first_audio_frame_ms": 2.239299996290356,
+        "frames_after_cancel": 0,
+        "error": false,
+        "kinds": []
+      },
+      {
+        "first_audio_frame_ms": 1.5839000116102397,
+        "frames_after_cancel": 0,
+        "error": false,
+        "kinds": []
+      },
+      {
+        "first_audio_frame_ms": 1.3818000443279743,
+        "frames_after_cancel": 0,
+        "error": false,
+        "kinds": []
+      },
+      {
+        "first_audio_frame_ms": 0.3926999634131789,
+        "frames_after_cancel": 0,
+        "error": false,
+        "kinds": []
+      },
+      {
+        "first_audio_frame_ms": 0.5928999744355679,
+        "frames_after_cancel": 0,
+        "error": false,
+        "kinds": []
+      },
+      {
+        "first_audio_frame_ms": 0.5148000200279057,
+        "frames_after_cancel": 0,
+        "error": false,
+        "kinds": []
+      },
+      {
+        "first_audio_frame_ms": 1.7389000277034938,
+        "frames_after_cancel": 0,
+        "error": false,
+        "kinds": []
+      },
+      {
+        "first_audio_frame_ms": 0.4972000024281442,
+        "frames_after_cancel": 0,
+        "error": false,
+        "kinds": []
+      },
+      {
+        "first_audio_frame_ms": 1.3515999889932573,
+        "frames_after_cancel": 0,
+        "error": false,
+        "kinds": []
+      },
+      {
+        "first_audio_frame_ms": 1.0016000014729798,
+        "frames_after_cancel": 0,
+        "error": false,
+        "kinds": []
+      },
+      {
+        "first_audio_frame_ms": 2.72759998915717,
+        "frames_after_cancel": 0,
+        "error": false,
+        "kinds": []
+      },
+      {
+        "first_audio_frame_ms": 1.9088999833911657,
+        "frames_after_cancel": 0,
+        "error": false,
+        "kinds": []
+      },
+      {
+        "first_audio_frame_ms": 1.2454999960027635,
+        "frames_after_cancel": 0,
+        "error": false,
+        "kinds": []
+      },
+      {
+        "first_audio_frame_ms": 1.2585999793373048,
+        "frames_after_cancel": 0,
+        "error": false,
+        "kinds": []
+      },
+      {
+        "first_audio_frame_ms": 1.1207000352442265,
+        "frames_after_cancel": 0,
+        "error": false,
+        "kinds": []
+      },
+      {
+        "first_audio_frame_ms": 3.2316999859176576,
+        "frames_after_cancel": 0,
+        "error": false,
+        "kinds": []
+      },
+      {
+        "first_audio_frame_ms": 1.1443999828770757,
+        "frames_after_cancel": 0,
+        "error": false,
+        "kinds": []
+      },
+      {
+        "first_audio_frame_ms": 1.5335000352934003,
+        "frames_after_cancel": 0,
+        "error": false,
+        "kinds": []
+      },
+      {
+        "first_audio_frame_ms": 1.830299966968596,
+        "frames_after_cancel": 0,
+        "error": false,
+        "kinds": []
+      },
+      {
+        "first_audio_frame_ms": 1.9292999641038477,
+        "frames_after_cancel": 0,
+        "error": false,
+        "kinds": []
+      },
+      {
+        "first_audio_frame_ms": 1.6736999968998134,
+        "frames_after_cancel": 0,
+        "error": false,
+        "kinds": []
+      },
+      {
+        "first_audio_frame_ms": 2.520299982279539,
+        "frames_after_cancel": 0,
+        "error": false,
+        "kinds": []
+      },
+      {
+        "first_audio_frame_ms": 2.508200006559491,
+        "frames_after_cancel": 0,
+        "error": false,
+        "kinds": []
+      },
+      {
+        "first_audio_frame_ms": 1.3724000309593976,
+        "frames_after_cancel": 0,
+        "error": false,
+        "kinds": []
+      },
+      {
+        "first_audio_frame_ms": 2.2825999767519534,
+        "frames_after_cancel": 0,
+        "error": false,
+        "kinds": []
+      },
+      {
+        "first_audio_frame_ms": 1.5473999665118754,
+        "frames_after_cancel": 0,
+        "error": false,
+        "kinds": []
+      },
+      {
+        "first_audio_frame_ms": 1.9770999788306653,
+        "frames_after_cancel": 0,
+        "error": false,
+        "kinds": []
+      },
+      {
+        "first_audio_frame_ms": 1.2198000331409276,
+        "frames_after_cancel": 0,
+        "error": false,
+        "kinds": []
+      },
+      {
+        "first_audio_frame_ms": 1.1172000085934997,
+        "frames_after_cancel": 0,
+        "error": false,
+        "kinds": []
+      },
+      {
+        "first_audio_frame_ms": 1.389399985782802,
+        "frames_after_cancel": 0,
+        "error": false,
+        "kinds": []
+      },
+      {
+        "first_audio_frame_ms": 1.121999986935407,
+        "frames_after_cancel": 0,
+        "error": false,
+        "kinds": []
+      },
+      {
+        "first_audio_frame_ms": 2.020200015977025,
+        "frames_after_cancel": 0,
+        "error": false,
+        "kinds": []
+      },
+      {
+        "first_audio_frame_ms": 1.18980003753677,
+        "frames_after_cancel": 0,
+        "error": false,
+        "kinds": []
+      },
+      {
+        "first_audio_frame_ms": 1.2233000015839934,
+        "frames_after_cancel": 0,
+        "error": false,
+        "kinds": []
+      }
+    ],
+    "reconnect_recover|langgraph|tracing-off": [
+      {
+        "resume_snapshot_ms": 15.385499980766326,
+        "recover_first_text_ms": 234.6296000177972,
+        "model_calls_total": 4,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ],
+        "segment_text_prefixes": [
+          "Script exhausted."
+        ]
+      },
+      {
+        "resume_snapshot_ms": 10.460500023327768,
+        "recover_first_text_ms": 231.49560001911595,
+        "model_calls_total": 4,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ],
+        "segment_text_prefixes": [
+          "Script exhausted."
+        ]
+      },
+      {
+        "resume_snapshot_ms": 15.60729998163879,
+        "recover_first_text_ms": 234.00189995300025,
+        "model_calls_total": 4,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ],
+        "segment_text_prefixes": [
+          "Script exhausted."
+        ]
+      },
+      {
+        "resume_snapshot_ms": 15.2144999592565,
+        "recover_first_text_ms": 234.4856999698095,
+        "model_calls_total": 4,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ],
+        "segment_text_prefixes": [
+          "Script exhausted."
+        ]
+      },
+      {
+        "resume_snapshot_ms": 16.32280001649633,
+        "recover_first_text_ms": 236.23680003220215,
+        "model_calls_total": 4,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ],
+        "segment_text_prefixes": [
+          "Script exhausted."
+        ]
+      },
+      {
+        "resume_snapshot_ms": 15.669899992644787,
+        "recover_first_text_ms": 235.49520003143698,
+        "model_calls_total": 4,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ],
+        "segment_text_prefixes": [
+          "Script exhausted."
+        ]
+      },
+      {
+        "resume_snapshot_ms": 16.32439997047186,
+        "recover_first_text_ms": 235.08139996556565,
+        "model_calls_total": 4,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ],
+        "segment_text_prefixes": [
+          "Script exhausted."
+        ]
+      },
+      {
+        "resume_snapshot_ms": 15.522300032898784,
+        "recover_first_text_ms": 234.12350000580773,
+        "model_calls_total": 4,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ],
+        "segment_text_prefixes": [
+          "Script exhausted."
+        ]
+      },
+      {
+        "resume_snapshot_ms": 16.447999980300665,
+        "recover_first_text_ms": 236.01290001533926,
+        "model_calls_total": 4,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ],
+        "segment_text_prefixes": [
+          "Script exhausted."
+        ]
+      },
+      {
+        "resume_snapshot_ms": 14.176300028339028,
+        "recover_first_text_ms": 233.5457000299357,
+        "model_calls_total": 4,
+        "error": false,
+        "kinds": [
+          "session.snapshot",
+          "response.segment"
+        ],
+        "segment_text_prefixes": [
+          "Script exhausted."
+        ]
+      }
+    ],
+    "disconnect_during_model|langgraph|tracing-off": [
+      {
+        "orphaned_completions": 1,
+        "error": false,
+        "kinds": []
+      },
+      {
+        "orphaned_completions": 1,
+        "error": false,
+        "kinds": []
+      },
+      {
+        "orphaned_completions": 1,
+        "error": false,
+        "kinds": []
+      },
+      {
+        "orphaned_completions": 1,
+        "error": false,
+        "kinds": []
+      },
+      {
+        "orphaned_completions": 1,
+        "error": false,
+        "kinds": []
+      },
+      {
+        "orphaned_completions": 1,
+        "error": false,
+        "kinds": []
+      },
+      {
+        "orphaned_completions": 1,
+        "error": false,
+        "kinds": []
+      },
+      {
+        "orphaned_completions": 1,
+        "error": false,
+        "kinds": []
+      },
+      {
+        "orphaned_completions": 1,
+        "error": false,
+        "kinds": []
+      },
+      {
+        "orphaned_completions": 1,
+        "error": false,
+        "kinds": []
+      },
+      {
+        "orphaned_completions": 1,
+        "error": false,
+        "kinds": []
+      },
+      {
+        "orphaned_completions": 1,
+        "error": false,
+        "kinds": []
+      },
+      {
+        "orphaned_completions": 1,
+        "error": false,
+        "kinds": []
+      },
+      {
+        "orphaned_completions": 1,
+        "error": false,
+        "kinds": []
+      },
+      {
+        "orphaned_completions": 1,
+        "error": false,
+        "kinds": []
+      },
+      {
+        "orphaned_completions": 1,
+        "error": false,
+        "kinds": []
+      },
+      {
+        "orphaned_completions": 1,
+        "error": false,
+        "kinds": []
+      },
+      {
+        "orphaned_completions": 1,
+        "error": false,
+        "kinds": []
+      },
+      {
+        "orphaned_completions": 1,
+        "error": false,
+        "kinds": []
+      },
+      {
+        "orphaned_completions": 1,
+        "error": false,
+        "kinds": []
+      }
+    ],
+    "disconnect_during_tutor|langgraph|tracing-off": [
+      {
+        "orphaned_completions": 1,
+        "error": false,
+        "kinds": []
+      },
+      {
+        "orphaned_completions": 1,
+        "error": false,
+        "kinds": []
+      },
+      {
+        "orphaned_completions": 1,
+        "error": false,
+        "kinds": []
+      },
+      {
+        "orphaned_completions": 1,
+        "error": false,
+        "kinds": []
+      },
+      {
+        "orphaned_completions": 1,
+        "error": false,
+        "kinds": []
+      },
+      {
+        "orphaned_completions": 1,
+        "error": false,
+        "kinds": []
+      },
+      {
+        "orphaned_completions": 1,
+        "error": false,
+        "kinds": []
+      },
+      {
+        "orphaned_completions": 1,
+        "error": false,
+        "kinds": []
+      },
+      {
+        "orphaned_completions": 1,
+        "error": false,
+        "kinds": []
+      },
+      {
+        "orphaned_completions": 1,
+        "error": false,
+        "kinds": []
+      },
+      {
+        "orphaned_completions": 1,
+        "error": false,
+        "kinds": []
+      },
+      {
+        "orphaned_completions": 1,
+        "error": false,
+        "kinds": []
+      },
+      {
+        "orphaned_completions": 1,
+        "error": false,
+        "kinds": []
+      },
+      {
+        "orphaned_completions": 1,
+        "error": false,
+        "kinds": []
+      },
+      {
+        "orphaned_completions": 1,
+        "error": false,
+        "kinds": []
+      },
+      {
+        "orphaned_completions": 1,
+        "error": false,
+        "kinds": []
+      },
+      {
+        "orphaned_completions": 1,
+        "error": false,
+        "kinds": []
+      },
+      {
+        "orphaned_completions": 1,
+        "error": false,
+        "kinds": []
+      },
+      {
+        "orphaned_completions": 1,
+        "error": false,
+        "kinds": []
+      },
+      {
+        "orphaned_completions": 1,
+        "error": false,
+        "kinds": []
+      }
+    ]
+  }
+}

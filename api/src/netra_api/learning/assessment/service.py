@@ -9,13 +9,16 @@ written through — the Tutor calls propose_event as a bounded tool call
 
 derive_status_from_history is pure, deterministic local computation
 (like netra_worker.runtime.retries's backoff formula), so it is
-implemented in full rather than stubbed. propose_event's commit path is
-now implemented against the AssessmentHistoryRepository/
-PendingQuestionRepository Protocols (no concrete PostgreSQL-backed
-implementation exists yet, matching every other repository-backed
-service in this codebase — see netra_api.coordinator.router.route_turn
-for the same "implement the logic against the Protocol, not the
-driver" pattern).
+implemented in full rather than stubbed. propose_event commits through
+AtomicAnswerCommitter whenever the repository provides it — the durable
+netra_api.learning.postgres.PostgresLearningStore closes the pending
+question, appends the attempt and writes the projection outbox event in
+one PostgreSQL transaction (INT-08). Repositories without it are
+non-durable in-memory fixtures; their sequential append/mark_answered path
+is neither atomic nor projected and is never registered in production.
+
+Methods are async because the durable store is async; they accept
+synchronous fixture repositories through maybe_await.
 
 propose_event only ever commits event_type == "answer_evaluated": that
 is the only LearningEventType AssessmentAttempt (question_id/
@@ -47,10 +50,11 @@ from netra_api.learning.assessment.models import (
     LearningEventProposal,
     LearningStatus,
 )
-from netra_api.learning.assessment.repository import AssessmentHistoryRepository
+from netra_api.learning.assessment.repository import AssessmentHistoryRepository, AtomicAnswerCommitter
 from netra_api.learning.quiz.repository import PendingQuestionRepository
 from netra_api.platform.auth_context import AuthContext
-from netra_api.platform.errors import NetraError
+from netra_api.platform.awaitables import maybe_await
+from netra_api.platform.errors import NetraError, ResourceUnavailableError
 
 
 class StatusDerivationPolicy(BaseModel):
@@ -232,14 +236,18 @@ class LearningService:
     def __init__(
         self,
         repository: AssessmentHistoryRepository,
-        status_derivation_policy: StatusDerivationPolicy,
+        status_derivation_policy: Optional[StatusDerivationPolicy],
         pending_question_repository: PendingQuestionRepository,
     ) -> None:
+        """status_derivation_policy is legacy: automatic learning labels are a
+        removed requirement and no approved thresholds exist, so production
+        passes None and derive_current_status then refuses. Committing and
+        reading factual history never needs it."""
         self._repository = repository
         self._status_derivation_policy = status_derivation_policy
         self._pending_question_repository = pending_question_repository
 
-    def propose_event(self, auth: AuthContext, proposal: LearningEventProposal) -> AssessmentAttempt:
+    async def propose_event(self, auth: AuthContext, proposal: LearningEventProposal) -> AssessmentAttempt:
         """Validate a Tutor-proposed learning event and commit it as an AssessmentAttempt.
 
         Only event_type == "answer_evaluated" can be committed today — see
@@ -289,13 +297,13 @@ class LearningService:
         # duplicate delivery reuse its effect instead of erroring, and it
         # holds here at the authoritative layer rather than depending on
         # every caller to check first.
-        replayed = self.find_committed_attempt(
+        replayed = await self.find_committed_attempt(
             auth, proposal.question_id, proposal.question_version
         )
         if replayed is not None:
             return replayed
 
-        pending = self._pending_question_repository.get_pending(auth, proposal.question_id)
+        pending = await maybe_await(self._pending_question_repository.get_pending(auth, proposal.question_id))
         if pending is None:
             raise QuestionNotPendingError(proposal.question_id)
         if pending.question_version != proposal.question_version:
@@ -315,13 +323,21 @@ class LearningService:
             evaluated_by=proposal.evaluated_by,
             created_at=datetime.now(timezone.utc),
         )
-        committed = self._repository.append(auth, attempt)
-        self._pending_question_repository.mark_answered(
-            auth, proposal.question_id, proposal.question_version
+        if isinstance(self._repository, AtomicAnswerCommitter):
+            # Durable path: question closure, attempt and projection outbox
+            # event commit together, and a concurrent second answer to the
+            # same question is refused inside that transaction.
+            return await self._repository.commit_answer(auth, attempt)
+        # Non-durable fixture repositories only (see the module docstring).
+        committed = await maybe_await(self._repository.append(auth, attempt))
+        await maybe_await(
+            self._pending_question_repository.mark_answered(
+                auth, proposal.question_id, proposal.question_version
+            )
         )
         return committed
 
-    def find_committed_attempt(
+    async def find_committed_attempt(
         self, auth: AuthContext, question_id: str, question_version: int
     ) -> Optional[AssessmentAttempt]:
         """Return the attempt this exact turn already committed, if any.
@@ -343,11 +359,11 @@ class LearningService:
         attempt, never a replay of this one.
         """
 
-        return self._repository.get(
-            auth, derive_attempt_id(auth.request_id, question_id, question_version)
+        return await maybe_await(
+            self._repository.get(auth, derive_attempt_id(auth.request_id, question_id, question_version))
         )
 
-    def list_attempts_for_concepts(
+    async def list_attempts_for_concepts(
         self, auth: AuthContext, concept_ids: Sequence[str]
     ) -> list[AssessmentAttempt]:
         """Factual attempt history for the given concepts, newest last.
@@ -364,13 +380,20 @@ class LearningService:
 
         attempts: list[AssessmentAttempt] = []
         for concept_id in concept_ids:
-            attempts.extend(self._repository.list_for_concept(auth, concept_id))
+            attempts.extend(await maybe_await(self._repository.list_for_concept(auth, concept_id)))
         return sorted(attempts, key=lambda attempt: attempt.created_at)
 
-    def derive_current_status(self, auth: AuthContext, concept_id: str) -> CurrentLearningStatus:
-        """Read history for concept_id and derive its current LearningStatus."""
+    async def derive_current_status(self, auth: AuthContext, concept_id: str) -> CurrentLearningStatus:
+        """Read history for concept_id and derive its legacy LearningStatus.
 
-        attempts = self._repository.list_for_concept(auth, concept_id)
+        Legacy compatibility only (automatic labels are a removed
+        requirement). Refuses when no policy was configured rather than
+        inventing thresholds.
+        """
+
+        if self._status_derivation_policy is None:
+            raise ResourceUnavailableError("legacy learning-status derivation is not configured")
+        attempts = await maybe_await(self._repository.list_for_concept(auth, concept_id))
         status = derive_status_from_history(attempts, self._status_derivation_policy)
         last_assessed_at = max((attempt.created_at for attempt in attempts), default=None)
         return CurrentLearningStatus(

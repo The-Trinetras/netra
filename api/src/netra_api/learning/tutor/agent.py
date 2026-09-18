@@ -285,7 +285,7 @@ async def _run_explanation(state: TutorTurnState, services: TutorServices) -> Tu
             decision_summary="No supplied evidence reference resolved to authorized content.",
         )
 
-    history = _select_relevant_history(state, services)
+    history = await _select_relevant_history(state, services)
     text = await _decide(
         state,
         services,
@@ -326,7 +326,7 @@ async def _run_hint(state: TutorTurnState, services: TutorServices) -> TutorToCo
 
     _ensure_can_continue(state)
     state.budget.register_tool_call()
-    question = services.pending_questions.get_pending(state.auth, pending_ref.question_id)
+    question = await maybe_await(services.pending_questions.get_pending(state.auth, pending_ref.question_id))
     if question is None:
         return _result(
             state,
@@ -459,7 +459,7 @@ async def _run_check_understanding(
 
     _ensure_can_continue(state)
     state.budget.register_tool_call()
-    persisted = services.pending_questions.persist_pending(state.auth, question)
+    persisted = await maybe_await(services.pending_questions.persist_pending(state.auth, question))
 
     return _result(
         state,
@@ -507,15 +507,17 @@ async def _run_evaluate_answer(
     # decision and no second grade.
     _ensure_can_continue(state)
     state.budget.register_tool_call()
-    already_committed = services.learning_service.find_committed_attempt(
-        state.auth, pending_ref.question_id, pending_ref.question_version
+    already_committed = await maybe_await(
+        services.learning_service.find_committed_attempt(
+            state.auth, pending_ref.question_id, pending_ref.question_version
+        )
     )
     if already_committed is not None:
         return _replayed_result(state, already_committed)
 
     _ensure_can_continue(state)
     state.budget.register_tool_call()
-    question = services.pending_questions.get_pending(state.auth, pending_ref.question_id)
+    question = await maybe_await(services.pending_questions.get_pending(state.auth, pending_ref.question_id))
     if question is None:
         return _result(
             state,
@@ -586,7 +588,7 @@ async def _run_evaluate_answer(
 
     _ensure_can_continue(state)
     state.budget.register_tool_call()
-    attempt = services.learning_service.propose_event(
+    attempt = await maybe_await(services.learning_service.propose_event(
         state.auth,
         LearningEventProposal(
             # auth.account_id, never a model- or handoff-supplied account
@@ -606,7 +608,7 @@ async def _run_evaluate_answer(
             evaluated_by=evaluated_by,
             hints_used=pending_ref.hints_used,
         ),
-    )
+    ))
 
     return _result(
         state,
@@ -648,7 +650,7 @@ class RelevantHistory:
     available: bool
 
 
-def _select_relevant_history(state: TutorTurnState, services: TutorServices) -> RelevantHistory:
+async def _select_relevant_history(state: TutorTurnState, services: TutorServices) -> RelevantHistory:
     """Read committed attempts for the handoff's target concepts.
 
     Returns facts (what was answered, what outcome was recorded, how much
@@ -666,8 +668,10 @@ def _select_relevant_history(state: TutorTurnState, services: TutorServices) -> 
     _ensure_can_continue(state)
     state.budget.register_tool_call()
     try:
-        attempts = services.learning_service.list_attempts_for_concepts(
-            state.auth, list(state.handoff.target_concept_ids)
+        attempts = await maybe_await(
+            services.learning_service.list_attempts_for_concepts(
+                state.auth, list(state.handoff.target_concept_ids)
+            )
         )
     except (AuthorizationError, TurnBudgetExceededError):
         # Neither is a history-availability signal: the first is a scoping

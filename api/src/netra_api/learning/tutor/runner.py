@@ -52,6 +52,7 @@ from netra_api.coordinator.handoff import (
 from netra_api.coordinator.limits import TurnBudget
 from netra_api.learning.tutor.agent import TutorServices, build_turn_state, run_turn
 from netra_api.platform.auth_context import AuthContext
+from netra_api.platform.awaitables import maybe_await
 from netra_api.platform.errors import NetraError
 
 
@@ -160,11 +161,11 @@ class TutorRunner:
             result=result,
             committed_events=committed,
             uncommitted_events=uncommitted,
-            pending_question=self._pending_question_outcome(handoff, auth, result, committed),
+            pending_question=await self._pending_question_outcome(handoff, auth, result, committed),
             cancelled_during_turn=budget.cancelled,
         )
 
-    def _pending_question_outcome(
+    async def _pending_question_outcome(
         self,
         handoff: CoordinatorToTutorHandoff,
         auth: AuthContext,
@@ -194,7 +195,7 @@ class TutorRunner:
 
         # A question the handoff did not already reference: it must be
         # resolvable from the store before anyone may deliver it.
-        persisted = self._services.pending_questions.get_pending(auth, returned_id)
+        persisted = await maybe_await(self._services.pending_questions.get_pending(auth, returned_id))
         if persisted is None:
             raise UndeliverableQuestionError(
                 "the Tutor returned a pending question that is not persisted for this account"

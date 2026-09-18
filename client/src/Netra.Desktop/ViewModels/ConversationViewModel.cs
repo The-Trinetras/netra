@@ -7,6 +7,7 @@ using Netra.Desktop.Protocol;
 using Netra.Desktop.Protocol.Dto;
 using Netra.Desktop.Speech;
 using Netra.Desktop.State;
+using Netra.Desktop.Threading;
 
 namespace Netra.Desktop.ViewModels;
 
@@ -16,12 +17,24 @@ public sealed class TranscriptLine
     public required string Text { get; init; }
 }
 
-public sealed class MainViewModel : ViewModelBase, IDisposable
+// Renamed from the scaffold's MainViewModel now that MainWindow hosts four
+// views (Library/Study/Conversation/Preferences) instead of one. Behaviour
+// carried over unchanged except where noted:
+//  - UI-thread marshaling was added around every mutation triggered by a
+//    non-UI-thread event (see Threading/IUiDispatcher.cs for why the old
+//    direct mutation was a genuine bug, not a style preference).
+//  - response.segment now calls BinaryAudioFrameProcessor.AdmitGeneration
+//    once per new generation id (previously nothing ever called it).
+//  - session.snapshot/quiz.question/error are now handled instead of
+//    dropped as TODOs.
+public sealed class ConversationViewModel : ViewModelBase, IDisposable
 {
     private readonly ClientSessionState _sessionState;
     private readonly ConnectionManager _connectionManager;
     private readonly InterruptionController _interruptionController;
+    private readonly BinaryAudioFrameProcessor _binaryAudioFrameProcessor;
     private readonly ISpeechInputService _speechInputService;
+    private readonly IUiDispatcher _dispatcher;
 
     // Final transcripts already turned into a turn, by their stable
     // TranscriptId. Recognition providers redeliver results on reconnect
@@ -29,21 +42,31 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
     // the server could not tell a redelivery from a second utterance.
     private readonly HashSet<Guid> _submittedTranscriptIds = new();
 
+    // Generation ids already admitted to BinaryAudioFrameProcessor, so a
+    // later response.segment for the same still-active generation does not
+    // re-admit (which would otherwise reset the per-generation sequence
+    // tracker and re-open a window for replayed low sequence numbers).
+    private string? _lastAdmittedGenerationId;
+
     private string _inputText = string.Empty;
     private string _interimTranscript = string.Empty;
     private string _statusMessage = string.Empty;
 
-    public MainViewModel(
+    public ConversationViewModel(
         ClientSessionState sessionState,
         ConnectionManager connectionManager,
         IPlaybackController playbackController,
         InterruptionController interruptionController,
-        ISpeechInputService speechInputService)
+        BinaryAudioFrameProcessor binaryAudioFrameProcessor,
+        ISpeechInputService speechInputService,
+        IUiDispatcher dispatcher)
     {
         _sessionState = sessionState;
         _connectionManager = connectionManager;
         _interruptionController = interruptionController;
+        _binaryAudioFrameProcessor = binaryAudioFrameProcessor;
         _speechInputService = speechInputService;
+        _dispatcher = dispatcher;
 
         // playbackController is not read directly here; ownership of local
         // playback lives in InterruptionController/PlaybackAcknowledger. It
@@ -137,6 +160,8 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
             CancellationToken.None).ConfigureAwait(false);
     }
 
+    // Fires from a future recognition-provider thread, not the UI thread —
+    // every mutation below is marshaled.
     private void OnTranscriptReceived(object? sender, TranscriptReceivedEventArgs e)
     {
         if (!e.IsFinal)
@@ -145,7 +170,7 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
             // navigation or be submitted as a turn. An interim "next"
             // followed by a final "next question" must therefore not
             // navigate on the interim.
-            InterimTranscript = e.Text;
+            _dispatcher.Invoke(() => InterimTranscript = e.Text);
             return;
         }
 
@@ -157,33 +182,119 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
             return;
         }
 
-        InterimTranscript = string.Empty;
-        InputText = e.Text;
+        _dispatcher.Invoke(() => InterimTranscript = string.Empty);
+        _dispatcher.Invoke(() => InputText = e.Text);
         FireAndForget(() => SubmitAsync(Protocol.Dto.InputMode.Voice));
     }
 
+    // Fires from the WebSocket receive loop thread, not the UI thread.
     private void OnServerMessageReceived(object? sender, ServerToClientEnvelope envelope)
     {
         switch (envelope.Type)
         {
             case ServerMessageType.ResponseSegment:
-                var segment = MessageParser.ParseResponseSegment(envelope);
-                _sessionState.CurrentGenerationId = segment.GenerationId;
-
-                if (!_interruptionController.IsCancelled(segment.GenerationId))
-                {
-                    Transcript.Add(new TranscriptLine { Speaker = "Tutor", Text = segment.Text });
-                }
-
+                HandleResponseSegment(envelope);
                 break;
 
             case ServerMessageType.SessionSnapshot:
+                HandleSessionSnapshot(envelope);
+                break;
+
             case ServerMessageType.QuizQuestion:
+                HandleQuizQuestion(envelope);
+                break;
+
             case ServerMessageType.Error:
-                // TODO: handle once these payload contracts are typed (see
-                // Protocol/Dto/ServerPayloads.cs).
+                HandleError(envelope);
                 break;
         }
+    }
+
+    private void HandleResponseSegment(ServerToClientEnvelope envelope)
+    {
+        var segment = MessageParser.ParseResponseSegment(envelope);
+
+        // Admit the generation before it can be treated as playable, and
+        // only once per generation id — a later segment.response for the
+        // SAME still-active generation must not reset the sequence tracker.
+        // This is the wiring the scaffold left as a TODO: nothing previously
+        // ever called AdmitGeneration, so BinaryAudioFrameProcessor could
+        // never actually pass a frame through even once headers parsed
+        // correctly.
+        if (!string.Equals(_lastAdmittedGenerationId, segment.GenerationId, StringComparison.Ordinal))
+        {
+            _binaryAudioFrameProcessor.AdmitGeneration(segment.GenerationId);
+            _lastAdmittedGenerationId = segment.GenerationId;
+        }
+
+        _dispatcher.Invoke(() =>
+        {
+            _sessionState.CurrentGenerationId = segment.GenerationId;
+
+            if (!_interruptionController.IsCancelled(segment.GenerationId))
+            {
+                Transcript.Add(new TranscriptLine { Speaker = "Tutor", Text = segment.Text });
+            }
+        });
+    }
+
+    private void HandleSessionSnapshot(ServerToClientEnvelope envelope)
+    {
+        var snapshot = MessageParser.ParseSessionSnapshot(envelope);
+
+        _dispatcher.Invoke(() =>
+        {
+            // Snapshot carries the server's authoritative version; it is
+            // not a client mutation, so it must reconcile even when it does
+            // not strictly increase (e.g. the very first snapshot after
+            // Initialize()). TryAdvanceSessionVersion only ever moves the
+            // counter forward, which is correct for OUR mutations but wrong
+            // for accepting a freshly-reconciled snapshot on connect —
+            // Initialize() is the right primitive here.
+            _sessionState.Initialize(_sessionState.SessionId, snapshot.SessionVersion);
+            _sessionState.InteractionMode = snapshot.InteractionMode;
+            _sessionState.ActiveSourceVersionId = snapshot.ActiveSourceVersionId;
+            _sessionState.CurrentBlockId = snapshot.CurrentBlockId;
+            _sessionState.CurrentSentenceId = snapshot.CurrentSentenceId;
+            _sessionState.LastAcknowledgedSentenceId = snapshot.LastAcknowledgedSentenceId;
+            _sessionState.ActiveTutorLessonId = snapshot.ActiveLesson?.LessonId.ToString();
+            _sessionState.PendingQuestionId = snapshot.PendingQuestion?.QuestionId;
+            _sessionState.LastResultSetId = snapshot.LastResultSet?.ResultSetId;
+
+            StatusMessage = $"Session restored: {snapshot.InteractionMode}.";
+        });
+    }
+
+    private void HandleQuizQuestion(ServerToClientEnvelope envelope)
+    {
+        var question = MessageParser.ParseQuizQuestion(envelope);
+
+        _dispatcher.Invoke(() =>
+        {
+            _sessionState.PendingQuestionId = question.QuestionId;
+            // The prompt is public-safe by construction (QuizQuestionPayload
+            // structurally excludes answer_key/rubric); it is therefore safe
+            // to surface as ordinary transcript/status text.
+            Transcript.Add(new TranscriptLine { Speaker = "Question", Text = question.Prompt });
+        });
+    }
+
+    private void HandleError(ServerToClientEnvelope envelope)
+    {
+        var error = MessageParser.ParseError(envelope);
+
+        _dispatcher.Invoke(() =>
+        {
+            if (error.CurrentSessionVersion is { } currentVersion)
+            {
+                _sessionState.Initialize(_sessionState.SessionId, currentVersion);
+            }
+
+            // error.message is the schema's own "safe/accessible text only"
+            // field; error.code/retryable/correlation_id are for programmatic
+            // handling, not for reading aloud, so only Message is surfaced.
+            StatusMessage = error.Message;
+        });
     }
 
     private static async void FireAndForget(Func<Task> operation)

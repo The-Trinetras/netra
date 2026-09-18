@@ -1,0 +1,91 @@
+<UserControl x:Class="Netra.Desktop.Views.LibraryView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:library="clr-namespace:Netra.Desktop.Library">
+
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <Button x:Name="SelectFileButton" Grid.Row="0"
+                Content="Select PDF or lecture file..."
+                Click="OnSelectFileClick"
+                AutomationProperties.Name="Select PDF or lecture file"
+                HorizontalAlignment="Left" TabIndex="0" Padding="8,4" Margin="0,0,0,8" />
+
+        <ListBox Grid.Row="1"
+                 ItemsSource="{Binding Entries}"
+                 AutomationProperties.Name="Library entries"
+                 TabIndex="1">
+            <ListBox.ItemTemplate>
+                <DataTemplate DataType="{x:Type library:LibraryEntry}">
+                    <TextBlock>
+                        <Run Text="{Binding FileName, Mode=OneWay}" />
+                        <Run Text=" — " />
+                        <Run Text="{Binding Status, Mode=OneWay}" />
+                    </TextBlock>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+
+        <TextBlock x:Name="LibraryStatusRegion" Grid.Row="2" Margin="0,8,0,12"
+                   Text="{Binding StatusMessage}"
+                   AutomationProperties.LiveSetting="Polite"
+                   AutomationProperties.Name="Library status" />
+
+        <Grid Grid.Row="3" Margin="0,0,0,8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <TextBox Grid.Column="0"
+                     Text="{Binding VideoSearchQuery, UpdateSourceTrigger=PropertyChanged}"
+                     AutomationProperties.Name="Find a lecture: topic, title or lecturer"
+                     TabIndex="2" Margin="0,0,8,0" VerticalContentAlignment="Center">
+                <TextBox.InputBindings>
+                    <KeyBinding Key="Return" Command="{Binding SearchVideosCommand}" />
+                </TextBox.InputBindings>
+            </TextBox>
+
+            <Button Grid.Column="1" Content="Search"
+                    Command="{Binding SearchVideosCommand}"
+                    AutomationProperties.Name="Search for a lecture"
+                    TabIndex="3" Padding="8,4" />
+        </Grid>
+
+        <ListBox Grid.Row="4"
+                 ItemsSource="{Binding VideoResults}"
+                 SelectedItem="{Binding SelectedVideoResult, Mode=OneWay}"
+                 AutomationProperties.Name="Numbered lecture results"
+                 TabIndex="4">
+            <ListBox.ItemTemplate>
+                <DataTemplate DataType="{x:Type library:VideoDiscoveryResult}">
+                    <TextBlock>
+                        <Run Text="{Binding Ordinal, Mode=OneWay}" />
+                        <Run Text=". " />
+                        <Run Text="{Binding Title, Mode=OneWay}" />
+                        <Run Text=" — " />
+                        <Run Text="{Binding Lecturer, Mode=OneWay}" />
+                    </TextBlock>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+            <ListBox.InputBindings>
+                <KeyBinding Key="Return" Command="{Binding SelectVideoResultCommand}"
+                            CommandParameter="{Binding SelectedVideoResult}" />
+            </ListBox.InputBindings>
+        </ListBox>
+
+        <Button Grid.Row="5" Content="Select this result"
+                Command="{Binding SelectVideoResultCommand}"
+                CommandParameter="{Binding SelectedVideoResult}"
+                AutomationProperties.Name="Select this lecture result"
+                TabIndex="5" HorizontalAlignment="Left" Padding="8,4" Margin="0,8,0,0" />
+    </Grid>
+</UserControl>

@@ -249,7 +249,13 @@ class DeterministicNavigator:
     async def _return_to_question(self, auth, state: SessionState, unit, paused) -> NavigationOutcome:
         if state.pending_question is None:
             return NavigationOutcome(None, ResponsePlan.notice(NO_QUESTION_NOTICE))
-        question = await self.load_pending_question(auth, state)
+        try:
+            question = await self.load_pending_question(auth, state)
+        except StaleRequestError:
+            # The Learning store no longer holds it pending (answered or
+            # withdrawn): drop the stale reference atomically with this
+            # request instead of failing every later attempt. Never a new one.
+            return NavigationOutcome(state.without_pending_question(), ResponsePlan.notice(NO_QUESTION_NOTICE))
 
         updates: dict[str, Any] = {
             "interaction_mode": InteractionMode.TUTOR_LESSON if state.active_lesson else InteractionMode.QUIZ

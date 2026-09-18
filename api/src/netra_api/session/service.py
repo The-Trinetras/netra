@@ -43,6 +43,7 @@ from netra_api.session.repository import RequestAlreadyRecordedError, SessionRep
 from netra_api.session.result_sets import ResultSet, ResultSetItem, ResultSetRepository
 from netra_api.session.state import (
     AccountContext,
+    PendingQuestionRef,
     PlaybackAcknowledgement,
     ReadingPosition,
     ResultSetRef,
@@ -273,6 +274,24 @@ class SessionService:
             return state.model_copy(update=updates)
 
         return await self.merge_internal(auth, merge)
+
+    async def clear_stale_pending_question(self, auth: AuthContext, stale: PendingQuestionRef) -> SessionState:
+        """Compare-and-clear a pending-question reference the Learning store no longer holds.
+
+        The learning commit (attempt + question closure) and the session's
+        reference live in different transactions, so a crash between them can
+        leave the session pointing at an answered question. Reconnect must not
+        fail forever on it, nor invent a replacement: the reference is removed
+        only if it is still exactly the stale one.
+        """
+
+        async def merge(state: SessionState) -> Optional[SessionState]:
+            if state.pending_question != stale:
+                return None
+            return state.without_pending_question()
+
+        state, _ = await self.merge_internal(auth, merge)
+        return state
 
     async def pin_source(self, state: SessionState, auth: AuthContext, source_version_id: str) -> SessionState:
         """Proposed next state for an EXPLICIT source switch (decide callback helper).

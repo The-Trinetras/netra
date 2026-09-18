@@ -580,11 +580,18 @@ class Connection:
 
     async def _resume(self, auth: AuthContext) -> None:
         state = await self.services.sessions.get_state(auth)
+        question = None
+        if state.pending_question is not None:
+            try:
+                question = await self.services.navigator.load_pending_question(auth, state)
+            except StaleRequestError:
+                # Answered (e.g. committed just before a crash) or withdrawn:
+                # reconcile the reference rather than failing every resume.
+                state = await self.services.sessions.clear_stale_pending_question(auth, state.pending_question)
         await self._send_message(
             auth.session_id, auth.request_id, "session.snapshot", build_session_snapshot(state).model_dump(mode="json")
         )
-        if state.pending_question is not None:
-            question = await self.services.navigator.load_pending_question(auth, state)
+        if question is not None:
             rendered = render_response(state, ResponsePlan(question=question), None)
             await self._send_message(auth.session_id, auth.request_id, "quiz.question", rendered["messages"][-1]["payload"])
 

@@ -109,6 +109,23 @@ class SessionState(BaseModel):
     session_version: int = Field(default=0, ge=0)
     updated_at: datetime
 
+    def without_pending_question(self) -> "SessionState":
+        """This state with its pending-question reference removed.
+
+        Used only when the Learning store says the referenced question is no
+        longer pending (answered — for example committed just before a crash
+        that lost the session update — or withdrawn). The interaction mode
+        falls back to the lesson, reading or idle, never to a new question.
+        """
+
+        if self.active_lesson is not None:
+            mode = InteractionMode.TUTOR_LESSON
+        elif self.reading_position.has_location:
+            mode = InteractionMode.READING
+        else:
+            mode = InteractionMode.IDLE
+        return self.model_copy(update={"pending_question": None, "interaction_mode": mode})
+
     def with_incremented_version(self) -> "SessionState":
         """Return a copy with session_version incremented by one.
 

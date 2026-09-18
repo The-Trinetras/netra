@@ -153,7 +153,8 @@ def durable_repositories(settings: Settings) -> Repositories:
     )
 
 
-def production_dependencies(engine: Any, tracer: Optional[Tracer] = None) -> IntegrationDependencies:
+def production_dependencies(engine: Any, tracer: Optional[Tracer] = None,
+                            settings: Optional[Settings] = None) -> IntegrationDependencies:
     """Real M2 content services and M4's durable learning store over one engine.
 
     Every M2 repository is built around one AsyncSession, so each is wrapped in
@@ -180,7 +181,7 @@ def production_dependencies(engine: Any, tracer: Optional[Tracer] = None) -> Int
     sessions = create_session_factory(engine)
     content = ContentSettings()
     learning = PostgresLearningStore(sessions)
-    return IntegrationDependencies(
+    dependencies = IntegrationDependencies(
         reading_positions=SessionScoped(sessions, AsyncReadingPositionRepository),
         reading_blocks=SessionScoped(sessions, AsyncReadingBlockRepository),
         sources=SessionScoped(sessions, AsyncSourceRepository),
@@ -188,6 +189,27 @@ def production_dependencies(engine: Any, tracer: Optional[Tracer] = None) -> Int
         retrieval=SessionScoped(sessions, lambda session: build_postgres_retrieval_service(session, content, tracer)),
         pending_questions=learning,
     )
+    settings = settings or Settings()
+    if settings.gemini_api_key is not None:
+        from netra_api.coordinator.providers.gemini_client import GeminiCoordinatorAdapter
+
+        dependencies.coordinator_model = GeminiCoordinatorAdapter.from_api_key(
+            settings.gemini_api_key.get_secret_value(), timeout_seconds=settings.model_request_timeout_seconds)
+    if settings.groq_api_key is not None:
+        from netra_api.learning.assessment.service import LearningService
+        from netra_api.learning.tutor.agent import TutorServices
+        from netra_api.learning.tutor.providers.groq_client import GroqTutorAdapter
+
+        # No quiz generator is registered: optional-check support (D2) is an
+        # open decision and fails closed, so drafting questions is not wired.
+        dependencies.tutor_services = TutorServices(
+            provider=GroqTutorAdapter.from_api_key(settings.groq_api_key.get_secret_value(),
+                                                   timeout_seconds=settings.model_request_timeout_seconds),
+            evidence_resolver=dependencies.evidence_resolver,
+            pending_questions=learning,
+            learning_service=LearningService(learning, None, learning),
+        )
+    return dependencies
 
 
 def compose(
@@ -305,5 +327,5 @@ def build_production(settings: Optional[Settings] = None, dependencies: Optional
     tracer = None
     if dependencies is None and repositories.engine is not None:
         tracer = build_tracer(settings.tracing_mode, settings=ExportSettings(), service_name="netra-api")
-        dependencies = production_dependencies(repositories.engine, tracer)
+        dependencies = production_dependencies(repositories.engine, tracer, settings)
     return compose(settings, repositories, dependencies or IntegrationDependencies(), tracer=tracer)

@@ -143,7 +143,40 @@ def pegasus_result_to_candidate(
     is not the pin Netra agreed to use.
     """
 
-    validate_pegasus_result(result, kind=kind, duration_ms=asset.duration_ms)
+    return pegasus_candidate(
+        result,
+        video_id=asset.video_id,
+        source_version_id=asset.source_version_id,
+        duration_ms=asset.duration_ms,
+        kind=kind,
+        locator=locator,
+        model_name=model_name,
+        model_version=model_version,
+        produced_at=produced_at,
+        stage=stage,
+    )
+
+
+def pegasus_candidate(
+    result: PegasusGenerationResult,
+    *,
+    video_id: UUID,
+    source_version_id: UUID,
+    duration_ms: Optional[int],
+    kind: PegasusGenerationKind,
+    locator: str,
+    model_name: str,
+    model_version: str,
+    produced_at: datetime,
+    stage: str,
+) -> VideoEvidenceCandidate:
+    """pegasus_result_to_candidate for callers holding ids, not a VideoAsset.
+
+    The worker's describe port receives the canonical video id and source
+    version but not the whole asset; the checks are identical.
+    """
+
+    validate_pegasus_result(result, kind=kind, duration_ms=duration_ms)
 
     evidence_kind = _KIND_BY_GENERATION.get(kind)
     if evidence_kind is None:
@@ -154,8 +187,8 @@ def pegasus_result_to_candidate(
         )
 
     return VideoEvidenceCandidate(
-        video_id=asset.video_id,
-        source_version_id=asset.source_version_id,
+        video_id=video_id,
+        source_version_id=source_version_id,
         locator=locator,
         start_ms=int(result.start_ms),
         end_ms=int(result.end_ms),

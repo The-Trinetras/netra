@@ -22,16 +22,42 @@ netra_api at runtime — that is what keeps the two processes separately
 deployable (see worker/pyproject.toml) — so these Protocols describe
 what a job needs without reaching across that line. M3 owns the handlers
 and these ports; M2 owns the PostgreSQL implementations behind them.
-The concrete implementations are recorded as a pending boundary in
-docs/team/handoffs/M3.md rather than written here.
+The provider-side implementations are the API-side adapters
+(netra_api.multimedia.providers.twelve_labs_client,
+netra_api.multimedia.extraction.adapter), wired in by the worker's
+composition root; the persistence sinks remain M2's (INT-04 in
+docs/team/handoffs/M3.md). recording.py binds a claimed job's lease to
+StageRecorder and CancellationToken.
 """
 
 from __future__ import annotations
 
-from typing import Awaitable, Callable, List, Optional, Protocol
+from typing import Any, Awaitable, Callable, List, Optional, Protocol, Type, TypeVar
 from uuid import UUID
 
+from pydantic import BaseModel
+
 from netra_worker.runtime.job_repository import JobPayload
+
+TRecord = TypeVar("TRecord", bound=BaseModel)
+
+
+def coerce_record(record_type: Type[TRecord], value: Any) -> TRecord:
+    """Re-validate adapter output as this worker's own record type.
+
+    Adapters are built on the API side (they reuse its validators and
+    provider code) and hand back either plain JSON-compatible data or an
+    API model with the same fields. The worker imports nothing from
+    netra_api, so it validates whatever arrives into its own record here:
+    a field the two sides disagree on fails loudly at the boundary instead
+    of being stored.
+    """
+
+    if isinstance(value, record_type):
+        return value
+    if isinstance(value, BaseModel):
+        value = value.model_dump(mode="json")
+    return record_type.model_validate(value)
 
 
 class MultimediaJobPayload(JobPayload):

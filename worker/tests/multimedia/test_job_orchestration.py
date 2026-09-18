@@ -214,9 +214,9 @@ def _candidate(payload):
     )
 
 
-def _outcome(*, source_verified, checked=2):
+def _outcome(*, source_verified, checked=2, kind=ExtractedObjectKind.CHART):
     return ExtractionOutcome(
-        kind=ExtractedObjectKind.CHART,
+        kind=kind,
         object_index=2,
         structure={"chart_id": "fig02"},
         validation=ValidationVerdict(
@@ -600,18 +600,30 @@ async def test_an_unchecked_extraction_is_not_citable():
 async def test_each_extraction_job_declares_its_own_object_kind():
     recorders = {}
     sinks = {}
-    for name, job_type in (
-        ("figure", ExtractFigureJob),
-        ("chart", ExtractChartJob),
-        ("table", ExtractTableJob),
+    for name, job_type, kind in (
+        ("figure", ExtractFigureJob, ExtractedObjectKind.FIGURE),
+        ("chart", ExtractChartJob, ExtractedObjectKind.CHART),
+        ("table", ExtractTableJob, ExtractedObjectKind.TABLE),
     ):
         recorders[name] = FakeRecorder()
         sinks[name] = FakeExtractionSink()
         await job_type(
-            FakeExtraction(_outcome(source_verified=True)), sinks[name], recorders[name]
+            FakeExtraction(_outcome(source_verified=True, kind=kind)), sinks[name], recorders[name]
         ).handle(_extract_payload())
 
     assert all(sink.stored for sink in sinks.values())
+
+
+async def test_an_extraction_for_a_different_object_is_refused_not_stored():
+    sink = FakeExtractionSink()
+    recorder = FakeRecorder()
+
+    with pytest.raises(ValueError):
+        await ExtractTableJob(
+            FakeExtraction(_outcome(source_verified=True, kind=ExtractedObjectKind.CHART)), sink, recorder
+        ).handle(_extract_payload())
+
+    assert sink.stored == []
 
 
 async def test_a_cancelled_extraction_job_never_calls_the_provider():

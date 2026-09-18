@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from netra_api.content.sources.models import (Source, SourceVersion, SourceVersionIngestionState,
                                                SourceVersionStatus)
 from netra_api.db.models import SourceRow, SourceVersionRow
+from netra_api.db.transactions import close_read_only_transaction
 from netra_api.platform.auth_context import AuthContext
 from netra_api.platform.errors import AuthorizationError, NetraError
 
@@ -59,16 +60,18 @@ class AsyncSourceRepository:
         Worker stages read a version, may perform external work, and then
         update it in a separate short transaction.  The read itself starts
         SQLAlchemy's autobegin transaction, so it must be closed before
-        ``session.begin()`` is entered.
+        ``session.begin()`` is entered. Only a read-only transaction is
+        closed; another operation's pending writes raise
+        ``ForeignTransactionError`` instead of being committed.
         """
-        if self.session.in_transaction():
-            await self.session.commit()
+        await close_read_only_transaction(self.session)
 
     async def create_source(self, auth: AuthContext, title: str) -> Source:
         row = SourceRow(source_id=uuid4(), account_id=auth.account_id, title=title,
                         created_at=datetime.now(timezone.utc))
-        self.session.add(row)
-        await self.session.commit()
+        await self._close_read_transaction()
+        async with self.session.begin():
+            self.session.add(row)
         return _source(row)
 
     async def get_source(self, auth: AuthContext, source_id: UUID) -> Source:
@@ -181,6 +184,7 @@ class AsyncSourceRepository:
                              content_hash: str | None = None, parser_name: str | None = None,
                              parser_version: str | None = None, parser_config: dict | None = None) -> SourceVersion:
         self._validate_identity(object_key, content_hash, parser_name, parser_version)
+        await self._close_read_transaction()
         async with self.session.begin():
             locked = (await self.session.execute(select(SourceRow).where(SourceRow.source_id == source_id,
                                                                          SourceRow.account_id == auth.account_id)
@@ -216,6 +220,7 @@ class AsyncSourceRepository:
     async def mark_stage_complete(self, auth: AuthContext, source_version_id: UUID, stage: str) -> SourceVersion:
         if stage not in _STAGES:
             raise ValueError("unknown ingestion stage")
+        await self._close_read_transaction()
         async with self.session.begin():
             row = await self._owned_version(auth, source_version_id, lock=True)
             stages = list(row.completed_stages or [])
@@ -233,6 +238,7 @@ class AsyncSourceRepository:
                                      content_hash: str, parser_name: str, parser_version: str,
                                      parser_config: dict | None = None) -> SourceVersion:
         self._validate_identity(object_key, content_hash, parser_name, parser_version)
+        await self._close_read_transaction()
         async with self.session.begin():
             row = await self._owned_version(auth, source_version_id, lock=True)
             proposed = (object_key, content_hash, parser_name, parser_version, parser_config or {})
@@ -252,6 +258,7 @@ class AsyncSourceRepository:
         return _version(row) if row else None
 
     async def mark_ready(self, auth: AuthContext, source_version_id: UUID) -> SourceVersion:
+        await self._close_read_transaction()
         async with self.session.begin():
             row = await self._owned_version(auth, source_version_id, lock=True)
             if set(row.completed_stages or []) != set(_STAGES):
@@ -263,6 +270,7 @@ class AsyncSourceRepository:
         return _version(row)
 
     async def mark_failed(self, auth: AuthContext, source_version_id: UUID) -> SourceVersion:
+        await self._close_read_transaction()
         async with self.session.begin():
             row = await self._owned_version(auth, source_version_id, lock=True)
             row.ingestion_state = SourceVersionIngestionState.FAILED.value
@@ -294,8 +302,7 @@ class AsyncSourceRepository:
                                 expected_version_number: int, account_id: UUID | None = None) -> SourceVersion:
         # Repository reads use SQLAlchemy autobegin. Close a prior read-only
         # transaction before opening the short atomic activation transaction.
-        if self.session.in_transaction():
-            await self.session.commit()
+        await self._close_read_transaction()
         async with self.session.begin():
             source_query = select(SourceRow).where(SourceRow.source_id == source_id)
             if account_id is not None:

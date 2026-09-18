@@ -38,6 +38,12 @@ class SourceVersionRow(Base):
     __table_args__ = (
         UniqueConstraint("source_id", "version_number", name="uq_source_version_number"),
         Index("ix_source_versions_source_active", "source_id", "is_active"),
+        # Created by migrations 0001/0002; declared here so autogenerate never
+        # proposes dropping the one-active-version and content-hash guarantees.
+        Index("uq_source_versions_one_active", "source_id", unique=True,
+              postgresql_where=text("is_active = true")),
+        Index("uq_source_versions_content_hash", "source_id", "content_hash", unique=True,
+              postgresql_where=text("content_hash IS NOT NULL")),
     )
 
     source_version_id: Mapped[UUID] = uuid_column()
@@ -77,7 +83,11 @@ class ReadingBlockRow(Base):
 
 class SearchChunkRow(Base):
     __tablename__ = "search_chunks"
-    __table_args__ = (Index("ix_search_chunks_version", "source_version_id"),)
+    __table_args__ = (
+        Index("ix_search_chunks_version", "source_version_id"),
+        # Full-text index from migration 0001 (PostgreSQL reduced-mode search).
+        Index("ix_search_chunks_fts", text("to_tsvector('simple', text)"), postgresql_using="gin"),
+    )
 
     chunk_id: Mapped[UUID] = uuid_column()
     source_version_id: Mapped[UUID] = mapped_column(ForeignKey("source_versions.source_version_id", ondelete="CASCADE"), nullable=False)

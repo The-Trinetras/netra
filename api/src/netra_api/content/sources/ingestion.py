@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from netra_api.content.sources.models import SourceVersionIngestionState, SourceVersionStatus
 from netra_api.db.models import JobRow, OutboxRow, SourceRow, SourceVersionRow
+from netra_api.db.transactions import close_read_only_transaction
 from netra_api.platform.auth_context import AuthContext
 from netra_api.content.telemetry import log_event
 from netra_api.platform.errors import AuthorizationError
@@ -61,8 +62,7 @@ class SourceIngestionService:
         parsed_key = f"_netra/parsed/{version_id}.json"
         now = datetime.now(timezone.utc)
 
-        if self.session.in_transaction():
-            await self.session.commit()
+        await close_read_only_transaction(self.session)
         async with self.session.begin():
             existing = (await self.session.execute(
                 select(JobRow).where(JobRow.operation_key == parse_key)

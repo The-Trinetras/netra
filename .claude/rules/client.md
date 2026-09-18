@@ -121,3 +121,12 @@ for a question, capture actual time, keep it paused during explanation and resto
 that position on continue. Playback access and analysis readiness are separate.
 M3/M5 must review missing playback-control payloads and the proposed desktop web-view
 dependency before implementation; do not install it from AgentSpec prose alone.
+
+## Arize AX integration
+
+Follow the [AX plan](../../docs/architecture/arize-ax-integration.md). No AX/Modal
+credentials, SDKs or direct calls belong in WPF. Correlate permitted client test
+artifacts using existing request/generation identities; M1/M5 review any new wire
+diagnostics. Measure actual STOP-to-silence on one client monotonic clock and keep
+sent/played/acknowledged facts distinct. Test stalled-export/cancellation behaviour
+with M1; provide real Windows/NVDA/player evidence to M4, separate from judge scores.

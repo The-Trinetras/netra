@@ -111,10 +111,25 @@ lecture acceptance fixture to test sufficient-first-result, missing-axes repair,
 unreadable evidence, exact return position, preserved attempts and assistance,
 duplicate delivery, reconnect and cancelled audio.
 
-Ragas and Prometheus-2 are secondary evaluation tools, never product agents. Their
-integration is pending; model scores supplement source review and deterministic
-checks. The Ragas package itself is dependency-blocked; see
-[evaluation dependencies](runtime-baseline.md#evaluation-dependencies). A blindfolded sighted teammate exercise tests interaction only; it does not
+The revised [model/evaluation plan](model-evaluation-plan.md) selects
+Prometheus-2 7B on Modal/A100 40 GB as the primary model judge, alongside
+deterministic/source checks and human calibration. AWS GPU access is not required;
+Lightning AI and Kaggle are explicit alternative hosts. This external offline
+scorer is not a product agent or student-turn dependency. Hosted evaluation remains
+an implementation/acceptance milestone; outage leaves it incomplete without
+blocking student operation. Ragas-style metrics use repository scripts; Ragas
+remains dependency-blocked. See [evaluation dependencies](runtime-baseline.md#evaluation-dependencies).
+
+The approved [18 September Arize AX integration](arize-ax-integration.md) selects
+AX for sanitized tracing, datasets, experiments and comparison views, replacing
+historical LangSmith tracing. Alyx assists engineers, not student execution.
+Require bounded background export with measured low overhead, visible trace loss,
+calibrated external judging and reproducible paired comparisons backed by durable
+artifacts. Free-tier capacity is sufficient for the expected evaluation workload;
+do not cut quality for a quick pilot or build high-volume scaling infrastructure.
+These are implementation targets, not completed integrations or dependency pins.
+
+A blindfolded sighted teammate exercise tests interaction only; it does not
 establish blind-student usability. Record live versus fixed/replayed responses and
 the actual checks performed. A PDF-only demonstration remains incomplete against
 the video target. See the [integration checklist](../team/integration-checklist.md).

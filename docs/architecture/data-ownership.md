@@ -35,6 +35,19 @@ Service ownership identifies the validator/writer for a record category, not exc
 | Semantic vectors | Pinecone derived projection | Rebuild from canonical content and compatible embedding configuration; search-only authority. |
 | Graph projection | Neo4j derived projection; M4 owns projection behavior | Rebuild from PostgreSQL concepts, prerequisites, assessments and covered-topic records. |
 
+## Engineering traces and evaluation artifacts
+
+Under the [AX integration plan](arize-ax-integration.md), AX holds sanitized
+diagnostic copies, reviewed dataset versions and experiment/comparison views.
+It is not a student-state authority. M1 owns trace correlation/redaction; M4 owns
+immutable evaluation snapshots, outputs, scores, adjudications and AX ID mappings.
+Persist safe fixtures and run artifacts independently of AX retention in controlled
+evaluation storage; do not commit sensitive or large generated artifacts to Git.
+Accepted AX edits become new reviewed snapshots, never silent changes to a frozen
+comparison. Exported source references remain subject to canonical access/version
+validation. No trace, score or Alyx suggestion may mutate learning/session history.
+This adds no retention policy for canonical student records or new database schema.
+
 ## Session state and concurrency
 
 Canonical session concepts include account context, active source/document version, current reading block and sentence, last acknowledged playback position, interaction mode, connection state, active Tutor lesson, pending question/context, stable last result set and a monotonically increasing session version. These are semantic concepts, not an approval of new wire fields.

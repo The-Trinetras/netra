@@ -36,6 +36,29 @@ production readiness.
    integration aid; credential issuance (PKCE) and the production credential
    store are still undecided (D-CRED).
 
+### Live readiness check: AX tracing and Prometheus-2 on Modal (2026-09-19)
+
+**Not ready: nothing can authenticate yet.** Names only; no value was read or printed.
+
+- Not set in process, Windows User or Windows Machine scope:
+  - `NETRA_EVAL_JUDGE_URL`, `NETRA_EVAL_MODAL_PROXY_TOKEN_ID`, `NETRA_EVAL_MODAL_PROXY_TOKEN_SECRET`
+  - `MODAL_TOKEN_ID`, `MODAL_TOKEN_SECRET`
+  - AX: `ARIZE_*`, `NETRA_AX_*`, `NETRA_TRACING_MODE`
+  - `NETRA_GEMINI_API_KEY`, `NETRA_GROQ_API_KEY`
+- No `~/.modal.toml`, repo `.env` or `secrets/`.
+- No Modal CLI, `modal`, `arize` or OpenTelemetry package in any local Python or in `uv.lock`.
+- AX credential names are not defined in code yet. `tracing_mode=ax` has no exporter (slice E). Proposed names: `NETRA_AX_SPACE_ID`, `NETRA_AX_API_KEY`, `NETRA_AX_PROJECT_NAME`.
+- Reachable over HTTPS without credentials: api.modal.com, otlp.arize.com, app.arize.com, huggingface.co, pypi.org.
+- Judge model `prometheus-eval/prometheus-7b-v2.0` at revision `66ffb1f…`: public, ungated, Apache-2.0, 8 safetensors shards. No Hugging Face token is needed.
+- **Blocks deployment:** `evaluation/deploy/prometheus_modal.py` refuses to import while 7 pins are `PENDING_M2_REVIEW`.
+- **Blocks meaningful scoring:**
+  - 0 human labels; the floor is ≥10 per criterion.
+  - No held-out split and no human error analysis.
+  - Draft references are suggestions only.
+  - No real Netra candidate outputs, which need the live Gemini and Groq keys.
+- **Fix before any GPU use:** `RunAllowance` charges the endpoint's `gpu_seconds`. That excludes cold start, weight download and loading, and the 60 s scale-down idle, so the soft budget undercounts. Authenticated `/result` and reconcile requests also wake the A100, because the web app lives on the GPU class.
+- Modal credits, workspace budget and spend limit are not accessible without Modal authentication.
+
 ## Identity and environment
 
 | Item | Value |

@@ -20,5 +20,26 @@
                    Margin="0,8,0,0" TextWrapping="Wrap">
             <Run Text="Fixture data — not a live server response. Library and Study content shown here is a labelled fixture, per docs/team/handoffs/M5.md." />
         </TextBlock>
+
+        <TextBlock Text="Playback measurements (test use)" FontSize="14" Margin="0,16,0,4" />
+        <TextBlock TextWrapping="Wrap" Margin="0,0,0,8"
+                   Text="Timing of received, queued, played and acknowledged audio on this computer. Contains no text or audio. Saved only when you choose; never uploaded." />
+        <StackPanel Orientation="Horizontal">
+            <Button x:Name="SaveMeasurementsButton"
+                    Content="_Save playback measurements…"
+                    AutomationProperties.Name="Save playback measurements"
+                    Click="OnSaveMeasurementsClick"
+                    Margin="0,0,8,0" Padding="8,2" />
+            <Button x:Name="ClearMeasurementsButton"
+                    Content="C_lear playback measurements"
+                    AutomationProperties.Name="Clear playback measurements"
+                    Click="OnClearMeasurementsClick"
+                    Padding="8,2" />
+        </StackPanel>
+        <TextBlock x:Name="MeasurementStatusRegion"
+                   AutomationProperties.LiveSetting="Polite"
+                   AutomationProperties.Name="Measurement status"
+                   Text="{Binding MeasurementStatus, Mode=OneWay}"
+                   Margin="0,4,0,0" TextWrapping="Wrap" />
     </StackPanel>
 </UserControl>

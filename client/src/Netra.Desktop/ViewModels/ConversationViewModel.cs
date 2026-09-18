@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Threading;
 using System.Windows.Input;
 using Netra.Desktop.Audio;
+using Netra.Desktop.Diagnostics;
 using Netra.Desktop.Networking;
 using Netra.Desktop.Protocol;
 using Netra.Desktop.Protocol.Dto;
@@ -35,6 +36,8 @@ public sealed class ConversationViewModel : ViewModelBase, IDisposable
     private readonly BinaryAudioFrameProcessor _binaryAudioFrameProcessor;
     private readonly ISpeechInputService _speechInputService;
     private readonly IUiDispatcher _dispatcher;
+    private readonly SegmentPlaybackQueue? _playbackQueue;
+    private readonly PlaybackTimeline? _timeline;
 
     // Final transcripts already turned into a turn, by their stable
     // TranscriptId. Recognition providers redeliver results on reconnect
@@ -59,8 +62,12 @@ public sealed class ConversationViewModel : ViewModelBase, IDisposable
         InterruptionController interruptionController,
         BinaryAudioFrameProcessor binaryAudioFrameProcessor,
         ISpeechInputService speechInputService,
-        IUiDispatcher dispatcher)
+        IUiDispatcher dispatcher,
+        SegmentPlaybackQueue? playbackQueue = null,
+        PlaybackTimeline? timeline = null)
     {
+        _playbackQueue = playbackQueue;
+        _timeline = timeline;
         _sessionState = sessionState;
         _connectionManager = connectionManager;
         _interruptionController = interruptionController;
@@ -213,6 +220,8 @@ public sealed class ConversationViewModel : ViewModelBase, IDisposable
     private void HandleResponseSegment(ServerToClientEnvelope envelope)
     {
         var segment = MessageParser.ParseResponseSegment(envelope);
+        _timeline?.LinkGeneration(envelope.RequestId.ToString(), segment.GenerationId);
+        _timeline?.Record(PlaybackMilestone.SegmentTextReceived, segment.GenerationId, segment.SegmentId);
 
         // Admit the generation before it can be treated as playable, and
         // only once per generation id — a later segment.response for the
@@ -233,6 +242,10 @@ public sealed class ConversationViewModel : ViewModelBase, IDisposable
 
             if (!_interruptionController.IsCancelled(segment.GenerationId))
             {
+                // Registered before its audio can complete: M1 sends a
+                // segment's text before its frames, and the queue refuses
+                // audio it cannot acknowledge by this sentence id.
+                _playbackQueue?.RegisterSegment(segment.GenerationId, segment.SegmentId, segment.SentenceId);
                 Transcript.Add(new TranscriptLine { Speaker = "Tutor", Text = segment.Text });
             }
         });
@@ -296,6 +309,10 @@ public sealed class ConversationViewModel : ViewModelBase, IDisposable
             StatusMessage = error.Message;
         });
     }
+
+    // Accessible status from services that are not view models (playback
+    // queue, push-to-talk). Marshaled: callers may be on any thread.
+    public void ReportStatus(string message) => _dispatcher.Invoke(() => StatusMessage = message);
 
     private static async void FireAndForget(Func<Task> operation)
     {

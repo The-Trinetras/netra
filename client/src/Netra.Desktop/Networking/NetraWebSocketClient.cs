@@ -27,6 +27,7 @@ public interface INetraWebSocketClient : IAsyncDisposable
 
 public sealed class NetraWebSocketClient : INetraWebSocketClient
 {
+    private readonly ICredentialSource? _credentials;
     private ClientWebSocket? _socket;
     private CancellationTokenSource? _receiveLoopCts;
     private Task? _receiveLoop;
@@ -38,10 +39,36 @@ public sealed class NetraWebSocketClient : INetraWebSocketClient
     public event EventHandler<Exception>? ConnectionFaulted;
     public event EventHandler? Disconnected;
 
+    // Without a credential source the client never connects: M1 verifies the
+    // bearer credential before accepting the upgrade, and an anonymous
+    // attempt could only be refused.
+    public NetraWebSocketClient(ICredentialSource? credentials = null)
+    {
+        _credentials = credentials;
+    }
+
     public async Task ConnectAsync(Uri endpoint, CancellationToken cancellationToken)
     {
+        ServerEndpoint.Validate(endpoint);
+        var token = _credentials is null ? null : await _credentials.GetBearerTokenAsync(cancellationToken).ConfigureAwait(false);
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            throw new CredentialUnavailableException();
+        }
+
         var socket = new ClientWebSocket();
-        await socket.ConnectAsync(endpoint, cancellationToken).ConfigureAwait(false);
+        // Header only (M1/M5-reviewed presentation); never the URL.
+        socket.Options.SetRequestHeader("Authorization", "Bearer " + token);
+        try
+        {
+            await socket.ConnectAsync(endpoint, cancellationToken).ConfigureAwait(false);
+        }
+        catch
+        {
+            socket.Dispose();
+            throw;
+        }
+
         _socket = socket;
 
         _receiveLoopCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);

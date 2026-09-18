@@ -1,4 +1,5 @@
 using System.Threading;
+using Netra.Desktop.Diagnostics;
 using Netra.Desktop.Networking;
 using Netra.Desktop.Protocol.Dto;
 using Netra.Desktop.State;
@@ -13,6 +14,7 @@ public sealed class PlaybackAcknowledger : IDisposable
 {
     private readonly IPlaybackController _playbackController;
     private readonly ConnectionManager _connectionManager;
+    private readonly PlaybackTimeline? _timeline;
 
     // Segments already acknowledged as "started", so the first snapshot of
     // a segment reports started and every later one reports progress.
@@ -21,10 +23,12 @@ public sealed class PlaybackAcknowledger : IDisposable
     private readonly object _lock = new();
     private readonly HashSet<string> _startedSegments = new();
 
-    public PlaybackAcknowledger(IPlaybackController playbackController, ConnectionManager connectionManager)
+    public PlaybackAcknowledger(
+        IPlaybackController playbackController, ConnectionManager connectionManager, PlaybackTimeline? timeline = null)
     {
         _playbackController = playbackController;
         _connectionManager = connectionManager;
+        _timeline = timeline;
         _playbackController.SnapshotChanged += OnSnapshotChanged;
     }
 
@@ -52,9 +56,11 @@ public sealed class PlaybackAcknowledger : IDisposable
                     PlayedMs = snapshot.PositionMs,
                 },
                 CancellationToken.None).ConfigureAwait(false);
+            _timeline?.Record(PlaybackMilestone.AckSent, snapshot.GenerationId, snapshot.SegmentId, ackStatus.ToString());
         }
         catch (Exception)
         {
+            _timeline?.Record(PlaybackMilestone.AckFailed, snapshot.GenerationId, snapshot.SegmentId, ackStatus.ToString());
             // TODO: surface ack delivery failures once a retry/telemetry path
             // for outbound acks is defined. Never let this crash the app.
         }

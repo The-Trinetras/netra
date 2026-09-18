@@ -31,6 +31,11 @@ public sealed class BinaryAudioFrameProcessor
 
     public event EventHandler<(AudioFrameHeader Header, ReadOnlyMemory<byte> AudioBytes)>? AudioBytesAdmitted;
 
+    // Every dropped frame, with a fixed reason code and the generation id
+    // when the header parsed. Drops stay silent for playback; this exists so
+    // late/stale audio after STOP or reconnect is measurable, not invisible.
+    public event EventHandler<FrameRejection>? FrameRejected;
+
     // Explicit admission. Starting a new generation always replaces
     // whatever was previously admitted, even if that generation never
     // reached end_of_generation — a superseding response is expected to
@@ -68,6 +73,7 @@ public sealed class BinaryAudioFrameProcessor
         }
         catch (AudioFrameException)
         {
+            FrameRejected?.Invoke(this, new FrameRejection("malformed", null));
             return;
         }
 
@@ -77,24 +83,36 @@ public sealed class BinaryAudioFrameProcessor
             if (_activeGenerationId is null || header.GenerationId != _activeGenerationId)
             {
                 // Unknown or not-yet-admitted generation: never auto-activates.
-                return;
+                tracker = null;
             }
+            else
+            {
+                tracker = _sequenceTracker;
+            }
+        }
 
-            tracker = _sequenceTracker;
+        if (tracker is null)
+        {
+            FrameRejected?.Invoke(this, new FrameRejection("not_admitted", header.GenerationId));
+            return;
         }
 
         if (!_interruptionController.ShouldPlay(header.GenerationId))
         {
             // Cancelled, superseded, or pre-reconnect: fenced permanently.
+            FrameRejected?.Invoke(this, new FrameRejection("fenced", header.GenerationId));
             return;
         }
 
-        if (tracker is null || !tracker.Admit(header))
+        if (!tracker.Admit(header))
         {
             // Duplicate or decreasing sequence within this generation.
+            FrameRejected?.Invoke(this, new FrameRejection("sequence", header.GenerationId));
             return;
         }
 
         AudioBytesAdmitted?.Invoke(this, (header, audioBytes));
     }
 }
+
+public sealed record FrameRejection(string Reason, string? GenerationId);

@@ -88,8 +88,28 @@ class CoordinatorEngine:
         self._tutor = tutor
         self._model_config = model_config
         self._instructions = instructions if instructions is not None else load_coordinator_instructions()
+        self._graph: Any = None
+
+    def orchestrate_with_langgraph(self) -> "CoordinatorEngine":
+        """Run every turn through the compiled one-node LangGraph graph.
+
+        The graph adds orchestration only: the budget, cancellation and
+        validation stay inside ``run_direct``, and the originating TurnBudget
+        instance travels in graph state. No checkpointer is attached: turn
+        state holds live runtime objects (budget, trace), which are not
+        checkpoint-serializable (see docs/team/integration-status.md).
+        """
+
+        self._graph = build_langgraph(self)
+        return self
 
     async def run(self, turn: CoordinatorTurnState, trace: TurnTrace) -> TurnOutcome:
+        if self._graph is not None:
+            state = await self._graph.ainvoke({"turn": turn, "trace": trace})
+            return state["outcome"]
+        return await self.run_direct(turn, trace)
+
+    async def run_direct(self, turn: CoordinatorTurnState, trace: TurnTrace) -> TurnOutcome:
         with self._tracer.span("netra.coordinator.turn", netra_request_id=str(turn.request_id), netra_operation="coordinator_turn") as span:
             outcome = await self._run(turn, trace)
             budget = turn.budget
@@ -426,10 +446,10 @@ class CoordinatorEngine:
 def build_langgraph(engine: CoordinatorEngine) -> Any:
     """Compile the engine as a one-node LangGraph graph (langgraph==1.2.11).
 
-    Unverified in this environment (package not installed). The budget,
-    cancellation and validation stay inside the engine, so graph retries or
-    checkpoint resumes cannot reset counters: the TurnBudget instance travels
-    in state, and a resumed graph must be handed the ORIGINAL instance.
+    Executed by api/tests/transport/test_langgraph_execution.py and, through
+    ``CoordinatorEngine.orchestrate_with_langgraph``, by every composed turn.
+    The budget, cancellation and validation stay inside the engine, so graph
+    retries cannot reset counters: the TurnBudget instance travels in state.
     """
 
     from typing import TypedDict
@@ -442,7 +462,7 @@ def build_langgraph(engine: CoordinatorEngine) -> Any:
         outcome: TurnOutcome
 
     async def run_node(state: _GraphState) -> dict:
-        return {"outcome": await engine.run(state["turn"], state["trace"])}
+        return {"outcome": await engine.run_direct(state["turn"], state["trace"])}
 
     graph = StateGraph(_GraphState)
     graph.add_node("coordinator_turn", run_node)

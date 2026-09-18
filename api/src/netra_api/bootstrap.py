@@ -277,7 +277,7 @@ def compose(
             context=ContextSelector(repositories.dialogue),
             tutor=tutor,
             tracer=tracer,
-        )
+        ).orchestrate_with_langgraph()
 
     if settings.auth_mode == "stored_credential" and settings.database_url:
         verifier: CredentialVerifier = StoredCredentialVerifier(repositories.identity)

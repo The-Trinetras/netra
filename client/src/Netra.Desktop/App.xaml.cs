@@ -18,14 +18,16 @@ namespace Netra.Desktop;
 //
 // Two explicit modes:
 // - Live: NETRA_API_ENDPOINT names the server's WebSocket endpoint (wss, or
-//   ws to loopback) AND a bearer credential is stored in Windows Credential
-//   Manager (WindowsCredentialManagerSource). The app creates a session over
-//   HTTP, connects /v1/ws (session.resume restores state), and lists the
-//   account's real sources.
-// - Fixture: anything else. No network call is made, and the status text
-//   says the data shown is fixture data.
-// Credential issuance (PKCE sign-in) is still undecided; a stored operator
-// token is an integration aid, not a production sign-in flow.
+//   ws to loopback). The bearer credential is read from Windows Credential
+//   Manager (WindowsCredentialManagerSource). LiveSession creates a session
+//   over HTTP, connects /v1/ws (session.resume restores state), and the
+//   library lists the account's real sources. A failed start is retried by
+//   the library's Refresh; no restart is needed.
+// - Fixture: no endpoint configured. No network call is made, and the status
+//   text says the data shown is fixture data.
+// Credential issuance (PKCE sign-in) and the production credential store are
+// still undecided (INT-10a); a stored operator token is an integration aid,
+// not a production sign-in flow.
 public partial class App : Application
 {
     public const string EndpointVariable = "NETRA_API_ENDPOINT";
@@ -33,6 +35,7 @@ public partial class App : Application
     private ConnectionManager? _connectionManager;
     private ReconnectCoordinator? _reconnectCoordinator;
     private NetraApiClient? _apiClient;
+    private CancellationTokenSource? _liveStart;
     private PlaybackController? _playbackController;
     private PlaybackAcknowledger? _playbackAcknowledger;
     private SegmentPlaybackQueue? _segmentPlaybackQueue;
@@ -101,19 +104,13 @@ public partial class App : Application
         };
 
         LibraryServerAccess? serverAccess = null;
+        LiveSession? liveSession = null;
         if (liveEndpoint is not null && credentials is not null)
         {
             _apiClient = new NetraApiClient(NetraApiClient.HttpBaseFor(liveEndpoint), credentials);
-            serverAccess = new LibraryServerAccess(
-                new ApiSourceCatalog(_apiClient, sessionState),
-                sessionState,
-                ct => connectionManager.SendSessionResumeAsync(
-                    new Protocol.Dto.SessionResumePayload
-                    {
-                        LastKnownSessionVersion = sessionState.SessionVersion,
-                        LastAcknowledgedSentenceId = sessionState.LastAcknowledgedSentenceId,
-                    },
-                    ct));
+            _reconnectCoordinator = new ReconnectCoordinator(webSocketClient, connectionManager, sessionState, liveEndpoint);
+            liveSession = new LiveSession(_apiClient, sessionState, connectionManager, _reconnectCoordinator.ConnectAsync);
+            serverAccess = new LibraryServerAccess(new ApiSourceCatalog(_apiClient, sessionState), sessionState, liveSession);
         }
 
         // Upload and YouTube discovery stay fixture services: the upload/job
@@ -161,16 +158,15 @@ public partial class App : Application
         MainWindow = mainWindow;
         mainWindow.Show();
 
-        if (liveEndpoint is null || credentials is null || _apiClient is null)
+        if (liveSession is null || _reconnectCoordinator is null)
         {
             conversationViewModel.ReportStatus(modeNotice);
             return;
         }
 
-        var reconnect = new ReconnectCoordinator(webSocketClient, connectionManager, sessionState, liveEndpoint);
-        reconnect.StatusChanged += (_, message) => conversationViewModel.ReportStatus(message);
-        _reconnectCoordinator = reconnect;
-        _ = StartLiveSessionAsync(_apiClient, reconnect, sessionState, libraryViewModel, conversationViewModel);
+        _reconnectCoordinator.StatusChanged += (_, message) => conversationViewModel.ReportStatus(message);
+        _liveStart = new CancellationTokenSource();
+        _ = StartLiveSessionAsync(liveSession, libraryViewModel, conversationViewModel, _liveStart.Token);
     }
 
     // Endpoint from the environment; the value is validated, never logged.
@@ -193,35 +189,30 @@ public partial class App : Application
         }
     }
 
-    // UI thread. Creates the session over HTTP, adopts its snapshot, then
-    // connects the WebSocket (which resumes that session) and loads sources.
+    // UI thread (network waits are awaited, never blocked on). Starts the
+    // live session, then loads sources. On failure the status says why and
+    // how to retry; it does not promise offline reading: no study-material
+    // cache is wired into the app yet.
     private static async Task StartLiveSessionAsync(
-        NetraApiClient api,
-        ReconnectCoordinator reconnect,
-        ClientSessionState sessionState,
-        LibraryViewModel library,
-        ConversationViewModel conversation)
+        ILiveSession live, LibraryViewModel library, ConversationViewModel conversation, CancellationToken cancellationToken)
     {
         try
         {
             conversation.ReportStatus("Connecting to Netra.");
-            var created = await api.CreateSessionAsync(CancellationToken.None);
-            SnapshotReconciler.Apply(sessionState, created.Snapshot, created.SessionId);
-            await reconnect.ConnectAsync(CancellationToken.None);
-            await library.RefreshSourcesAsync(CancellationToken.None);
+            await live.EnsureStartedAsync(cancellationToken);
         }
-        catch (CredentialUnavailableException)
+        catch (Exception ex)
         {
-            conversation.ReportStatus("Not connected: this computer is not signed in to Netra.");
+            if (!cancellationToken.IsCancellationRequested)
+            {
+                conversation.ReportStatus(
+                    $"Not connected. {FailureText.Describe(ex, "connect", cancellationToken)} Choose Refresh in the library to try again.");
+            }
+
+            return;
         }
-        catch (ApiErrorException ex) when (ex.StatusCode == 401)
-        {
-            conversation.ReportStatus("Not connected: Netra did not accept this computer's sign-in.");
-        }
-        catch (Exception)
-        {
-            conversation.ReportStatus("Not connected: could not reach Netra. Reading cached material still works.");
-        }
+
+        await library.RefreshSourcesAsync(cancellationToken);
     }
 
     // Local hardware measurement mode; no window, no server. Exit code 0 on a
@@ -251,12 +242,16 @@ public partial class App : Application
         _segmentPlaybackQueue?.Dispose();
         _playbackController?.Dispose();
         _segmentAudioStore?.Dispose();
-        _apiClient?.Dispose();
 
+        // Stop the start-up attempt before disposing what it uses.
+        _liveStart?.Cancel();
         if (_reconnectCoordinator is not null)
         {
             await _reconnectCoordinator.DisposeAsync().ConfigureAwait(true);
         }
+
+        _apiClient?.Dispose();
+        _liveStart?.Dispose();
 
         if (_connectionManager is not null)
         {

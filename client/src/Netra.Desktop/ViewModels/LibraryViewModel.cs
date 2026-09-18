@@ -1,6 +1,5 @@
 using System.Collections.ObjectModel;
 using System.IO;
-using System.Net.Http;
 using System.Windows.Input;
 using Netra.Desktop.Library;
 using Netra.Desktop.Networking;
@@ -31,6 +30,7 @@ public sealed class LibraryViewModel : ViewModelBase
     private VideoDiscoveryResult? _selectedVideoResult;
     private CatalogSource? _selectedAvailableSource;
     private CatalogSource? _openedSource;
+    private bool _opening;
 
     public LibraryViewModel(
         ISourcePreparationService sourcePreparationService,
@@ -160,21 +160,34 @@ public sealed class LibraryViewModel : ViewModelBase
         StatusMessage = "Loading your sources.";
         try
         {
+            // Also the retry path when the live session could not be started
+            // (server down at launch, socket refused): no restart needed.
+            if (_server.Session is { } session)
+            {
+                await session.EnsureStartedAsync(cancellationToken);
+            }
+
             var sources = await _server.Catalog.ListAsync(cancellationToken);
+
+            // Keep the student's place in the list: clearing the collection
+            // makes the bound ListBox push a null selection, so remember the
+            // selected source by id first and restore it afterwards.
+            var selectedId = SelectedAvailableSource?.SourceId;
             AvailableSources.Clear();
             foreach (var source in sources)
             {
                 AvailableSources.Add(source);
             }
 
+            SelectedAvailableSource = AvailableSources.FirstOrDefault(s => s.SourceId == selectedId);
             var ready = sources.Count(s => s.CanOpen);
             StatusMessage = sources.Count == 0
                 ? "You have no sources on the server yet."
                 : $"{sources.Count} source(s), {ready} ready to study.";
         }
-        catch (Exception ex) when (DescribeFailure(ex, "load your sources") is { } message)
+        catch (Exception ex)
         {
-            StatusMessage = message;
+            StatusMessage = FailureText.Describe(ex, "load your sources", cancellationToken);
         }
     }
 
@@ -198,6 +211,16 @@ public sealed class LibraryViewModel : ViewModelBase
             return;
         }
 
+        // One open at a time: a second Enter/click while the first pin is in
+        // flight would be a second logical action built on the same expected
+        // version, and could only come back as a version conflict.
+        if (_opening)
+        {
+            StatusMessage = "Still opening your previous choice. Please wait.";
+            return;
+        }
+
+        _opening = true;
         StatusMessage = $"Opening {source.Title}.";
         try
         {
@@ -211,25 +234,33 @@ public sealed class LibraryViewModel : ViewModelBase
             // The session moved on elsewhere. Do not retry the pin on the
             // student's behalf; fetch the authoritative snapshot so the next
             // explicit Open is built against the current version.
-            if (_server.Resynchronize is not { } resynchronize)
-            {
-                StatusMessage = "Your session changed on the server. Reconnect, then choose Open again.";
-                return;
-            }
-
-            try
-            {
-                await resynchronize(cancellationToken);
-                StatusMessage = "Your session changed on the server and has been refreshed. Choose Open again.";
-            }
-            catch (Exception)
-            {
-                StatusMessage = "Your session changed on the server and could not be refreshed. Reconnect, then choose Open again.";
-            }
+            StatusMessage = await ResynchronizeAfterConflictAsync(cancellationToken);
         }
-        catch (Exception ex) when (DescribeFailure(ex, $"open {source.Title}") is { } message)
+        catch (Exception ex)
         {
-            StatusMessage = message;
+            StatusMessage = FailureText.Describe(ex, $"open {source.Title}", cancellationToken);
+        }
+        finally
+        {
+            _opening = false;
+        }
+    }
+
+    private async Task<string> ResynchronizeAfterConflictAsync(CancellationToken cancellationToken)
+    {
+        if (_server?.Session is not { } session)
+        {
+            return "Your session changed on the server. Reconnect, then choose Open again.";
+        }
+
+        try
+        {
+            await session.ResynchronizeAsync(cancellationToken);
+            return "Your session changed on the server and has been refreshed. Choose Open again.";
+        }
+        catch (Exception)
+        {
+            return "Your session changed on the server and could not be refreshed. Choose Refresh, then Open again.";
         }
     }
 
@@ -243,20 +274,6 @@ public sealed class LibraryViewModel : ViewModelBase
         SelectedVideoResult = result;
         StatusMessage = $"Selected result {result.Ordinal}: {result.Title}.";
     }
-
-    // Client-owned wording keyed by failure kind; never echoes endpoint,
-    // credential or raw exception text. Null = not a recognised failure.
-    private static string? DescribeFailure(Exception ex, string action) => ex switch
-    {
-        CredentialUnavailableException => "This computer is not signed in to Netra.",
-        ApiErrorException { Error.Code: ErrorCode.AuthRequired } => "Netra did not accept this computer's sign-in.",
-        ApiErrorException { Error.Code: ErrorCode.AuthorizationDenied } => $"You do not have access to {action}.",
-        ApiErrorException { Error.Retryable: true } => $"Netra could not {action} right now. Try again shortly.",
-        ApiErrorException => $"Netra could not {action}.",
-        HttpRequestException => $"Could not reach the Netra server to {action}.",
-        TaskCanceledException => $"Timed out trying to {action}.",
-        _ => null,
-    };
 
     private static async void FireAndForget(Func<Task> operation)
     {

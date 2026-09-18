@@ -103,6 +103,29 @@ public sealed class ReconnectCoordinatorTests
         await coordinator.DisposeAsync();
     }
 
+    // Before: an expired/revoked token (403 on the upgrade) looked like a
+    // network failure, was retried through every backoff step, and ended with
+    // "try again later", which could never succeed.
+    [Fact]
+    public async Task ARejectedCredentialIsNotRetriedAndIsNamedAsTheCause()
+    {
+        var (socket, _, state, coordinator, delays) = Build(attempts: 5);
+        var statuses = new List<string>();
+        coordinator.StatusChanged += (_, message) => statuses.Add(message);
+        await coordinator.ConnectAsync(CancellationToken.None);
+        socket.FailNextConnects = 100;
+        socket.ConnectFailure = new CredentialRejectedException();
+
+        socket.Drop();
+        await coordinator.CurrentReconnectLoop!;
+
+        Assert.Single(delays);
+        Assert.Equal(2, socket.ConnectCount);
+        Assert.Equal(ConnectionState.Disconnected, state.ConnectionState);
+        Assert.Equal("Cannot reconnect: Netra did not accept this computer's sign-in. It may have expired.", statuses[^1]);
+        await coordinator.DisposeAsync();
+    }
+
     [Fact]
     public async Task ShutdownDoesNotReconnect()
     {

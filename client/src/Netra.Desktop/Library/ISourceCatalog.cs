@@ -29,13 +29,13 @@ public interface ISourceCatalog
     Task<SessionSnapshotPayload> OpenAsync(CatalogSource source, CancellationToken cancellationToken);
 }
 
-// Everything the library needs to use real server sources. Resynchronize
-// asks the server for a fresh session.snapshot (session.resume over the open
-// WebSocket) after a version conflict; it may be null when no socket exists.
+// Everything the library needs to use real server sources. Session (when
+// present) establishes or re-establishes the live session before listing,
+// and fetches an authoritative snapshot after a version conflict.
 public sealed record LibraryServerAccess(
     ISourceCatalog Catalog,
     ClientSessionState SessionState,
-    Func<CancellationToken, Task>? Resynchronize = null);
+    ILiveSession? Session = null);
 
 public sealed class ApiSourceCatalog : ISourceCatalog
 {
@@ -56,10 +56,11 @@ public sealed class ApiSourceCatalog : ISourceCatalog
             .ToList();
     }
 
-    // One logical action = one request id. A transport failure before any
-    // response is retried once under the SAME request id and expected
-    // version, so the server replays the recorded pin instead of applying a
-    // second one. Typed server errors are never retried here.
+    // One logical action = one request id. A transport failure or a client
+    // timeout (no response seen, so the pin may or may not have committed) is
+    // retried once under the SAME request id and expected version: the server
+    // replays a committed pin instead of applying a second one. Typed server
+    // errors and caller cancellation are never retried.
     public async Task<SessionSnapshotPayload> OpenAsync(CatalogSource source, CancellationToken cancellationToken)
     {
         if (source.ActiveSourceVersionId is not { } version)
@@ -75,7 +76,8 @@ public sealed class ApiSourceCatalog : ISourceCatalog
             selected = await _api.SelectSourceAsync(_sessionState.SessionId, requestId, version, expected, cancellationToken)
                 .ConfigureAwait(false);
         }
-        catch (HttpRequestException)
+        catch (Exception ex) when (ex is HttpRequestException
+                                   || (ex is TaskCanceledException && !cancellationToken.IsCancellationRequested))
         {
             selected = await _api.SelectSourceAsync(_sessionState.SessionId, requestId, version, expected, cancellationToken)
                 .ConfigureAwait(false);

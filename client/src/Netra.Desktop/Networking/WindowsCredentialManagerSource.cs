@@ -5,13 +5,15 @@ using System.Threading;
 namespace Netra.Desktop.Networking;
 
 // ICredentialSource over the Windows Credential Manager (per-user vault,
-// protected by Windows; M5's recommended storage, docs/team/handoffs/M5.md
-// INT-10a). Reads one generic credential; no NuGet package, no file, no
-// registry value and no environment variable holds the token.
+// protected by Windows). No NuGet package, file, registry value or
+// environment variable holds the token.
 //
-// Issuance is still an open M1/M5 decision (system-browser PKCE sign-in in
-// message-flow.md flow 1). Until it exists, an operator stores a token that
-// was provisioned for this account with Windows' own tool, e.g.
+// NOT A DECISION: INT-10a leaves Windows credential storage open (DPAPI
+// ProtectedData scoped to the user, or Credential Manager). This source was
+// chosen for integration because an operator can manage it with Windows' own
+// tool; M5/M1 still decide the production store, and issuance (system-browser
+// PKCE sign-in, message-flow.md flow 1) does not exist yet. Until then an
+// operator stores a token provisioned for the account, e.g.
 //     cmdkey /generic:Netra:api /user:netra /pass:<token>
 // and removes it with `cmdkey /delete:Netra:api`. The token is read only when
 // a connection or request needs it and is never logged or placed in a URL.
@@ -20,7 +22,6 @@ public sealed class WindowsCredentialManagerSource : ICredentialSource
     public const string DefaultTarget = "Netra:api";
 
     private const int CredTypeGeneric = 1;
-    private const int ErrorNotFound = 1168;
 
     private readonly string _target;
 
@@ -37,15 +38,10 @@ public sealed class WindowsCredentialManagerSource : ICredentialSource
 
     private static string? Read(string target)
     {
+        // Not found (ERROR_NOT_FOUND) or any other failure: no credential.
+        // Guessing past a failed read could only present the wrong identity.
         if (!CredReadW(target, CredTypeGeneric, 0, out var pointer))
         {
-            var error = Marshal.GetLastWin32Error();
-            if (error == ErrorNotFound)
-            {
-                return null;
-            }
-
-            // Any other failure: behave as "no credential" rather than guess.
             return null;
         }
 
@@ -61,9 +57,7 @@ public sealed class WindowsCredentialManagerSource : ICredentialSource
             Marshal.Copy(credential.CredentialBlob, bytes, 0, bytes.Length);
             try
             {
-                // cmdkey and the Credential Manager UI store the secret as UTF-16LE.
-                var token = Encoding.Unicode.GetString(bytes).TrimEnd('\0');
-                return string.IsNullOrWhiteSpace(token) ? null : token;
+                return DecodeSecret(bytes);
             }
             finally
             {
@@ -74,6 +68,15 @@ public sealed class WindowsCredentialManagerSource : ICredentialSource
         {
             CredFree(pointer);
         }
+    }
+
+    // cmdkey and the Credential Manager UI store a generic credential's
+    // secret as UTF-16LE. Public only so the decoding can be tested without
+    // writing to the user's vault.
+    public static string? DecodeSecret(ReadOnlySpan<byte> blob)
+    {
+        var token = Encoding.Unicode.GetString(blob).TrimEnd('\0');
+        return string.IsNullOrWhiteSpace(token) ? null : token;
     }
 
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]

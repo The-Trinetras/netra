@@ -24,6 +24,19 @@ public sealed class CredentialUnavailableException : Exception
     }
 }
 
+// The server refused the presented credential at the WebSocket upgrade: it
+// was answered 401/403 (M1 closes before accept when verification fails,
+// which Starlette turns into 403). HTTP routes report the same condition as
+// ApiErrorException with AUTH_REQUIRED. An expired or revoked token cannot
+// succeed on retry, so this is not retried.
+public sealed class CredentialRejectedException : Exception
+{
+    public CredentialRejectedException()
+        : base("The server did not accept the credential; it may have expired or been revoked.")
+    {
+    }
+}
+
 public sealed class InvalidServerEndpointException : Exception
 {
     public InvalidServerEndpointException(string message)

@@ -49,36 +49,54 @@ async def seed_account_and_source(database_url: str, title: str = "Ohm's law cha
     engine = create_engine(database_url)
     try:
         issued = await provision(engine, expires_in=timedelta(minutes=30))
-        sessions = create_session_factory(engine)
-        auth = AuthContext(account_id=issued.account_id, session_id=uuid4(), request_id=uuid4(),
-                           issued_at=datetime.now(timezone.utc))
-        async with sessions() as session:
-            sources = AsyncSourceRepository(session)
-            source = await sources.create_source(auth, title)
-            version = await sources.create_version(
-                auth, source.source_id, object_key=f"sources/{source.source_id}.pdf",
-                content_hash=sources.content_hash_for(title.encode()), parser_name="pymupdf", parser_version="1.28.2")
-            blocks, sentence_ids = [], []
-            for ordinal, texts in enumerate(OHM_SENTENCES):
-                ids = [uuid4() for _ in texts]
-                sentence_ids.append(ids)
-                blocks.append(ReadingBlock(
-                    block_id=uuid4(), source_version_id=version.source_version_id, ordinal=ordinal,
-                    block_type=BlockType.PARAGRAPH, locator=f"page {ordinal + 1}",
-                    sentences=[Sentence(sentence_id=i, ordinal=n, text=t) for n, (i, t) in enumerate(zip(ids, texts))]))
-            await AsyncReadingBlockRepository(session).replace_blocks(version.source_version_id, blocks)
-            chunk = SearchChunk(source_version_id=version.source_version_id,
-                                text=" ".join(" ".join(t) for t in OHM_SENTENCES[1:2]),
-                                block_ids=[blocks[1].block_id], embedding_version="none")
-            await AsyncSearchChunkRepository(session).replace_chunks(version.source_version_id, [chunk])
-            for stage in ("parsing", "blocks_built", "embedded", "projected"):
-                await sources.mark_stage_complete(auth, version.source_version_id, stage)
-            await sources.mark_ready(auth, version.source_version_id)
-            await sources.activate_version(auth, source.source_id, version.source_version_id, 0)
-        return SeededSource(issued.account_id, issued.token, source.source_id, version.source_version_id,
-                            [b.block_id for b in blocks], sentence_ids, chunk.chunk_id)
+        seeded = await _seed_source(create_session_factory(engine), issued.account_id, title, ready=True)
+        return SeededSource(issued.account_id, issued.token, *seeded)
     finally:
         await engine.dispose()
+
+
+async def seed_source_for_account(database_url: str, account_id: UUID, title: str, *, ready: bool = True) -> dict:
+    """Add a source to an existing account: ready (active version with blocks) or not yet ready (no version)."""
+
+    engine = create_engine(database_url)
+    try:
+        source_id, version_id, block_ids, sentence_ids, _ = await _seed_source(
+            create_session_factory(engine), account_id, title, ready=ready)
+        return {"source_id": source_id, "source_version_id": version_id, "block_ids": block_ids,
+                "sentence_ids": sentence_ids}
+    finally:
+        await engine.dispose()
+
+
+async def _seed_source(sessions, account_id: UUID, title: str, *, ready: bool):
+    auth = AuthContext(account_id=account_id, session_id=uuid4(), request_id=uuid4(),
+                       issued_at=datetime.now(timezone.utc))
+    async with sessions() as session:
+        sources = AsyncSourceRepository(session)
+        source = await sources.create_source(auth, title)
+        if not ready:
+            return source.source_id, None, [], [], None
+        version = await sources.create_version(
+            auth, source.source_id, object_key=f"sources/{source.source_id}.pdf",
+            content_hash=sources.content_hash_for(title.encode()), parser_name="pymupdf", parser_version="1.28.2")
+        blocks, sentence_ids = [], []
+        for ordinal, texts in enumerate(OHM_SENTENCES):
+            ids = [uuid4() for _ in texts]
+            sentence_ids.append(ids)
+            blocks.append(ReadingBlock(
+                block_id=uuid4(), source_version_id=version.source_version_id, ordinal=ordinal,
+                block_type=BlockType.PARAGRAPH, locator=f"page {ordinal + 1}",
+                sentences=[Sentence(sentence_id=i, ordinal=n, text=t) for n, (i, t) in enumerate(zip(ids, texts))]))
+        await AsyncReadingBlockRepository(session).replace_blocks(version.source_version_id, blocks)
+        chunk = SearchChunk(source_version_id=version.source_version_id,
+                            text=" ".join(" ".join(t) for t in OHM_SENTENCES[1:2]),
+                            block_ids=[blocks[1].block_id], embedding_version="none")
+        await AsyncSearchChunkRepository(session).replace_chunks(version.source_version_id, [chunk])
+        for stage in ("parsing", "blocks_built", "embedded", "projected"):
+            await sources.mark_stage_complete(auth, version.source_version_id, stage)
+        await sources.mark_ready(auth, version.source_version_id)
+        await sources.activate_version(auth, source.source_id, version.source_version_id, 0)
+    return source.source_id, version.source_version_id, [b.block_id for b in blocks], sentence_ids, chunk.chunk_id
 
 
 @contextlib.asynccontextmanager

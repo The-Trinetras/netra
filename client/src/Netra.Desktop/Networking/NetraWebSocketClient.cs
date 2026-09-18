@@ -1,4 +1,5 @@
 using System.IO;
+using System.Net;
 using System.Net.WebSockets;
 using System.Text;
 using System.Threading;
@@ -67,9 +68,17 @@ public sealed class NetraWebSocketClient : INetraWebSocketClient
         var socket = new ClientWebSocket();
         // Header only (M1/M5-reviewed presentation); never the URL.
         socket.Options.SetRequestHeader("Authorization", "Bearer " + token);
+        // Keeps the upgrade's status code so a refused credential can be told
+        // apart from an unreachable server (headers are not read or logged).
+        socket.Options.CollectHttpResponseDetails = true;
         try
         {
             await socket.ConnectAsync(endpoint, cancellationToken).ConfigureAwait(false);
+        }
+        catch (WebSocketException) when (socket.HttpStatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
+        {
+            socket.Dispose();
+            throw new CredentialRejectedException();
         }
         catch
         {

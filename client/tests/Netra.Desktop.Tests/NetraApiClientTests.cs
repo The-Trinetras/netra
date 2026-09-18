@@ -138,6 +138,30 @@ public sealed class NetraApiClientTests
         Assert.Equal(new Uri(expected), NetraApiClient.HttpBaseFor(new Uri(socket)));
     }
 
+    [Fact]
+    public void HttpBase_KeepsAPathPrefixInFrontOfTheSocketPath()
+    {
+        var httpBase = NetraApiClient.HttpBaseFor(new Uri("wss://school.example/netra/v1/ws"));
+
+        Assert.Equal(new Uri("https://school.example/netra/"), httpBase);
+        Assert.Equal(new Uri("https://school.example/netra/v1/sessions"), new Uri(httpBase, "v1/sessions"));
+    }
+
+    [Fact]
+    public async Task ARequestThatOutlivesTheClientTimeout_EndsAsATimeoutNotAHang()
+    {
+        var handler = new StubHandler { Delay = TimeSpan.FromSeconds(30) };
+        handler.Respond(HttpStatusCode.OK, """{"sources":[]}""");
+        using var client = new NetraApiClient(Base, new FixedCredentials(Token), handler, requestTimeout: TimeSpan.FromMilliseconds(100));
+
+        var ex = await Assert.ThrowsAnyAsync<OperationCanceledException>(() => client.ListSourcesAsync(Guid.NewGuid(), CancellationToken.None));
+
+        Assert.IsType<TimeoutException>(ex.InnerException);
+        Assert.Equal(
+            "Timed out trying to load your sources. Try again.",
+            Netra.Desktop.ViewModels.FailureText.Describe(ex, "load your sources", CancellationToken.None));
+    }
+
     [Theory]
     [InlineData("ws://netra.example/v1/ws")] // plain ws only to loopback
     [InlineData("wss://netra.example/v1/ws?token=x")] // nothing may ride in the URL
@@ -161,6 +185,8 @@ public sealed class NetraApiClientTests
 
         public List<(HttpMethod Method, Uri Uri, string? Authorization, string? Body)> Requests { get; } = new();
 
+        public TimeSpan Delay { get; set; } = TimeSpan.Zero;
+
         public void Respond(HttpStatusCode status, string body, string mediaType = "application/json") =>
             _responses.Enqueue((status, body, mediaType));
 
@@ -168,6 +194,7 @@ public sealed class NetraApiClientTests
         {
             var body = request.Content is null ? null : await request.Content.ReadAsStringAsync(cancellationToken);
             Requests.Add((request.Method, request.RequestUri!, request.Headers.Authorization?.ToString(), body));
+            await Task.Delay(Delay, cancellationToken);
             var (status, text, mediaType) = _responses.Dequeue();
             return new HttpResponseMessage(status) { Content = new StringContent(text, Encoding.UTF8, mediaType) };
         }

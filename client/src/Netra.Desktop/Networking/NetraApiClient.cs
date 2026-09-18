@@ -49,23 +49,34 @@ public interface INetraApi
 
 public sealed class NetraApiClient : INetraApi, IDisposable
 {
+    // Client-local bound on one HTTP request (no wire field; not a product
+    // value): the student hears a timeout instead of a silent 100 s wait.
+    public static readonly TimeSpan DefaultRequestTimeout = TimeSpan.FromSeconds(15);
+
+    private const string SocketPath = "v1/ws";
+
     private readonly HttpClient _http;
     private readonly ICredentialSource _credentials;
 
-    public NetraApiClient(Uri httpBase, ICredentialSource credentials, HttpMessageHandler? handler = null)
+    public NetraApiClient(
+        Uri httpBase, ICredentialSource credentials, HttpMessageHandler? handler = null, TimeSpan? requestTimeout = null)
     {
         _http = handler is null ? new HttpClient() : new HttpClient(handler, disposeHandler: false);
         _http.BaseAddress = httpBase;
+        _http.Timeout = requestTimeout ?? DefaultRequestTimeout;
         _credentials = credentials;
     }
 
     // The HTTP base that serves the same API as a validated WebSocket
-    // endpoint: wss -> https, ws (loopback only) -> http, same authority.
+    // endpoint: wss -> https, ws (loopback only) -> http, same authority, and
+    // any path prefix in front of /v1/ws kept (e.g. behind a reverse proxy).
     public static Uri HttpBaseFor(Uri webSocketEndpoint)
     {
         var endpoint = ServerEndpoint.Validate(webSocketEndpoint);
         var scheme = endpoint.Scheme == "wss" ? Uri.UriSchemeHttps : Uri.UriSchemeHttp;
-        return new UriBuilder(scheme, endpoint.Host, endpoint.Port, "/").Uri;
+        var path = endpoint.AbsolutePath;
+        var basePath = path.EndsWith("/" + SocketPath, StringComparison.Ordinal) ? path[..^SocketPath.Length] : "/";
+        return new UriBuilder(scheme, endpoint.Host, endpoint.Port, basePath).Uri;
     }
 
     public async Task<ApiSessionCreated> CreateSessionAsync(CancellationToken cancellationToken)

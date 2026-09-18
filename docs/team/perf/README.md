@@ -112,6 +112,41 @@ The candidate must meet all of the following:
    1 decision before the drop, then the rest after, with no extra budget. It is
    not required to succeed.
 
+**C-1 result** (`results/turns-inmemory-c1-candidate.json`, same instrument and settings):
+
+| Threshold | Baseline | Candidate | Met |
+|---|---|---|---|
+| 1. Orphaned model-call completions | 20/20 | 0/20 | yes |
+| 2. Orphaned Tutor effects | 20/20 | 0/20 | yes |
+| 3. Message kinds and STOP | – | identical for all 9 journeys; 0 frames after cancel in 40/40 | yes |
+| 4. Grounded-repair median | 6.78 ms | 6.88 ms (limit 7.78) | yes |
+| 5. Regression tests and suite | both tests fail | both pass; 1108 passed, 1 skipped | yes |
+| 6. Budget after a drop | orphan consumed the scripted step | 1 decision before the drop plus 3 after, no extra budget; the reply exposed C-2 | yes |
+
+Rollback: `git revert` the C-1 commit.
+
+### C-2: budget exhausted inside the Tutor is reported as "service unavailable" (M1, `coordinator/graph.py`)
+
+Found while measuring C-1. The engine's documented state machine says a limit
+ends the turn "with supported findings + stated gaps" (`_limited`), and the
+deadline case does that. A `TurnBudgetExceededError` from the Tutor (decision or
+tool limit reached during delegation) instead reaches the generic handler, and
+the student hears "I can't answer that right now because a required service is
+unavailable."
+
+The candidate must meet all of the following:
+
+1. When the Coordinator delegates with its 4th decision and the Tutor needs one
+   more, the reply starts with "I stopped before finishing this answer." and
+   lists the supported findings. The trace records `budget_exhausted` with
+   `limit=model_decisions`. No pending question is persisted.
+2. In the in-process reconnect-and-recover journey, the recovered text starts
+   with "I stopped before finishing this answer." (after C-1: "I can't answer
+   that right now because a required service is unavailable.").
+3. Message kinds for every other journey are unchanged. The budget is not
+   enlarged: decisions used stay at or below 4.
+4. The new regression test fails on the pre-fix code, and the full default suite passes.
+
 ## Reproduction
 
 From the repository root, with the app environment active:

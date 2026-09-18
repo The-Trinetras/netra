@@ -252,9 +252,13 @@ class CoordinatorEngine:
             )
         finally:
             cancel_waiter.cancel()
+            if not call.done():
+                # Deadline, STOP, or this turn task itself being cancelled (a
+                # disconnect cancels it directly): the provider call must not
+                # outlive its turn.
+                call.cancel()
+                await asyncio.gather(call, return_exceptions=True)
         if call not in done:
-            call.cancel()
-            await asyncio.gather(call, return_exceptions=True)
             if budget.cancelled:
                 raise TurnCancelledError("cancelled during model decision")
             raise _ModelCallFailed("deadline_reached")

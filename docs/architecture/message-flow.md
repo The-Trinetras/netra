@@ -132,6 +132,20 @@ This document does not settle the still-pending decisions through examples, enum
 
 ## Current study journey integration gaps
 
+### Trace correlation without protocol changes
+
+Follow the [AX integration plan](arize-ax-integration.md). M1 propagates tracing
+context through reviewed internal calls; M2 reviews asynchronous job correlation.
+Trace/span IDs and execution attempts are diagnostic identities, separate from the
+stable logical `request_id`, fresh frame `message_id` and canonical session version.
+Export must not change replay, cancellation, budgets or acknowledgement semantics.
+Do not add AX keys or direct AX calls to WPF. M5 joins permitted local measurements
+through existing request/generation identities; any new transport fields require
+M1/M5 contract review. Measure local STOP-to-silence with one monotonic clock,
+not by subtracting client/server timestamps. Background export cannot delay output.
+
+### Product integration
+
 Coordinator must inspect evidence, record gaps, change retrieval strategy where useful
 and validate the result before Tutor explanation. Sufficient first evidence needs
 no repair; unresolved evidence produces clarification or a stated limitation.

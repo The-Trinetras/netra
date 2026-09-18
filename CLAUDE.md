@@ -66,7 +66,15 @@ require both owners' review; speech/session integration requires M1/M5 review.
   Checkpoint replay does not establish exactly-once external effects.
 - Providers remain behind adapters. No silent provider/model/dependency changes.
   API and worker share the repository Python baseline; preserve EC2/Compose choices.
-  No Kubernetes or new services. RDS/PgBouncer alignment remains a documented decision.
+  No Kubernetes or new production microservices. Approved external engineering
+  integrations are the offline Prometheus-2 scorer on Modal and Arize AX for sanitized
+  tracing/datasets/experiments; see the [judge plan](docs/architecture/model-evaluation-plan.md)
+  and [AX plan](docs/architecture/arize-ax-integration.md). AX replaces historical
+  LangSmith tracing; Alyx is an engineering assistant, not a product agent. Neither
+  service is a student-turn or readiness dependency. Export in bounded background
+  batches, expose telemetry loss and verify complete evaluation traces. Keep
+  reproducible artifacts outside AX; no scale infrastructure is needed for this
+  workload. RDS/PgBouncer alignment remains a decision.
 - Accessibility is functional correctness. Keyboard/NVDA and optional speech remain;
   deferred/removed features are listed in current scope. YouTube discovery remains.
 

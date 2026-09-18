@@ -84,6 +84,7 @@ from netra_api.learning.tutor.policies import assert_not_coordinator_state
 from netra_api.learning.tutor.providers.groq import GroqTutorModelConfig, GroqTutorProvider
 from netra_api.learning.tutor.state import TutorTurnState
 from netra_api.platform.auth_context import AuthContext
+from netra_api.platform.awaitables import maybe_await
 from netra_api.platform.errors import AuthorizationError, NetraError, TurnBudgetExceededError
 
 MAX_EVIDENCE_EXCERPT_CHARS = 2000
@@ -276,7 +277,7 @@ async def run_turn(state: TutorTurnState, services: TutorServices) -> TutorToCoo
 async def _run_explanation(state: TutorTurnState, services: TutorServices) -> TutorToCoordinatorResult:
     """explain / continue_lesson: teach from resolved evidence, answer the question."""
 
-    evidence = _resolve_evidence(state, services)
+    evidence = await _resolve_evidence(state, services)
     if not evidence:
         return _result(
             state,
@@ -342,7 +343,7 @@ async def _run_hint(state: TutorTurnState, services: TutorServices) -> TutorToCo
             ),
         )
 
-    evidence = _resolve_evidence(state, services)
+    evidence = await _resolve_evidence(state, services)
     if not evidence:
         return _result(
             state,
@@ -398,7 +399,7 @@ async def _run_check_understanding(
             decision_summary="check_understanding requires a QuizGenerator; none was supplied.",
         )
 
-    evidence = _resolve_evidence(state, services)
+    evidence = await _resolve_evidence(state, services)
     if not evidence:
         return _result(
             state,
@@ -556,7 +557,7 @@ async def _run_evaluate_answer(
                 "I couldn't match that to one of the choices. Could you say which one you mean?",
             )
     else:
-        used_evidence = _resolve_evidence(state, services)
+        used_evidence = await _resolve_evidence(state, services)
         if not used_evidence:
             return _result(
                 state,
@@ -717,17 +718,17 @@ def _ensure_can_continue(state: TutorTurnState) -> None:
         raise TurnBudgetExceededError("turn budget is exhausted, expired or cancelled")
 
 
-def _resolve_evidence(state: TutorTurnState, services: TutorServices) -> list[Evidence]:
+async def _resolve_evidence(state: TutorTurnState, services: TutorServices) -> list[Evidence]:
     """Resolve the handoff's evidence references through the authorized service.
 
     An agent-supplied body under an evidence ID is never trusted
     (agent-boundaries.md); only what the resolver authorizes against
     PostgreSQL is used, and unresolved references simply do not appear.
 
-    Resolved evidence is then checked against the source version the
-    handoff declared for it (see
+    Resolved evidence is then checked against the source version AND the
+    evidence version the handoff declared for it (see
     netra_api.learning.tutor.evidence_versions). Evidence whose resolved
-    version differs from, or cannot be compared with, the declared one is
+    identity differs from, or cannot be compared with, the declared one is
     dropped exactly like an unresolved reference: the Tutor never teaches
     from a version the handoff was not built against.
     """
@@ -735,7 +736,9 @@ def _resolve_evidence(state: TutorTurnState, services: TutorServices) -> list[Ev
     _ensure_can_continue(state)
     state.budget.register_tool_call()
     refs = list(state.handoff.evidence_refs)
-    resolutions = services.evidence_resolver.resolve(state.auth, [ref.evidence_id for ref in refs])
+    resolutions = await maybe_await(
+        services.evidence_resolver.resolve(state.auth, [ref.evidence_id for ref in refs])
+    )
     if len(resolutions) != len(refs):
         # The resolver contract is one resolution per requested id, in
         # order. Anything else means refs and resolutions cannot be paired,

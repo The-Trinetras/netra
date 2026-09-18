@@ -47,7 +47,6 @@ from ohm_fixture import (
     FixtureTutor,
     FixtureVideo,
     ScriptedModel,
-    VersionedEvidenceTool,
     final,
     initial_state,
     tools,
@@ -176,8 +175,16 @@ async def test_cancellation_during_tutor_delegation_returns_no_result():
     assert tutor.budgets[0] is budget  # the Tutor was handed the originating instance, not a fresh one
 
 
-async def test_versioned_fixture_wrapper_is_explicitly_a_fixture():
-    assert "LABELLED FIXTURE" in VersionedEvidenceTool.__doc__
+async def test_real_adapters_carry_the_resolvers_evidence_version():
+    # INT-03: the evidence version comes from the authorized resolver, never
+    # from a fixture wrapper, so delegation can build a contract-valid ref.
+    retrieval = FixtureRetrieval({"line": ["ev-passage-b12"]})
+    search = await SearchSourcesTool(retrieval, FixtureResolver())(_context(), SearchSourcesArgs(query="this line"))
+    figure = await DescribeFigureTool(FixtureFigures(readable=True), FixtureResolver())(_context(), DescribeFigureArgs(figure_index=1))
+    lecture = await SearchLectureTool(FixtureVideo(), FixtureResolver())(
+        _context(frozenset({str(LECTURE_V1)})), SearchLectureArgs(query="line", lecture_source_version_id=str(LECTURE_V1)))
+    for result in (search, figure, lecture):
+        assert result.evidence and all(item.evidence_version == 1 for item in result.evidence)
 
 
 def test_langgraph_wiring_when_pinned_package_is_installed():

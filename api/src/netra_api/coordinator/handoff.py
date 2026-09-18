@@ -49,7 +49,20 @@ LearningEventType = Literal["concept_exposed", "hint_used", "answer_evaluated", 
 class EvidenceRef(_StrictHandoffModel):
     evidence_id: str
     source_version_id: str
+    """Canonical UUID string of the immutable source version (schema
+    ``format: uuid``). Any UUID spelling is normalized to the lowercase
+    hyphenated form; a non-UUID value is refused at construction, so a
+    handoff can never carry a version the Tutor cannot verify. evidence_id
+    is deliberately NOT parsed: multimedia evidence ids are not UUIDs."""
     evidence_version: int = Field(ge=1)
+
+    @field_validator("source_version_id", mode="before")
+    @classmethod
+    def _canonical_source_version(cls, value: object) -> str:
+        try:
+            return str(value if isinstance(value, UUID) else UUID(str(value).strip()))
+        except ValueError as exc:
+            raise ValueError("source_version_id must be the source version's UUID") from exc
 
 
 class DialogueTurn(_StrictHandoffModel):

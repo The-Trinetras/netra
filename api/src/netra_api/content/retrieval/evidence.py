@@ -95,9 +95,14 @@ class EvidenceResolver(Protocol):
     "this evidence belongs to someone else" apart from "this evidence is
     from the wrong version of the document", while still allowing a
     partial context to be built from whatever did resolve.
+
+    ``resolve`` is asynchronous: the PostgreSQL implementation
+    (AsyncPostgresEvidenceResolver) is the authoritative one. Consumers
+    await it through netra_api.platform.awaitables.maybe_await so labelled
+    synchronous fixtures remain usable in tests.
     """
 
-    def resolve(
+    async def resolve(
         self,
         auth: AuthContext,
         evidence_ids: List[str],

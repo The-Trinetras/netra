@@ -8,7 +8,7 @@
   "payload": {
     "session_version": 20,
     "interaction_mode": "quiz",
-    "active_source_version_id": "src-v-42",
+    "active_source_version_id": "5b3e9c1a-7d2f-4e8a-9b61-0c4d2f8a1e37",
     "current_block_id": "block-17",
     "current_sentence_id": "s-45",
     "last_acknowledged_sentence_id": "s-45",

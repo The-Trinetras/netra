@@ -132,7 +132,7 @@ class StoredVideoEvidenceService:
             if item.reference.source_version_id != source_version_id:
                 continue
             try:
-                resolve_and_authorize(auth, self._resolver, item.reference)
+                await resolve_and_authorize(auth, self._resolver, item.reference)
             except NetraError:
                 continue
             authorized.append(item)

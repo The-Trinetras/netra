@@ -37,6 +37,7 @@ from netra_worker.jobs.multimedia.base import (
     Deadline,
     MultimediaJobPayload,
     StageRecorder,
+    coerce_record,
     run_stages,
 )
 
@@ -173,13 +174,18 @@ class ExtractObjectJob:
 
     async def handle(self, payload: ExtractObjectPayload) -> None:
         async def extract_stage() -> None:
-            outcome = await self._extraction.extract(
+            raw = await self._extraction.extract(
                 object_key=payload.object_key,
                 kind=self._kind,
                 object_index=payload.object_index,
                 source_version_id=payload.source_version_id,
                 timeout_seconds=self._timeout(),
             )
+            outcome = coerce_record(ExtractionOutcome, raw)
+            if outcome.kind is not self._kind or outcome.object_index != payload.object_index:
+                raise ValueError(
+                    "extraction returned a different object than the one requested"
+                )
             self._outcome = outcome
             await self._sink.store_candidate(
                 source_version_id=payload.source_version_id,

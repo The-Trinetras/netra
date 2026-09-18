@@ -40,6 +40,7 @@ from netra_worker.jobs.multimedia.base import (
     Deadline,
     MultimediaJobPayload,
     StageRecorder,
+    coerce_record,
     run_stages,
 )
 
@@ -319,13 +320,23 @@ class DeriveVideoEvidenceJob:
 
     async def handle(self, payload: DeriveVideoEvidencePayload) -> None:
         async def derive_and_persist() -> None:
-            self._derived = await self._descriptions.describe(
+            raw = await self._descriptions.describe(
                 provider_video_id=payload.provider_video_id,
                 video_id=payload.video_id,
                 source_version_id=payload.source_version_id,
                 locator=payload.locator,
                 timeout_seconds=self._timeout(),
             )
+            derived = [coerce_record(VideoEvidenceCandidateRecord, item) for item in raw]
+            for candidate in derived:
+                if (
+                    candidate.video_id != payload.video_id
+                    or candidate.source_version_id != payload.source_version_id
+                ):
+                    raise ValueError(
+                        "description returned evidence for a different video or source version"
+                    )
+            self._derived = derived
             if not self._derived:
                 # Nothing derived is a real outcome, not a failure: the
                 # video is left without visual evidence, and readiness

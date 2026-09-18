@@ -2,8 +2,8 @@
 
 The runtime baseline keeps Tavily as the approved discovery provider
 ("Tavily discovery remains relevant to in-scope YouTube search") and
-pins tavily-python at 0.7.27. No SDK is imported here and no call is
-implemented: the adapter boundary exists so that the search provider can
+pins tavily-python at 0.7.27. No SDK is imported here; the registered
+implementation is netra_api.multimedia.discovery.tavily. The boundary exists so that the search provider can
 be wired, replaced or stubbed without any caller learning its response
 shape (multimedia.md: "Return Netra-owned contract types, not provider
 SDK objects").

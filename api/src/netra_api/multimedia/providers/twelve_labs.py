@@ -9,7 +9,9 @@ SDK call is implemented here and the SDK is not imported — only
 Netra-owned models and Protocol interfaces, so provider wiring can be
 added later without touching netra_worker.jobs.multimedia.video call
 sites. No network calls, no API keys, and no provider is wired up in
-this scaffold.
+this scaffold. The registered Twelve Labs adapters (indexing, Pegasus
+description, Marengo retrieval) are in
+netra_api.multimedia.providers.twelve_labs_client.
 
 Marengo is Twelve Labs' multimodal embedding model (video/text/audio/
 image -> a shared vector space for semantic search). Pegasus is Twelve

@@ -126,3 +126,156 @@ class ProviderCancelledError(ProviderError):
     """
 
     retryable = False
+
+
+class ProviderNotReadyError(ProviderError):
+    """The provider accepted the work but has not finished it yet.
+
+    Retryable on the job's backoff schedule: an index that is still
+    building will usually be ready later, and nothing about the request
+    is wrong. Distinct from ProviderUnavailableError so a trace shows
+    "still processing" rather than "provider down".
+    """
+
+    retryable = True
+
+
+class ProviderConfigurationError(ProviderError):
+    """Netra's own configuration for this adapter is missing or invalid.
+
+    Never retryable and never a provider fault. Raised before any call is
+    made, so a missing index id or model pin cannot fall back to a
+    provider default (runtime-baseline.md: "Keep model IDs, endpoint
+    versions ... as separate explicit configuration").
+    """
+
+    retryable = False
+
+
+class MediaNotIngestibleError(ProviderError):
+    """Netra has no permitted, fetchable copy of this media for the provider.
+
+    Not the provider refusing the media (that is
+    ProviderRejectedMediaError): nothing was sent. A YouTube selection
+    with no approved analysis path, or an upload whose object cannot be
+    presented to the provider, ends here. Maps to "analysis unready",
+    never to "playback unavailable" — the two are separate verdicts.
+    """
+
+    retryable = False
+
+
+class ExtractionUnsupportedError(ProviderError):
+    """No approved extractor exists for this kind of object.
+
+    Returned instead of a guessed structure. A figure or diagram whose
+    axes/connectivity cannot be read by an approved extractor is an
+    explicit unsupported capability, not an empty structure that looks
+    like "nothing there".
+    """
+
+    retryable = False
+
+
+_STATUS_TO_ERROR: dict[int, type[ProviderError]] = {
+    400: ProviderRejectedMediaError,
+    401: ProviderAccessDeniedError,
+    403: ProviderAccessDeniedError,
+    404: ProviderRejectedMediaError,
+    408: ProviderTimeoutError,
+    409: ProviderNotReadyError,
+    413: ProviderRejectedMediaError,
+    415: ProviderRejectedMediaError,
+    422: ProviderRejectedMediaError,
+    429: ProviderQuotaExceededError,
+}
+
+_TIMEOUT_TYPE_NAMES = frozenset(
+    {"TimeoutError", "ReadTimeout", "ConnectTimeout", "WriteTimeout", "PoolTimeout", "TimeoutException"}
+)
+_CONNECTION_TYPE_NAMES = frozenset(
+    {"ConnectError", "ConnectionError", "RemoteProtocolError", "NetworkError", "TransportError"}
+)
+_NAME_TO_ERROR: dict[str, type[ProviderError]] = {
+    # tavily-python 0.7.x names its failures rather than exposing a status.
+    "InvalidAPIKeyError": ProviderAccessDeniedError,
+    "MissingAPIKeyError": ProviderAccessDeniedError,
+    "ForbiddenError": ProviderAccessDeniedError,
+    "UsageLimitExceededError": ProviderQuotaExceededError,
+    "TavilyKeylessLimitError": ProviderQuotaExceededError,
+    "BadRequestError": ProviderRejectedMediaError,
+}
+
+
+def _status_code(exc: BaseException) -> Optional[int]:
+    for attribute in ("status_code", "status"):
+        value = getattr(exc, attribute, None)
+        if isinstance(value, int) and not isinstance(value, bool):
+            return value
+    response = getattr(exc, "response", None)
+    value = getattr(response, "status_code", None)
+    if isinstance(value, int) and not isinstance(value, bool):
+        return value
+    return None
+
+
+def convert_provider_exception(
+    provider: str,
+    exc: BaseException,
+    *,
+    operation: str,
+    operation_id: Optional[str] = None,
+) -> ProviderError:
+    """Translate any SDK/transport failure into a Netra-owned ProviderError.
+
+    Classification uses only the exception's type name and HTTP status,
+    never its message: provider messages may echo request content,
+    signed URLs or account details, and none of that may reach a log,
+    a trace or the student. The resulting message names the operation
+    and the classification only.
+
+    asyncio.CancelledError is deliberately not accepted here. Converting
+    it would swallow task cancellation; callers re-raise it unchanged.
+    """
+
+    if isinstance(exc, ProviderError):
+        return exc
+
+    type_name = type(exc).__name__
+    status = _status_code(exc)
+
+    if type_name in _TIMEOUT_TYPE_NAMES or isinstance(exc, TimeoutError):
+        return ProviderTimeoutError(provider, f"{operation} timed out", operation_id=operation_id)
+    if type_name in _NAME_TO_ERROR:
+        error_type = _NAME_TO_ERROR[type_name]
+        return error_type(provider, f"{operation} failed ({error_type.__name__})")
+    if status is not None:
+        if status >= 500:
+            return ProviderUnavailableError(provider, f"{operation} failed with status {status}")
+        error_type = _STATUS_TO_ERROR.get(status)
+        if error_type is ProviderTimeoutError:
+            return ProviderTimeoutError(provider, f"{operation} timed out (status {status})", operation_id=operation_id)
+        if error_type is not None:
+            return error_type(provider, f"{operation} failed with status {status}")
+        return MalformedProviderResponseError(provider, f"{operation} failed with unexpected status {status}")
+    if type_name in _CONNECTION_TYPE_NAMES or isinstance(exc, ConnectionError):
+        return ProviderUnavailableError(provider, f"{operation} could not reach the provider")
+    return ProviderUnavailableError(provider, f"{operation} failed ({type_name})")
+
+
+def error_code(error: ProviderError) -> str:
+    """Closed, trace-safe code for one provider failure class."""
+
+    return {
+        ProviderUnavailableError: "provider_unavailable",
+        ProviderTimeoutError: "provider_timeout",
+        ProviderQuotaExceededError: "provider_quota_exceeded",
+        ProviderAccessDeniedError: "provider_access_denied",
+        ProviderRejectedMediaError: "provider_rejected_media",
+        MalformedProviderResponseError: "provider_malformed_response",
+        ProviderCancelledError: "provider_cancelled",
+        ProviderNotReadyError: "provider_not_ready",
+        ProviderConfigurationError: "provider_configuration_error",
+        MediaNotIngestibleError: "media_not_ingestible",
+        ExtractionUnsupportedError: "extraction_unsupported",
+    }.get(type(error), "provider_error")

@@ -25,10 +25,12 @@ Invariants enforced here, not by prompts:
 - An identical action that already ran while requirements remain unresolved is
   refused and the turn ends with the stated gap (no-progress stop, not a cap).
 
-LangGraph (approved stack) is not installed in the verified environment, so
-the loop runs as plain asyncio. ``build_langgraph`` wires the same engine as a
-single bounded node when the pinned package is present; that wiring and
-PostgreSQL checkpointing are unverified here and recorded in the M1 handoff.
+Composed turns run through ``build_langgraph``: this same loop compiled as one
+bounded LangGraph node (langgraph 1.2.11, locked). Budget, cancellation and
+validation stay in ``run_direct``. No checkpointer is attached because turn
+state holds live runtime objects, so a turn does not survive a process
+restart. The pinned PostgreSQL saver is tested separately
+(test_langgraph_checkpoint_postgres.py); see docs/team/integration-status.md.
 """
 
 from __future__ import annotations

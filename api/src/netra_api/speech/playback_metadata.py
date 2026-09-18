@@ -43,6 +43,13 @@ MAX_GENERATIONS_PER_SESSION = 32
 """Bounded history of generation records kept per session. Evicted records
 become unknown, and unknown means ineligible."""
 
+MAX_SESSIONS_RETAINED = 512
+"""Bounded number of sessions whose records this process keeps. When a new
+session would exceed it, the least recently started sessions with nothing
+active or paused are released: STOP must always reach active audio and a
+paused generation must survive to be resumed. Released records become
+unknown, which again only denies. An implementation bound, not product policy."""
+
 
 @dataclass(frozen=True)
 class DeliveredSentence:
@@ -93,14 +100,26 @@ class Generation:
 
 
 class GenerationRegistry:
-    def __init__(self, max_generations_per_session: int = MAX_GENERATIONS_PER_SESSION) -> None:
-        self._by_session: dict[UUID, OrderedDict[str, Generation]] = {}
+    def __init__(
+        self, max_generations_per_session: int = MAX_GENERATIONS_PER_SESSION, max_sessions: int = MAX_SESSIONS_RETAINED
+    ) -> None:
+        self._by_session: OrderedDict[UUID, OrderedDict[str, Generation]] = OrderedDict()
         self._max = max_generations_per_session
+        self._max_sessions = max_sessions
+
+    @property
+    def retained_sessions(self) -> int:
+        return len(self._by_session)
 
     def start(
         self, session_id: UUID, request_id: UUID, *, speakable: bool = True, generation_id: Optional[str] = None
     ) -> Generation:
-        records = self._by_session.setdefault(session_id, OrderedDict())
+        records = self._by_session.get(session_id)
+        if records is None:
+            records = self._by_session[session_id] = OrderedDict()
+            self._release_idle_sessions(keep=session_id)
+        else:
+            self._by_session.move_to_end(session_id)
         if speakable:
             for existing in records.values():
                 if existing.speakable and existing.state != "cancelled":
@@ -115,6 +134,19 @@ class GenerationRegistry:
         while len(records) > self._max:
             records.popitem(last=False)
         return generation
+
+    def _release_idle_sessions(self, keep: UUID) -> None:
+        excess = len(self._by_session) - self._max_sessions
+        if excess <= 0:
+            return
+        idle = []
+        for session_id, records in self._by_session.items():  # least recently started first
+            if len(idle) == excess:
+                break
+            if session_id != keep and not any(g.state in ("active", "paused") for g in records.values()):
+                idle.append(session_id)
+        for session_id in idle:
+            del self._by_session[session_id]
 
     def next_frame_sequence(self, generation: Generation) -> int:
         sequence = generation.frame_sequence

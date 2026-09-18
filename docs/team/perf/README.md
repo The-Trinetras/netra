@@ -177,6 +177,57 @@ The candidate must meet all of the following:
 
 Rollback: `git revert` the C-2 commit.
 
+### G-1: generation registry keeps every session for the life of the process (M1, `speech/playback_metadata.py`)
+
+`GenerationRegistry._by_session` gains one entry per session and never prunes
+sessions. Each session keeps up to 32 generations, and every navigation
+creates one, even with speech off. Each app launch opens a new session
+(D-open-2). Baseline measured with tracemalloc: about 138 KB per session at the
+cap (32 generations × 6 sentences), so 2000 sessions take 277 MB.
+
+The candidate must meet all of the following:
+
+1. With 3000 sessions × 40 generations × 6 sentences, retained sessions stay at or
+   below the cap, and retained memory is at most cap × baseline per-session
+   bytes × 1.1.
+2. A session with an active or paused generation is never evicted.
+3. A generation from an evicted session is refused as unknown, never admitted.
+4. The median cost of `start()` is at most 1.25× baseline.
+5. Existing speech, playback and transport tests pass unmodified, and the full default suite passes.
+
+**G-1 result** (`results/generation-registry-{baseline,g1-candidate}.json`):
+
+| Threshold | Baseline | Candidate | Met |
+|---|---|---|---|
+| 1. Sessions retained / memory, 3000 × 40 × 6 | 3000 / 419 MB | 512 / 74.8 MB (limit 78.7 MB) | yes |
+| 1. Same, 1 sentence per generation | 3000 / 209 MB | 512 / 38.8 MB (limit 39.2 MB) | yes |
+| 2. Active or paused sessions never released | – | unit test: active and paused kept; STOP still reaches active audio | yes |
+| 3. Released generation refused as unknown | – | unit test: acknowledgement lookup and cancel refused | yes |
+| 4. `start()` median, untraced, 3 rounds | 4.6–4.8 µs | 4.7–4.8 µs | yes |
+| 5. Existing speech tests and suite | – | 18 speech-related tests pass unmodified; 1116 passed, 1 skipped | yes |
+
+The traced p99 of `start()` rose (92 → 243 µs). Releasing an idle session frees its
+records inside the `start()` that creates a new session, which happens at most
+once per app launch. Rollback: `git revert` the G-1 commit.
+
+### G-2: unexpected exceptions are logged with their message (M1, `transport/websocket/dispatcher.py`)
+
+Both catch-all handlers call `logger.exception`, which writes the exception
+message and traceback. The API process configures no formatter; only the worker
+calls `configure_logging`, whose JSON formatter keeps just `error_type`. A
+message can carry student text or private answer data: a pydantic
+`ValidationError` prints its input values, for example for a stored pending
+question after a schema change.
+
+The candidate must meet all of the following:
+
+1. A private marker in an unexpected exception, raised inside a Coordinator turn
+   or during message dispatch, appears in no captured log text (message or
+   formatted traceback).
+2. The log record still names the exception type and includes the stack frames.
+3. The client still receives the same `error` frame (code `internal`).
+4. The new tests fail before the change and pass after it, and the full default suite passes.
+
 ## Reproduction
 
 From the repository root, with the app environment active:

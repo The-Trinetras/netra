@@ -1,0 +1,36 @@
+{
+  "label": "g1-candidate",
+  "captured_at": "2026-09-18T23:39:27.235378+00:00",
+  "python": "3.13.15",
+  "memory": [
+    {
+      "sessions": 3000,
+      "generations_per_session": 40,
+      "sentences_per_generation": 6,
+      "sessions_retained": 512,
+      "bytes_held": 74839576,
+      "bytes_per_session_created": 24947,
+      "start_us": {
+        "median": 41.8,
+        "p99": 243.0
+      }
+    },
+    {
+      "sessions": 3000,
+      "generations_per_session": 40,
+      "sentences_per_generation": 1,
+      "sessions_retained": 512,
+      "bytes_held": 38801340,
+      "bytes_per_session_created": 12934,
+      "start_us": {
+        "median": 38.5,
+        "p99": 118.6
+      }
+    }
+  ],
+  "start_us_median_untraced": [
+    4.7,
+    4.8,
+    4.8
+  ]
+}

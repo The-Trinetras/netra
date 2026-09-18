@@ -1,5 +1,14 @@
 # Parallel implementation prompts
 
+**Continuing a previous build?** Use the [M1–M5 continuation prompts and integration
+playbook](../integration-playbook.md), not a fresh scaffold task. It includes the
+observed merge state, required incomplete-work reports, dependency review, merge
+waves and prompts for review, post-merge completion, evaluation and publication.
+M3/M4's earlier builds are already in main; M2's laptop build must be published.
+Recheck branch tips before acting. The continuation prompts explicitly authorize
+owned branch publication and necessary reviewed dependency-file repairs; they do
+not authorize arbitrary installs, live providers, deployment or a main merge.
+
 Give each teammate their complete prompt below in their own checkout. Each prompt
 directs the agent to read this shared implementation agreement and the repository's
 authorities; no second prompt or manually copied preamble is needed.

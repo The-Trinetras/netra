@@ -50,6 +50,11 @@ flowchart LR
   deployment, queues/brokers, autoscaling or distributed evaluation orchestration.
   A background batch exporter and a resumable local runner are sufficient here.
 
+The selected `langchain-core` requires the `langsmith` package transitively; see
+the [dependency review](../team/dependency-review.md). Replacing the tracing
+destination does not authorize deleting required transitive packages. Keep
+LangSmith export disabled and test that configured tracing emits only to AX.
+
 ## Reliable tracing with low response-path overhead
 
 The [AX tracing configuration](https://arize.com/docs/ax/observe/tracing/configure)

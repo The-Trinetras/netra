@@ -5,6 +5,14 @@ Review cutoff: 11 September 2026.
 Status: Release and declared dependency metadata checked.
 Full dependency locking, installation and integration tests remain pending.
 
+Integration follow-up (18 September 2026): see the
+[dependency review](../team/dependency-review.md). A Windows-targeted pip dry run
+resolved the current runtime/dev declarations without an observed version conflict;
+it did not enforce the uv cutoff or validate the installed Linux runtime. Root pins
+remain unchanged. The user authorizes necessary reviewed dependency-file repairs;
+M2 coordinates one shared lock after collecting actual member errors and M1's
+telemetry requirements. Unpublished M2 changes and isolated AX/GPU pins remain unverified.
+
 Read [current scope](current-scope.md) for product authority and the active
 [architecture overview](overview.md) for preserved boundaries. The original
 Engineering Plan is historical where its product requirements are superseded.

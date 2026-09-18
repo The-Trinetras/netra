@@ -9,6 +9,14 @@ edit unrelated work or bypass contract review.
 Use the [M1–M5 implementation prompts](prompts/README.md) to start parallel coding.
 Each prompt includes its role's deliverables and reads a shared coordination agreement.
 
+For already-started builds, use the [integration playbook](integration-playbook.md)
+and continuation prompts. Each member reports actual incomplete work and exact
+producer/consumer dependencies using the [handoff template](handoff-template.md).
+The playbook sequences interfaces, shared persistence, domain deltas, final API
+wiring, real client integration and AX comparisons; it does not re-merge M3/M4 work
+already in main. M2 serializes necessary root manifest/lock repairs under the
+[current dependency review](dependency-review.md).
+
 | Workstream | Owns | Implementation guide / domain rule |
 |---|---|---|
 | M1 | Coordinator, identity/session context, routing, tool policy, handoffs, cancellation/version semantics; server speech/transport | [M1](M1.md) / [coordinator](../../.claude/rules/coordinator.md) |

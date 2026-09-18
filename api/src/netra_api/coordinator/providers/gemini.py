@@ -72,12 +72,36 @@ class ModelDecision(BaseModel):
     model answered directly."""
 
 
+class ToolSpec(BaseModel):
+    """Provider-neutral description of one permitted tool offered to the model."""
+
+    name: str
+    description: str
+    input_schema: dict[str, Any]
+
+
 class GeminiCoordinatorProvider(Protocol):
     """Adapter boundary for calling Gemini on the Coordinator's behalf.
 
-    A concrete implementation makes the network call; this interface
-    only fixes the shape callers depend on.
+    Implementations must offer ``tools`` as declarations only, disable any
+    SDK automatic function execution, and return requested calls as inert
+    ToolCallRequest data. The runtime counts the attempt before calling.
     """
 
-    async def decide(self, config: GeminiModelConfig, prompt: str) -> ModelDecision:
+    async def decide(self, config: GeminiModelConfig, prompt: str, tools: list[ToolSpec]) -> ModelDecision:
         ...
+
+
+class UnavailableGeminiProvider:
+    """Explicitly unavailable adapter.
+
+    google-genai==2.21.0 is pinned but not installed in the verified
+    environment, and live provider calls are not authorized, so no network
+    adapter ships in this build. Every call fails with PROVIDER_UNAVAILABLE;
+    deterministic navigation keeps working without it.
+    """
+
+    async def decide(self, config: GeminiModelConfig, prompt: str, tools: list[ToolSpec]) -> ModelDecision:
+        from netra_api.platform.errors import ProviderUnavailableError
+
+        raise ProviderUnavailableError("the Coordinator model adapter is not available in this build")

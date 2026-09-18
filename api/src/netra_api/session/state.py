@@ -36,6 +36,10 @@ class ReadingPosition(BaseModel):
     current_block_id: Optional[str] = None
     current_sentence_id: Optional[str] = None
 
+    @property
+    def has_location(self) -> bool:
+        return self.source_version_id is not None and self.current_block_id is not None
+
 
 class PlaybackAcknowledgement(BaseModel):
     """Last playback position the client confirmed, per the shared PlaybackAck payload."""
@@ -95,6 +99,13 @@ class SessionState(BaseModel):
     active_lesson: Optional[ActiveLessonRef] = None
     pending_question: Optional[PendingQuestionRef] = None
     last_result_set: Optional[ResultSetRef] = None
+    reading_return_position: Optional[ReadingPosition] = None
+    """Where "back to reading" returns: recorded when the session leaves
+    reading for a lesson, question or opened result. Server-side only; the
+    session.snapshot contract deliberately excludes return positions."""
+    undo_jump_position: Optional[ReadingPosition] = None
+    """The one-step position "undo jump" restores (the position before the
+    last jump). Server-side only, like reading_return_position."""
     session_version: int = Field(default=0, ge=0)
     updated_at: datetime
 

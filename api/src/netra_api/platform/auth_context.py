@@ -9,6 +9,7 @@ before touching PostgreSQL (see CLAUDE.md "Database boundaries").
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Optional
 from uuid import UUID
 
 from pydantic import BaseModel
@@ -32,6 +33,13 @@ class AuthenticatedPrincipal(BaseModel):
 
     account_id: UUID
     authenticated_at: datetime
+    device_id: Optional[UUID] = None
+    """Device the verified credential is bound to, when it is device-bound.
+    Identity re-checks that device's access on every resolved context, so a
+    revoked device loses access during an open connection."""
+    credential_expires_at: Optional[datetime] = None
+    """Expiry of the verified credential. Expiry remains relevant after the
+    connection is accepted (message-flow.md flow 1)."""
 
 
 class AuthContext(BaseModel):
@@ -48,6 +56,7 @@ class AuthContext(BaseModel):
     session_id: UUID
     request_id: UUID
     issued_at: datetime
+    device_id: Optional[UUID] = None
 
     def assert_owns_session(self, session_id: UUID) -> None:
         """Reject a call targeting a session other than the authorized one.

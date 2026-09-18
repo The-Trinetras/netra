@@ -1,5 +1,0 @@
-{
-  "rubric_id": "netra_answer_groundedness_v1",
-  "rubric_version": "1",
-  "criteria": "Evaluate factual correctness, grounding in the supplied retrieved evidence, completeness, unsupported claims, contradictions, and appropriate uncertainty. Score 5 for a correct, sufficiently complete answer grounded in the evidence with no material unsupported claims; 4 for mostly correct and grounded with minor omissions or imprecision; 3 for partially correct or grounded with meaningful weaknesses; 2 for substantial correctness or grounding problems; 1 for an incorrect, contradicted, or substantially unsupported answer. Do not reward verbosity, keyword overlap, copying passages, mentioning chunk IDs, or confident unsupported claims. Do not require verbatim reproduction of the reference answer. Concise answers may score highly. When evidence is insufficient, acknowledging uncertainty is preferable to hallucinating."
-}

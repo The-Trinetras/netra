@@ -5,7 +5,7 @@ import asyncio
 
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
-from netra_api.config import Settings
+from netra_api.content.settings import application_database_url
 from netra_api.db.models import Base
 
 config = context.config
@@ -17,7 +17,7 @@ target_metadata = Base.metadata
 
 def run_migrations_offline() -> None:
     context.configure(
-        url=Settings().database_url,
+        url=application_database_url(),
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
@@ -34,7 +34,7 @@ def do_run_migrations(connection) -> None:
 
 async def run_migrations_online() -> None:
     configuration = config.get_section(config.config_ini_section, {})
-    configuration["sqlalchemy.url"] = Settings().database_url
+    configuration["sqlalchemy.url"] = application_database_url()
     connectable = async_engine_from_config(configuration, prefix="sqlalchemy.")
     async with connectable.connect() as connection:
         await connection.run_sync(do_run_migrations)

@@ -12,7 +12,13 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-target_metadata = Base.metadata
+# M1-owned identity/session tables are declared outside the M2 ORM Base.
+# Both metadata sets are listed so autogenerate never proposes dropping them.
+import netra_api.identity.postgres  # noqa: E402,F401  (populates M1_METADATA)
+import netra_api.session.postgres  # noqa: E402,F401
+from netra_api.platform.database import M1_METADATA  # noqa: E402
+
+target_metadata = [Base.metadata, M1_METADATA]
 
 
 def run_migrations_offline() -> None:

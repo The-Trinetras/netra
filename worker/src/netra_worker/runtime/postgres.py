@@ -140,7 +140,8 @@ class AsyncOutboxRepository:
         now = datetime.now(timezone.utc)
         claim_until = now + timedelta(seconds=lease_duration_seconds)
         async with self.session.begin():
-            rows = (await self.session.execute(select(OutboxRow).where(OutboxRow.processed_at.is_(None))
+            rows = (await self.session.execute(select(OutboxRow).where(OutboxRow.processed_at.is_(None),
+                                                                       OutboxRow.dead_lettered_at.is_(None))
                 .where(OutboxRow.claim_until.is_(None) | (OutboxRow.claim_until < now))
                 .order_by(OutboxRow.created_at).limit(limit).with_for_update(skip_locked=True))).scalars().all()
             for row in rows:
@@ -155,5 +156,17 @@ class AsyncOutboxRepository:
                 OutboxRow.claim_token == claim_token, OutboxRow.claim_worker_id == worker_id,
                 OutboxRow.claim_until >= datetime.now(timezone.utc),
             ).values(processed_at=processed_at, claim_token=None, claim_worker_id=None, claim_until=None))
+            if result.rowcount != 1:
+                raise LeaseLostError("outbox claim is no longer valid")
+
+    async def mark_dead_lettered(self, event_id: UUID, claim_token: UUID, worker_id: str, error_code: str) -> None:
+        """Stop re-claiming a poison event; fenced by the claim like mark_processed."""
+        async with self.session.begin():
+            result = await self.session.execute(update(OutboxRow).where(
+                OutboxRow.event_id == event_id, OutboxRow.processed_at.is_(None),
+                OutboxRow.claim_token == claim_token, OutboxRow.claim_worker_id == worker_id,
+                OutboxRow.claim_until >= datetime.now(timezone.utc),
+            ).values(dead_lettered_at=datetime.now(timezone.utc), last_error_code=error_code[:64],
+                     claim_token=None, claim_worker_id=None, claim_until=None))
             if result.rowcount != 1:
                 raise LeaseLostError("outbox claim is no longer valid")

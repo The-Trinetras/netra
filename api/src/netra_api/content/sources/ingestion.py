@@ -17,7 +17,7 @@ from netra_api.content.telemetry import log_event
 from netra_api.platform.errors import AuthorizationError
 
 
-SOURCE_VERSION_INGESTION_REQUESTED = "source_version.ingestion_requested"
+from netra_api.db.outbox import SOURCE_VERSION_INGESTION_REQUESTED  # noqa: E402  (single definition)
 
 
 class SourceIngestionCreation(BaseModel):

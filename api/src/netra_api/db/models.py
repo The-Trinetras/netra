@@ -10,7 +10,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, CheckConstraint, text, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -116,7 +116,10 @@ class JobRow(Base):
 
 class OutboxRow(Base):
     __tablename__ = "outbox"
-    __table_args__ = (Index("ix_outbox_pending", "processed_at", "claim_until", "created_at"),)
+    __table_args__ = (
+        Index("ix_outbox_claimable", "created_at",
+              postgresql_where=text("processed_at IS NULL AND dead_lettered_at IS NULL")),
+    )
 
     event_id: Mapped[UUID] = uuid_column()
     aggregate_type: Mapped[str] = mapped_column(String(100), nullable=False)
@@ -129,6 +132,8 @@ class OutboxRow(Base):
     claim_token: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True))
     claim_worker_id: Mapped[str | None] = mapped_column(String(200))
     claim_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    dead_lettered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_error_code: Mapped[str | None] = mapped_column(String(64))
 
 
 class MultimediaCandidateRow(Base):

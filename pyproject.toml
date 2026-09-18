@@ -51,8 +51,6 @@ dependencies = [
 
     # Local normal-PDF extraction boundary (Stage C)
     "PyMuPDF==1.28.2",
-    # Local BGE cross-encoder reranking (M2)
-    "FlagEmbedding==1.4.2",
 ]
 
 [dependency-groups]

@@ -2,8 +2,10 @@
 
 Review cutoff: 11 September 2026.
 
-Status: Release metadata, declared constraints and the shared Python lock checked.
-External-service integration validation remains environment-dependent.
+Status: Release and declared dependency metadata checked. A first shared
+uv.lock is proposed on codex/m2-data (see "Proposed shared lock" below); it is
+consistent with pyproject.toml but not yet reviewed, installed on the Linux
+deployment image, or merged. Integration tests against it remain pending.
 
 Integration follow-up (18 September 2026): see the
 [dependency review](../team/dependency-review.md). A Windows-targeted pip dry run
@@ -79,6 +81,34 @@ Provider pins:
 - tavily-python==0.7.27
 - llama-cloud==2.14.1
 - boto3==1.43.92
+
+M2 ingestion pins PROPOSED on codex/m2-data (require M1/M2 review before merge):
+- tokenizers==0.23.2 — local, deterministic chunk-budget word counting only
+  (no model files, no torch). A pure-regex replacement was measured and is not
+  offset-identical for combining marks, so the pin is retained.
+- PyMuPDF==1.28.2 — local text-layer PDF extraction before LlamaParse/OCR.
+  **License review required:** PyMuPDF is AGPL-3.0 or commercially licensed.
+  Owners must accept that obligation or select another parser before merge.
+
+## Proposed shared lock — 18 September 2026 (M2)
+
+`uv.lock` (uv 0.12.13, lock `revision = 3`) resolves 106 packages for
+`requires-python >=3.13.15,<3.14` with `prerelease = "disallow"` and the
+unchanged `exclude-newer = 2026-09-12T00:00:00Z` cutoff. It was generated from
+the uv cache with `uv lock --offline`; `uv lock --check --offline` exits 0.
+
+`FlagEmbedding==1.4.2` (BGE cross-encoder reranking) was removed from the shared
+manifest because it pulls torch, transformers, triton and the CUDA wheel set into
+the API/worker lock, which the evaluation-dependency rules below forbid. Removing
+it dropped 62 packages and changed no remaining version. The reranker imports
+FlagEmbedding lazily, is disabled by default (`NETRA_RERANKER_ENABLED=false`) and
+reports itself unavailable when the package is absent; retrieval then keeps the
+authorized RRF order. BGE experiments (E4/E5) need a separately pinned evaluation
+environment reviewed with M4.
+
+`langsmith` remains as a required transitive of `langchain-core==1.6.2`; its
+export is disabled at process start (`disable_langsmith_export`). No
+OpenTelemetry/OpenInference packages are declared yet: M1's pin request is pending.
 
 Jina Reader/HTTPX is a historical general-web integration choice; general web
 ingestion is deferred. Tavily discovery remains relevant to in-scope YouTube search.

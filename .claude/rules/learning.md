@@ -95,7 +95,9 @@ Use canonical PostgreSQL records when the existing reduced-mode path permits it.
 Keep evaluation outside the live student response path.
 Prioritize deterministic source/evidence checks, original-media review, state and
 recovery tests and accessibility tasks. Ragas and Prometheus-2 are secondary
-evaluators; their integration remains pending. Use source-checked references and
+evaluators; their integration remains pending. Do not add the Ragas package:
+it requires full LangChain and OpenAI SDKs (see runtime-baseline.md "Evaluation
+dependencies"). Implement Ragas-style metrics in evaluation scripts instead. Use source-checked references and
 explicit scoring rubrics. Blindfolded sighted testing is an interaction exercise,
 not proof of blind-student usability.
 Distinguish factual support, teaching quality and observed learning outcomes.

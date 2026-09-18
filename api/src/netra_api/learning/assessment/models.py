@@ -133,4 +133,8 @@ class LearningEventProposal(BaseModel):
     question_version: Optional[int] = Field(default=None, ge=1)
     answer: Optional[AnswerSubmission] = None
     outcome: Optional[AttemptOutcome] = None
+    evaluated_by: Optional[EvaluatedBy] = None
+    """Which bounded actor produced `outcome` — required alongside it for
+    answer_evaluated proposals (see service._validate_proposal), so the
+    committed AssessmentAttempt.evaluated_by is never guessed."""
     hints_used: int = Field(default=0, ge=0)

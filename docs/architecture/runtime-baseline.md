@@ -120,6 +120,31 @@ id currently exists on the provider's API.
 - PostgreSQL remains authoritative; Neo4j is rebuildable.
 - Redis is never required for correctness, checkpoints or durable jobs.
 
+## Evaluation dependencies
+
+Status (2026-09-17): the Ragas package is not approved and must not be added.
+
+- Every Ragas release checked (0.2.2 through 0.4.3) requires the full LangChain
+  framework, langchain-community, langchain-openai and openai. That conflicts
+  with "Do not add the full LangChain or LlamaIndex frameworks" above, and would
+  put a proprietary-provider SDK into the shared API/worker lock.
+- Ragas 0.2.3 through 0.4.3 are reported as affected by an unfixed SSRF advisory
+  (the advisory was reported during dependency review, not re-verified here).
+  Ragas 0.4.3 would also downgrade the resolved rich 15.0.0 to 14.3.4.
+- No existing pin changes. Prometheus-2 needs no new Python dependency: its
+  adapter uses the existing httpx pin. vLLM, prometheus-eval, torch and
+  transformers stay in the pinned evaluator container on the temporary GPU host
+  and must not be added to pyproject.toml.
+- Until an exception is approved, implement the secondary retrieval-and-answer
+  metrics (for example faithfulness, context precision/recall and answer
+  relevance) as M4 evaluation scripts. Use Ragas metric definitions as reference
+  only, and score through the Prometheus-2 adapter plus deterministic checks.
+- Reopening requires explicit approval of one of these: a patched Ragas release
+  without mandatory OpenAI/full-LangChain dependencies, or an explicit exception
+  for a named version and its transitive set. With that exception, OpenAI must
+  never be configured as judge or embedding model.
+- The Prometheus-2 blocker is AWS GPU quota, not dependency resolution.
+
 ## Completing the freeze
 
 When dependency setup is explicitly requested:

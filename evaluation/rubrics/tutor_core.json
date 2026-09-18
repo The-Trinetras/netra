@@ -1,0 +1,32 @@
+{
+  "rubric_id": "tutor-core",
+  "rubric_version": 1,
+  "criteria": [
+    {
+      "criterion_id": "responded",
+      "description": "A non-failed result delivers at least one public segment to the student.",
+      "weight": 1.0
+    },
+    {
+      "criterion_id": "cites-evidence",
+      "description": "The result cites at least one evidence id rather than answering from nothing.",
+      "weight": 1.0
+    },
+    {
+      "criterion_id": "evidence-ids-authorized",
+      "description": "Every cited evidence id was supplied by the handoff; the Tutor invented no reference.",
+      "weight": 1.0
+    },
+    {
+      "criterion_id": "pending-question-consistency",
+      "description": "awaiting_student_answer and pending_question_id agree, so a waiting turn always has a question to return to.",
+      "weight": 1.0
+    },
+    {
+      "criterion_id": "learning-events-target-handoff-concepts",
+      "description": "Proposed learning events stay within the handoff's target concepts; no concept is invented.",
+      "weight": 1.0
+    }
+  ],
+  "scope_note": "Deterministic structural criteria only. These check the shape and provenance of a Tutor result, NOT whether its teaching is factually supported by the source. Semantic support requires source review against the original media and, separately, the pending evidence-grounding decision; a result passing every criterion here has not been shown to be correct."
+}

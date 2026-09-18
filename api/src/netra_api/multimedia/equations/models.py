@@ -36,6 +36,21 @@ class EquationNode(BaseModel):
     kind: EquationNodeKind
     spoken_form: str
     """How this node/subtree should be read aloud, e.g. "x squared"."""
+    symbol: Optional[str] = None
+    """The literal token as written in the source, e.g. "V", "×", "2".
+
+    Kept beside spoken_form rather than derived from it. multimedia.md
+    requires checking "signs, exponents, fractions, grouping and units
+    against the source", and spoken prose cannot be checked that way:
+    "minus two" and "negative two" are the same reading of the same
+    token, while "V" and "v" may be different quantities. Validation
+    compares symbols; the student hears spoken_form."""
+    unit: Optional[str] = None
+    """Unit attached to this operand, when the source states one.
+
+    Units are part of what must survive extraction; an equation whose
+    operands lost their units cannot be checked against the table that
+    supplies their values."""
     children: List["EquationNode"] = Field(default_factory=list)
 
 

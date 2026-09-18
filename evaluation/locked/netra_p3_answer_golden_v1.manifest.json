@@ -1,0 +1,11 @@
+{
+  "dataset_id": "netra-p3-answer-golden",
+  "dataset_version": "1",
+  "path": "evaluation/cases/netra_p3_answer_golden_v1.jsonl",
+  "sha256": "444db8d4d6edf2d82c2a0db06ebef239226c8f767abf08d4e7641e4f27ab5b75",
+  "source_pdf_sha256": "537c872f1d2de7c9d338d08c90a436fbd724640ab4e43fbe4219c1f8fdb68935",
+  "source_version_id": "60610bd7-cd97-478e-84bd-82b13235b7ec",
+  "case_count": 6,
+  "rubric_id": "netra_answer_groundedness_v1",
+  "rubric_version": "1"
+}

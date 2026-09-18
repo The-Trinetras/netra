@@ -28,6 +28,9 @@ class OutboxEvent(BaseModel):
     created_at: datetime
     processed_at: Optional[datetime] = None
     attempt_count: int = 0
+    claim_token: Optional[UUID] = None
+    claim_worker_id: Optional[str] = None
+    claim_until: Optional[datetime] = None
 
 
 class OutboxRepository(Protocol):
@@ -43,8 +46,8 @@ class OutboxRepository(Protocol):
     ) -> OutboxEvent:
         ...
 
-    def claim_unprocessed(self, limit: int) -> List[OutboxEvent]:
+    def claim_unprocessed(self, limit: int, worker_id: str, lease_duration_seconds: int) -> List[OutboxEvent]:
         ...
 
-    def mark_processed(self, event_id: UUID, processed_at: datetime) -> None:
+    def mark_processed(self, event_id: UUID, processed_at: datetime, claim_token: UUID, worker_id: str) -> None:
         ...

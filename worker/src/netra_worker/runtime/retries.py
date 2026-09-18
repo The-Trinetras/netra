@@ -37,7 +37,8 @@ class ExponentialBackoffWithJitter:
     def next_delay(self, attempt_count: int) -> timedelta:
         if attempt_count < 0:
             raise ValueError("attempt_count must be >= 0")
-        exponential = self._base_delay * (2**attempt_count)
+        # Cap the exponent so a large attempt count cannot overflow timedelta.
+        exponential = self._base_delay * (2 ** min(attempt_count, 32))
         capped_seconds = min(exponential, self._max_delay).total_seconds()
         jitter_seconds = capped_seconds * self._jitter_ratio
         jittered_seconds = capped_seconds + random.uniform(-jitter_seconds, jitter_seconds)

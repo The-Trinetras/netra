@@ -90,3 +90,29 @@ explicitly and record billed usage from the account; the runner's cost figure is
 GPU-only estimate. `replay-fixtures` exercises the scorer on authored fixture text and
 must never be reported as Netra output; real candidate outputs require the integrated
 Tutor path (wave 6). Remaining gates are listed in `docs/team/handoffs/M4.md`.
+
+## M2 retrieval fixtures and harness
+
+M2 supplies retrieval fixtures and a retrieval-only benchmark; it does not own
+the judge, rubrics or AX adapter above. `evaluation/scripts/retrieval_evaluation.py`,
+`retrieval_experiments.py` and `hybrid_metrics.py` compute Precision@5,
+Recall@5/10, MRR, nDCG@5, source-version/authorization correctness and latency
+through the production lexical, semantic, RRF, BGE and PostgreSQL evidence
+boundaries. `evaluation/manifests/retrieval_v1.json` pins every stage flag for
+the E0–E5 matrix (E0 lexical, E1 semantic, E2 hybrid without RRF, E3 hybrid+RRF,
+E4 +BGE, E5 metadata-filtered). E4/E5 report *blocked* without a real BGE model.
+
+`evaluation/cases/netra_e3_real_golden_v1.jsonl` and
+`netra_p3_answer_golden_v1.jsonl` reference one lecture PDF by immutable
+source/version IDs and SHA-256. The PDF and its parsed text are deliberately
+**not** committed (redistribution rights unconfirmed); they stay local under the
+git-ignored `evaluation/fixtures/`. Without that file the real-golden runs are
+skipped, not passed. Denied, deleted, stale and incompatible-embedding cases for
+M4 are listed in `docs/team/handoffs/M2.md`.
+
+Real runs need a designated database and provider configuration, and write
+results under `evaluation/results/` (git-ignored, never overwritten implicitly):
+
+```powershell
+uv run --locked python evaluation/scripts/run_m2_evaluation.py --experiment E3
+```

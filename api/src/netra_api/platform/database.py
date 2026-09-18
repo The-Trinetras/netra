@@ -39,3 +39,15 @@ def create_engine(database_url: str, **engine_options: Any):
     from sqlalchemy.ext.asyncio import create_async_engine
 
     return create_async_engine(database_url, pool_pre_ping=True, **engine_options)
+
+
+def create_session_factory(engine: Any):
+    """Session factory for M2 repositories (sessions do not expire on commit)."""
+
+    from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+
+    return async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
+
+
+async def dispose_engine(engine: Any) -> None:
+    await engine.dispose()

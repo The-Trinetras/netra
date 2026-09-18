@@ -2,8 +2,24 @@
 __pycache__/
 *.pyc
 .pytest_cache/
+.pytest-tmp*/
 *.egg-info/
+.env
+evaluation/.venv-prometheus/
+evaluation/results/*
+!evaluation/results/.gitkeep
+infrastructure/terraform/.terraform/
+infrastructure/terraform/*.tfstate
+infrastructure/terraform/*.tfstate.*
+infrastructure/terraform/*.tfvars
+infrastructure/terraform/*.tfplan
 
 # .NET
 bin/
 obj/
+
+# Third-party source documents and their parsed text stay local-only; the
+# public repository must not redistribute them. Golden cases reference them
+# by source/version ID and SHA-256 (see evaluation/cases/README.md).
+evaluation/fixtures/documents/
+evaluation/fixtures/_netra/

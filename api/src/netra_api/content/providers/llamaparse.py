@@ -10,7 +10,7 @@ this scaffold.
 
 from __future__ import annotations
 
-from typing import List, Protocol
+from typing import Any, List, Protocol
 
 from pydantic import BaseModel
 
@@ -23,6 +23,12 @@ class ParsedBlock(BaseModel):
     """Provider-reported type (e.g. "paragraph", "heading"); mapped onto
     netra_api.content.reading.blocks.BlockType by the build_blocks
     ingestion stage, not here."""
+    page_index: int | None = None
+    printed_page: str | None = None
+    structured_location: dict[str, Any] = {}
+    parent_id: str = "document"
+    parent_path: tuple[str, ...] = ()
+    source_metadata: dict[str, Any] = {}
 
 
 class DocumentParserProvider(Protocol):

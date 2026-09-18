@@ -2,8 +2,10 @@
 
 Review cutoff: 11 September 2026.
 
-Status: Release and declared dependency metadata checked.
-Full dependency locking, installation and integration tests remain pending.
+Status: Release and declared dependency metadata checked. A first shared
+uv.lock is proposed on codex/m2-data (see "Proposed shared lock" below); it is
+consistent with pyproject.toml but not yet reviewed, installed on the Linux
+deployment image, or merged. Integration tests against it remain pending.
 
 Integration follow-up (18 September 2026): see the
 [dependency review](../team/dependency-review.md). A Windows-targeted pip dry run
@@ -53,8 +55,9 @@ Record the Tesseract binary build and OCR language-data versions.
 ## Dependency authority
 
 pyproject.toml defines approved constraints.
-A committed uv.lock must define exact direct and transitive Python versions;
-no uv.lock exists in this checkout. Full locking remains pending.
+The committed root uv.lock defines exact direct and transitive Python versions
+for the shared API/worker environment. Deployables must not maintain independent
+lockfiles.
 global.json defines the .NET SDK.
 Committed NuGet declarations and lockfiles govern desktop package versions
 when present; no NuGet lockfile exists in this checkout.
@@ -77,11 +80,35 @@ Provider pins:
 - twelvelabs==1.3.4
 - tavily-python==0.7.27
 - llama-cloud==2.14.1
-- boto3==1.43.92 (approved 2026-09-12; declared in pyproject.toml. uv.lock
-  regeneration is blocked because uv is not installed in this environment —
-  pip dry-run resolution confirmed the pin and its full dependency set
-  resolve cleanly, so the pin itself is not in question, only the lockfile
-  mechanics.)
+- boto3==1.43.92
+
+M2 ingestion pins PROPOSED on codex/m2-data (require M1/M2 review before merge):
+- tokenizers==0.23.2 — local, deterministic chunk-budget word counting only
+  (no model files, no torch). A pure-regex replacement was measured and is not
+  offset-identical for combining marks, so the pin is retained.
+- PyMuPDF==1.28.2 — local text-layer PDF extraction before LlamaParse/OCR.
+  **License review required:** PyMuPDF is AGPL-3.0 or commercially licensed.
+  Owners must accept that obligation or select another parser before merge.
+
+## Proposed shared lock — 18 September 2026 (M2)
+
+`uv.lock` (uv 0.12.13, lock `revision = 3`) resolves 106 packages for
+`requires-python >=3.13.15,<3.14` with `prerelease = "disallow"` and the
+unchanged `exclude-newer = 2026-09-12T00:00:00Z` cutoff. It was generated from
+the uv cache with `uv lock --offline`; `uv lock --check --offline` exits 0.
+
+`FlagEmbedding==1.4.2` (BGE cross-encoder reranking) was removed from the shared
+manifest because it pulls torch, transformers, triton and the CUDA wheel set into
+the API/worker lock, which the evaluation-dependency rules below forbid. Removing
+it dropped 62 packages and changed no remaining version. The reranker imports
+FlagEmbedding lazily, is disabled by default (`NETRA_RERANKER_ENABLED=false`) and
+reports itself unavailable when the package is absent; retrieval then keeps the
+authorized RRF order. BGE experiments (E4/E5) need a separately pinned evaluation
+environment reviewed with M4.
+
+`langsmith` remains as a required transitive of `langchain-core==1.6.2`; its
+export is disabled at process start (`disable_langsmith_export`). No
+OpenTelemetry/OpenInference packages are declared yet: M1's pin request is pending.
 
 Jina Reader/HTTPX is a historical general-web integration choice; general web
 ingestion is deferred. Tavily discovery remains relevant to in-scope YouTube search.
@@ -190,7 +217,7 @@ Dependency setup/install/live access retains the explicit execution controls abo
 
 When dependency setup is explicitly requested:
 
-- Resolve and commit the full Python lock without pre-releases.
+- Validate changes to the committed root Python lock without pre-releases.
 - Validate installation on the actual deployment Python/platform.
 - Record and verify image digests.
 - Run API/WebSocket, migration, async database and checkpoint-resume checks.

@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum
-from typing import Optional
+from typing import Any, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -26,6 +26,19 @@ class SourceVersionStatus(str, Enum):
     PENDING = "pending"
     PROCESSING = "processing"
     READY = "ready"
+    FAILED = "failed"
+
+
+class SourceVersionIngestionState(str, Enum):
+    """Ordered ingestion gate for one immutable source version."""
+
+    PENDING = "pending"
+    PARSING = "parsing"
+    BLOCKS_BUILT = "blocks_built"
+    EMBEDDED = "embedded"
+    PROJECTED = "projected"
+    READY = "ready"
+    ACTIVE = "active"
     FAILED = "failed"
 
 
@@ -54,3 +67,20 @@ class SourceVersion(BaseModel):
     is_active: bool = False
     created_at: datetime
     activated_at: Optional[datetime] = None
+    object_key: Optional[str] = None
+    content_hash: Optional[str] = None
+    parser_name: Optional[str] = None
+    parser_version: Optional[str] = None
+    parser_config: dict[str, Any] = Field(default_factory=dict)
+    ingestion_state: SourceVersionIngestionState = SourceVersionIngestionState.PENDING
+    completed_stages: list[str] = Field(default_factory=list)
+
+    def is_activation_eligible(self) -> bool:
+        """Return whether all canonical and semantic gates have completed."""
+        required = {"parsing", "blocks_built", "embedded", "projected"}
+        return (
+            self.ingestion_state == SourceVersionIngestionState.READY
+            and self.status == SourceVersionStatus.READY
+            and required.issubset(self.completed_stages)
+            and bool(self.object_key and self.content_hash and self.parser_name and self.parser_version)
+        )

@@ -1,0 +1,53 @@
+from logging.config import fileConfig
+
+from alembic import context
+import asyncio
+
+from sqlalchemy.ext.asyncio import async_engine_from_config
+
+from netra_api.content.settings import application_database_url
+from netra_api.db.models import Base
+
+config = context.config
+if config.config_file_name is not None:
+    fileConfig(config.config_file_name)
+
+# M1-owned identity/session tables are declared outside the M2 ORM Base.
+# Both metadata sets are listed so autogenerate never proposes dropping them.
+import netra_api.identity.postgres  # noqa: E402,F401  (populates M1_METADATA)
+import netra_api.session.postgres  # noqa: E402,F401
+from netra_api.platform.database import M1_METADATA  # noqa: E402
+
+target_metadata = [Base.metadata, M1_METADATA]
+
+
+def run_migrations_offline() -> None:
+    context.configure(
+        url=application_database_url(),
+        target_metadata=target_metadata,
+        literal_binds=True,
+        dialect_opts={"paramstyle": "named"},
+    )
+    with context.begin_transaction():
+        context.run_migrations()
+
+
+def do_run_migrations(connection) -> None:
+    context.configure(connection=connection, target_metadata=target_metadata)
+    with context.begin_transaction():
+        context.run_migrations()
+
+
+async def run_migrations_online() -> None:
+    configuration = config.get_section(config.config_ini_section, {})
+    configuration["sqlalchemy.url"] = application_database_url()
+    connectable = async_engine_from_config(configuration, prefix="sqlalchemy.")
+    async with connectable.connect() as connection:
+        await connection.run_sync(do_run_migrations)
+    await connectable.dispose()
+
+
+if context.is_offline_mode():
+    run_migrations_offline()
+else:
+    asyncio.run(run_migrations_online())

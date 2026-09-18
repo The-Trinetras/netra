@@ -104,7 +104,7 @@ class JobRepository(Protocol):
     def complete(self, job_id: UUID, lease: Lease) -> None:
         ...
 
-    def fail(self, job_id: UUID, lease: Lease, next_run_at: datetime) -> None:
+    def fail(self, job_id: UUID, lease: Lease, next_run_at: datetime, retryable: bool = True) -> None:
         """Record a failed attempt and reschedule per the retry/backoff policy
         (see netra_worker.runtime.retries)."""
         ...

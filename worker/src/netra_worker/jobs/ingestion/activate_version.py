@@ -1,30 +1,43 @@
-"""Ingestion stage: activate a fully-built SourceVersion.
-
-Activation flips SourceVersion.is_active in a single PostgreSQL
-transaction (CLAUDE.md "Source versions must support activation/version
-pinning") through a store shaped like
-netra_api.content.sources.repository.SourceRepository.activate_version.
-This is the terminal ingestion stage; it enqueues an outbox event for
-search projection rather than calling Pinecone itself (CLAUDE.md "Use
-an outbox when a committed PostgreSQL mutation requires a later
-projection/update").
-"""
+"""Worker job for transactional source-version activation."""
 
 from __future__ import annotations
 
+from typing import Protocol
+from uuid import UUID
+
 from netra_worker.jobs.ingestion.base import IngestionJobPayload
+from netra_api.content.telemetry import instrument_stage
+from netra_worker.runtime.errors import PermanentJobError
 
 
 class ActivateVersionPayload(IngestionJobPayload):
+    source_id: UUID
+    source_version_id: UUID
     expected_version_number: int
 
 
+class ActivationStore(Protocol):
+    async def activate_version_internal(
+        self, source_id: UUID, source_version_id: UUID, expected_version_number: int
+    ) -> object:
+        ...
+
+
 class ActivateVersionJob:
-    """Structurally implements netra_worker.runtime.job_repository.JobHandler[ActivateVersionPayload].
+    """Delegate activation to the canonical PostgreSQL source repository."""
 
-    TODO: inject the SourceRepository-shaped store and
-    netra_worker.runtime.outbox.OutboxRepository.
-    """
+    def __init__(self, sources: ActivationStore) -> None:
+        self.sources = sources
 
+    @instrument_stage("activate_version")
     async def handle(self, payload: ActivateVersionPayload) -> None:
-        raise NotImplementedError("TODO: activate_version — activation + outbox enqueue not implemented")
+        from netra_api.content.sources.postgres import SourceVersionConflictError
+
+        try:
+            await self.sources.activate_version_internal(
+                payload.source_id, payload.source_version_id, payload.expected_version_number
+            )
+        except SourceVersionConflictError as exc:
+            # A newer version exists or another activation won: retrying the
+            # same compare-and-set cannot succeed.
+            raise PermanentJobError("source version activation was superseded") from exc

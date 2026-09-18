@@ -19,6 +19,7 @@ public sealed class PushToTalkController
     private readonly IPlaybackController _playbackController;
     private readonly InterruptionController _interruptionController;
     private readonly ISpeechInputService _speechInputService;
+    private readonly Action? _onRecognitionUnavailable;
 
     // Guards against a key-repeat WM_KEYDOWN storm (held keys generate
     // repeated events) re-triggering interrupt/StartListening every few
@@ -28,11 +29,13 @@ public sealed class PushToTalkController
     public PushToTalkController(
         IPlaybackController playbackController,
         InterruptionController interruptionController,
-        ISpeechInputService speechInputService)
+        ISpeechInputService speechInputService,
+        Action? onRecognitionUnavailable = null)
     {
         _playbackController = playbackController;
         _interruptionController = interruptionController;
         _speechInputService = speechInputService;
+        _onRecognitionUnavailable = onRecognitionUnavailable;
     }
 
     public async Task OnKeyDownAsync(CancellationToken cancellationToken)
@@ -52,12 +55,19 @@ public sealed class PushToTalkController
         // UserStop is a semantic approximation pending M1 review, not a
         // silent contract change (no new enum member is invented on the
         // wire).
-        if (_playbackController.CurrentSnapshot.Status == State.PlaybackStatus.Playing)
+        if (_playbackController.CurrentSnapshot.Status is State.PlaybackStatus.Playing or State.PlaybackStatus.Loading)
         {
             await _interruptionController.StopAsync(CancelReason.UserStop, cancellationToken).ConfigureAwait(false);
         }
 
         await _speechInputService.StartListeningAsync(cancellationToken).ConfigureAwait(false);
+
+        // Press-to-interrupt above is real; recognition is not. Say so once
+        // per press rather than letting the student talk to nothing.
+        if (_speechInputService is IRecognitionAvailability { IsRecognitionAvailable: false })
+        {
+            _onRecognitionUnavailable?.Invoke();
+        }
     }
 
     public void OnKeyUp()

@@ -21,6 +21,13 @@ public sealed class TranscriptReceivedEventArgs : EventArgs
     public required Guid TranscriptId { get; init; }
 }
 
+// Whether held push-to-talk can actually produce transcripts. Separate from
+// ISpeechInputService so existing implementations are unaffected.
+public interface IRecognitionAvailability
+{
+    bool IsRecognitionAvailable { get; }
+}
+
 public interface ISpeechInputService : IDisposable
 {
     bool IsListening { get; }
@@ -37,9 +44,17 @@ public interface ISpeechInputService : IDisposable
 // SDKs to sit behind an adapter with explicit, version-pinned configuration
 // before they're introduced. A future provider implementation raises
 // TranscriptReceived through this same interface.
-public sealed class MicrophoneCapture : ISpeechInputService
+//
+// IsListening reflects the held push-to-talk mode only. No device is opened:
+// microphone upload has no approved protocol (M1's server closes the socket
+// with 1003 on any client binary frame) and no client-side recognizer is
+// approved, so IsRecognitionAvailable is false and the UI says so instead of
+// pretending to listen.
+public sealed class MicrophoneCapture : ISpeechInputService, IRecognitionAvailability
 {
     public bool IsListening { get; private set; }
+
+    public bool IsRecognitionAvailable => false;
 
     public event EventHandler<TranscriptReceivedEventArgs>? TranscriptReceived;
 

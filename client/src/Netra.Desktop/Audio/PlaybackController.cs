@@ -41,6 +41,8 @@ public sealed class PlaybackController : IPlaybackController, IDisposable
     public PlaybackController()
     {
         _player.MediaEnded += OnMediaEnded;
+        _player.MediaOpened += OnMediaOpened;
+        _player.MediaFailed += OnMediaFailed;
         _positionTimer = new DispatcherTimer(DispatcherPriority.Background)
         {
             Interval = TimeSpan.FromMilliseconds(200),
@@ -50,8 +52,24 @@ public sealed class PlaybackController : IPlaybackController, IDisposable
 
     public PlaybackSnapshot CurrentSnapshot { get; private set; } = new();
 
+    // Measurement/diagnostic accessors (Diagnostics/PlaybackMeasurementHarness).
+    public double Volume
+    {
+        get => _player.Volume;
+        set => _player.Volume = value;
+    }
+
+    public long PlayerPositionMs => (long)_player.Position.TotalMilliseconds;
+
+    public bool HasSource => _player.Source is not null;
+
     public event EventHandler<PlaybackSnapshot>? SnapshotChanged;
     public event EventHandler<string>? PlaybackCompleted;
+
+    // The player could not open/decode the media. Raised with the generation
+    // id; the segment is reported Stopped (never Idle), so it is not
+    // acknowledged as heard.
+    public event EventHandler<string>? PlaybackFailed;
 
     public void Play(Uri audioSource, string generationId, string segmentId, string sentenceId)
     {
@@ -63,9 +81,40 @@ public sealed class PlaybackController : IPlaybackController, IDisposable
 
         _player.Open(audioSource);
         _player.Play();
-        _positionTimer.Start();
 
-        UpdateSnapshot(generationId, segmentId, sentenceId, PlaybackStatus.Playing, 0);
+        // Loading until MediaOpened: the "started" acknowledgement must
+        // report audio the player actually began, not a request to play.
+        UpdateSnapshot(generationId, segmentId, sentenceId, PlaybackStatus.Loading, 0);
+    }
+
+    private void OnMediaOpened(object? sender, EventArgs e)
+    {
+        if (_activeGenerationId is null || CurrentSnapshot.Status != PlaybackStatus.Loading)
+        {
+            return;
+        }
+
+        _positionTimer.Start();
+        UpdateSnapshot(
+            CurrentSnapshot.GenerationId, CurrentSnapshot.SegmentId, CurrentSnapshot.SentenceId,
+            PlaybackStatus.Playing, 0);
+    }
+
+    private void OnMediaFailed(object? sender, ExceptionEventArgs e)
+    {
+        var failedGenerationId = _activeGenerationId;
+        _positionTimer.Stop();
+        _player.Close();
+        _activeGenerationId = null;
+
+        UpdateSnapshot(
+            CurrentSnapshot.GenerationId, CurrentSnapshot.SegmentId, CurrentSnapshot.SentenceId,
+            PlaybackStatus.Stopped, CurrentSnapshot.PositionMs);
+
+        if (failedGenerationId is not null)
+        {
+            PlaybackFailed?.Invoke(this, failedGenerationId);
+        }
     }
 
     public void Pause()
@@ -107,6 +156,10 @@ public sealed class PlaybackController : IPlaybackController, IDisposable
         _positionTimer.Stop();
         _player.Stop();
 
+        // Close releases the media source immediately, so the transient
+        // segment file can be deleted and nothing can continue from it.
+        _player.Close();
+
         // Dropping the active generation id is what makes a stop
         // unrecoverable here: Resume() has nothing to resume, so a later
         // "continue" cannot revive this generation even before
@@ -120,7 +173,7 @@ public sealed class PlaybackController : IPlaybackController, IDisposable
 
     private void ReportProgress()
     {
-        if (_activeGenerationId is null)
+        if (_activeGenerationId is null || CurrentSnapshot.Status != PlaybackStatus.Playing)
         {
             return;
         }

@@ -1,0 +1,16 @@
+{
+  "evaluation_id": "teaching_usefulness_v1",
+  "status": "draft_uncalibrated",
+  "criteria": "Does the response help this student learn, by explaining the reasoning, responding to what the student actually said or reasoned, and (for hints and feedback) moving them forward without simply giving away the answer?",
+  "score1": "The response is unhelpful for learning: it only states an answer or verdict, ignores the student's stated reasoning, gives away an answer during a hint, or labels the student's ability or understanding.",
+  "score2": "The response gives some explanation but does not engage with the student's stated reasoning or mistake, or its guidance is too vague to act on.",
+  "score3": "The response explains the relevant idea and is generally usable, but misses the specific point where the student's reasoning went wrong or right.",
+  "score4": "The response explains clearly, engages with the student's own reasoning or earlier answers, and gives a concrete next step.",
+  "score5": "The response explains clearly at the requested level, addresses the student's specific reasoning (including acknowledging valid alternative reasoning), gives a concrete next step, and never diagnoses mastery or presents an inferred misconception as fact.",
+  "requires_reference": true,
+  "applies_to_modes": [],
+  "unit": "ordinal_1_5",
+  "author": "M4 draft (Claude-assisted, codex/m4-tutor-followup)",
+  "reviewer": null,
+  "notes": "DRAFT. Not calibrated. A judge score here is not evidence of observed learning outcomes; it rates the response text only."
+}

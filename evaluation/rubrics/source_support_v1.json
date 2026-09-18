@@ -1,0 +1,16 @@
+{
+  "evaluation_id": "source_support_v1",
+  "status": "draft_uncalibrated",
+  "criteria": "Is every factual claim in the tutor's response supported by the source excerpts available to the tutor, with nothing stated that the sources do not contain or contradict?",
+  "score1": "The response makes a central claim that contradicts the source excerpts, or presents invented values, labels or relationships as if they came from the source.",
+  "score2": "The response contains at least one unsupported factual claim that matters to the answer, or fills an unreadable or missing detail with a guess stated as fact.",
+  "score3": "The central answer is supported, but a secondary claim goes beyond the excerpts without saying so, or a value is paraphrased loosely enough to change its meaning.",
+  "score4": "All substantive claims are supported; only minor wording or emphasis is not directly traceable to the excerpts, and no invented detail is presented as sourced.",
+  "score5": "Every factual claim is directly supported by the excerpts, values and units match the source exactly, and anything the sources do not establish is explicitly stated as a limitation rather than guessed.",
+  "requires_reference": true,
+  "applies_to_modes": [],
+  "unit": "ordinal_1_5",
+  "author": "M4 draft (Claude-assisted, codex/m4-tutor-followup)",
+  "reviewer": null,
+  "notes": "DRAFT. Not calibrated. Requires human review, error analysis on development cases and calibration against at least ten human-labelled cases before any aggregate is reported. Text judging cannot check the original media; M3 original-source review remains separate."
+}

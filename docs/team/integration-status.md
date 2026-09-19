@@ -441,3 +441,14 @@ Gaps found while reading the Terraform (20 September):
 ## Independent work that can proceed
 
 Slices C–E need no live provider or new product policy for their local parts.
+
+## Completion push — Ashlin (M2, AWS, M3 media pipeline)
+
+| Item | State | Branch | Evidence | Reviews / blockers |
+|---|---|---|---|---|
+| I4 deployment (D-HOST, D-BACKUP, D-TFSTATE) | code complete; **not planned or applied** | `ashlin/i4-deployment` | Dockerfiles (Python 3.13.15, uv 0.12.13, `uv sync --locked --no-dev`, non-root), Compose (migrate → api/worker → nginx, no database), nginx TLS/WebSocket template; Terraform: application host + EIP + least-privilege role, PgBouncer on its private address with 6432 only from the host, RDS backups 7 days, S3 state backend with lock file, state bucket config; `terraform validate` passes offline for both configurations; `tests/infrastructure/test_{deployment_files,terraform}.py` (31) | Ashlin: approve `app_instance_type`, the plan (it **replaces PgBouncer**), the TLS domain and D-UPLOAD-SIZE. Images not built (needs Docker and base-image downloads). |
+
+Found while doing I4: the Windows checkout (`core.autocrlf=true`) stored the
+Terraform boot scripts with CRLF endings; the PgBouncer instance was created
+from that copy, so its boot script (`#!/bin/bash\r`) most likely never ran.
+`.gitattributes` now forces LF; the runbook has the check and the fix.

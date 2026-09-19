@@ -1,0 +1,8 @@
+# Copy to backend.hcl (git-ignored) and fill in, then:
+#   terraform init -backend-config=backend.hcl -migrate-state
+# The bucket is created once by state-bucket/ (see infrastructure/aws/RUNBOOK.md).
+bucket       = "<state bucket from state-bucket output>"
+key          = "netra/dev/terraform.tfstate"
+region       = "ap-south-1"
+encrypt      = true
+use_lockfile = true

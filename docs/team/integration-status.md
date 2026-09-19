@@ -349,7 +349,7 @@ cache so every run is identical.
 | ID | Item | Plan |
 |---|---|---|
 | C-open-3 | Bounded-failure wording for a refused quiz draft says "a required service is unavailable" | Review with M5 wording; not changed yet |
-| C-open-4 | PyMuPDF provider imports the deprecated `fitz` alias | Use `import pymupdf` (same pinned package) |
+| C-open-4 | PyMuPDF provider imports the deprecated `fitz` alias | **Fixed** on `ashlin/i5-pymupdf-import`: `import pymupdf` everywhere (same pinned package); guard test `test_no_module_uses_the_deprecated_fitz_alias` |
 | D-open-1 | `NetraWebSocketClient.CloseAsync` cancels its receive loop first, which aborts the socket, so no close handshake is sent. No production caller (shutdown disposes the socket); tests only | Close output first, then stop the loop; avoid a double `Disconnected` (M5) |
 | D-open-5 | `ConversationViewModel` reports every snapshot (including navigation replies) as "Session restored" | M5 wording review |
 | D-open-2 | Each app launch creates a new session; resuming the previous session after restart needs a persisted session id | M1/M5 decision |
@@ -441,3 +441,16 @@ Gaps found while reading the Terraform (20 September):
 ## Independent work that can proceed
 
 Slices C–E need no live provider or new product policy for their local parts.
+
+## Completion push — Ashlin (M2, AWS, M3 media pipeline)
+
+| Item | State | Branch | Evidence | Reviews / blockers |
+|---|---|---|---|---|
+| C5 job contract (INT-10c) | drafted, awaiting review | `ashlin/c5-job-contract` | `shared/contracts/jobs/v1/job.schema.json` + `examples/jobs/*`; Python mirror and derivation `content/job_status.py`; `api/tests/protocol/test_job_contract.py` (28, mocks only) | Arshad (mounts `POST /v1/sessions/{id}/uploads`, `GET /v1/sessions/{id}/jobs[/{job_id}]`), Arun (screens). Open decision **D-UPLOAD-SIZE**: maximum upload size; uploads answer 503 until it is configured. Failure reasons need a stored reason column (I2). |
+| C6 client evidence payload (M5-EVIDENCE) | drafted, awaiting review | `ashlin/c6-evidence-payload` | `shared/contracts/protocol/v1/evidence_view.schema.json`; examples `examples/server/evidence_view_{table,chart,equation}.json` generated from M3's real Ohm's-law fixtures; mirror/builder `multimedia/evidence_view.py`; `api/tests/multimedia/test_evidence_view.py` (19, fixtures only) | Arshad (transport; recommended deterministic `GET /v1/sessions/{id}/evidence/{evidence_id}/view?layer=…`), Arun (exploration screens; MathML fills `equation.mathml`, absent until then) |
+| I4 deployment (D-HOST, D-BACKUP, D-TFSTATE) | code complete; **not planned or applied** | `ashlin/i4-deployment` | Dockerfiles (Python 3.13.15, uv 0.12.13, `uv sync --locked --no-dev`, non-root), Compose (migrate → api/worker → nginx, no database), nginx TLS/WebSocket template; Terraform: application host + EIP + least-privilege role, PgBouncer on its private address with 6432 only from the host, RDS backups 7 days, S3 state backend with lock file, state bucket config; `terraform validate` passes offline for both configurations; `tests/infrastructure/test_{deployment_files,terraform}.py` (31) | Ashlin: approve `app_instance_type`, the plan (it **replaces PgBouncer**), the TLS domain and D-UPLOAD-SIZE. Images not built (needs Docker and base-image downloads). |
+
+Found while doing I4: the Windows checkout (`core.autocrlf=true`) stored the
+Terraform boot scripts with CRLF endings; the PgBouncer instance was created
+from that copy, so its boot script (`#!/bin/bash\r`) most likely never ran.
+`.gitattributes` now forces LF; the runbook has the check and the fix.

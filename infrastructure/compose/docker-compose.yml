@@ -1,0 +1,90 @@
+# Netra on one application host (decision D-INFRA / D-HOST): API, worker and
+# nginx. PostgreSQL is AWS RDS behind PgBouncer, so there is no database
+# container here; NETRA_DATABASE_URL points at PgBouncer's private address.
+#
+# Run from infrastructure/compose on the host (see infrastructure/aws/RUNBOOK.md):
+#   docker compose up -d --build
+#
+# Required variables (no defaults are invented; compose refuses to start
+# without them):
+#   NETRA_ENV_FILE         path of the root-only env file rendered on the host
+#                          from Secrets Manager (never committed)
+#   NETRA_IMAGE_TAG        image tag being deployed, e.g. the git commit
+#   NETRA_TLS_DOMAIN       public host name with a certificate under
+#                          /etc/letsencrypt/live/<domain>/
+#   NETRA_UPLOAD_MAX_BODY  nginx client_max_body_size, matching the approved
+#                          maximum upload size (decision D-UPLOAD-SIZE)
+
+name: netra
+
+x-app: &app
+  env_file:
+    - ${NETRA_ENV_FILE:?set NETRA_ENV_FILE to the host env file}
+  read_only: true
+  tmpfs:
+    - /tmp
+  security_opt:
+    - no-new-privileges:true
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "5"
+
+services:
+  migrate:
+    <<: *app
+    image: netra-api:${NETRA_IMAGE_TAG:?set NETRA_IMAGE_TAG}
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/api.Dockerfile
+    # Migrations run once per deploy, before the API and worker start.
+    command: ["python", "-m", "alembic", "-c", "api/alembic.ini", "upgrade", "head"]
+    restart: "no"
+
+  api:
+    <<: *app
+    image: netra-api:${NETRA_IMAGE_TAG:?set NETRA_IMAGE_TAG}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    expose:
+      - "8000"
+
+  worker:
+    <<: *app
+    image: netra-worker:${NETRA_IMAGE_TAG:?set NETRA_IMAGE_TAG}
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/worker.Dockerfile
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    # Time to finish or release the current job attempt and flush telemetry.
+    stop_grace_period: 90s
+
+  nginx:
+    image: nginx:1.29.1-alpine
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      NETRA_TLS_DOMAIN: ${NETRA_TLS_DOMAIN:?set NETRA_TLS_DOMAIN}
+      NETRA_UPLOAD_MAX_BODY: ${NETRA_UPLOAD_MAX_BODY:?set NETRA_UPLOAD_MAX_BODY (decision D-UPLOAD-SIZE)}
+      # Substitute only NETRA_* variables so nginx's own $host etc. survive.
+      NGINX_ENVSUBST_FILTER: "^NETRA_"
+    volumes:
+      - ../reverse-proxy/nginx.conf:/etc/nginx/templates/default.conf.template:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - /var/www/certbot:/var/www/certbot:ro
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"

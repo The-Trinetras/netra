@@ -66,3 +66,31 @@ variable "prometheus_ami_id" {
     error_message = "prometheus_ami_id must be null or a valid explicit AMI ID."
   }
 }
+
+variable "db_backup_retention_days" {
+  description = "RDS automated backup retention (D-BACKUP). 0 disables backups."
+  type        = number
+  default     = 7
+
+  validation {
+    condition     = var.db_backup_retention_days >= 1 && var.db_backup_retention_days <= 35
+    error_message = "db_backup_retention_days must be between 1 and 35 so student data is backed up."
+  }
+}
+
+variable "app_instance_type" {
+  description = "Application host size for the API, worker and nginx (D-HOST). No default: choosing it is a cost decision."
+  type        = string
+}
+
+variable "app_root_volume_gb" {
+  description = "Encrypted root volume for images, containers and logs on the application host."
+  type        = number
+  default     = 30
+}
+
+variable "app_ingress_cidrs" {
+  description = "Client networks allowed to reach nginx on 80/443."
+  type        = list(string)
+  default     = ["0.0.0.0/0"]
+}

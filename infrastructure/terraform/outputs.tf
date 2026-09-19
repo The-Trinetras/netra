@@ -23,3 +23,13 @@ output "prometheus_runtime" {
     port          = 8000
   } : null
 }
+output "app_instance_id" { value = aws_instance.app.id }
+output "app_public_ip" {
+  description = "Stable address for the TLS domain's DNS A record."
+  value       = aws_eip.app.public_ip
+}
+output "app_environment_secret_arn" {
+  description = "Secret identifier only; an operator fills it with NETRA_* provider settings."
+  value       = aws_secretsmanager_secret.app_environment.arn
+}
+output "app_parameter_prefix" { value = local.app_parameter_prefix }

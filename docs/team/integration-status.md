@@ -349,7 +349,7 @@ cache so every run is identical.
 | ID | Item | Plan |
 |---|---|---|
 | C-open-3 | Bounded-failure wording for a refused quiz draft says "a required service is unavailable" | Review with M5 wording; not changed yet |
-| C-open-4 | PyMuPDF provider imports the deprecated `fitz` alias | Use `import pymupdf` (same pinned package) |
+| C-open-4 | PyMuPDF provider imports the deprecated `fitz` alias | **Fixed** on `ashlin/i5-pymupdf-import`: `import pymupdf` everywhere (same pinned package); guard test `test_no_module_uses_the_deprecated_fitz_alias` |
 | D-open-1 | `NetraWebSocketClient.CloseAsync` cancels its receive loop first, which aborts the socket, so no close handshake is sent. No production caller (shutdown disposes the socket); tests only | Close output first, then stop the loop; avoid a double `Disconnected` (M5) |
 | D-open-5 | `ConversationViewModel` reports every snapshot (including navigation replies) as "Session restored" | M5 wording review |
 | D-open-2 | Each app launch creates a new session; resuming the previous session after restart needs a persisted session id | M1/M5 decision |

@@ -6,7 +6,7 @@ import hashlib
 from datetime import datetime, timezone
 from uuid import uuid4
 
-import fitz
+import pymupdf
 import pytest
 
 from netra_api.content.retrieval.embeddings import EmbeddingResult, EmbeddingSpec
@@ -29,7 +29,7 @@ STAGE_STATE = {"parsing": State.PARSING, "blocks_built": State.BLOCKS_BUILT,
 
 
 def _pdf(text="Ohm's law relates voltage, current and resistance.") -> bytes:
-    document = fitz.open()
+    document = pymupdf.open()
     document.new_page().insert_text((72, 72), text)
     data = document.tobytes()
     document.close()

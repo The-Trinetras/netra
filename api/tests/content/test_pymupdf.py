@@ -1,4 +1,4 @@
-import fitz
+import pymupdf
 import pytest
 from uuid import uuid4
 
@@ -8,7 +8,7 @@ from netra_api.content.providers.pymupdf import PdfParseError, PdfParseStatus, P
 
 
 def _pdf(*pages: list[tuple[str, float, tuple[float, float]]]) -> bytes:
-    document = fitz.open()
+    document = pymupdf.open()
     for page_items in pages:
         page = document.new_page()
         y = 72
@@ -62,11 +62,11 @@ def test_truncated_pdf_fails_as_a_controlled_parse_error():
 
 
 def test_image_only_document_requires_ocr_without_fabricating_text():
-    document = fitz.open()
+    document = pymupdf.open()
     page = document.new_page()
-    pixmap = fitz.Pixmap(fitz.csRGB, (0, 0, 16, 16), 0)
+    pixmap = pymupdf.Pixmap(pymupdf.csRGB, (0, 0, 16, 16), 0)
     pixmap.clear_with(255)
-    page.insert_image(fitz.Rect(0, 0, 16, 16), pixmap=pixmap)
+    page.insert_image(pymupdf.Rect(0, 0, 16, 16), pixmap=pixmap)
     pdf = document.tobytes()
     document.close()
 
@@ -86,12 +86,12 @@ def test_page_location_is_retained_by_reading_blocks():
 
 
 def test_mixed_native_and_ocr_output_remains_in_page_order_and_has_provenance():
-    document = fitz.open()
+    document = pymupdf.open()
     document.new_page().insert_text((72, 72), "Native page text.")
     image_page = document.new_page()
-    pixmap = fitz.Pixmap(fitz.csRGB, (0, 0, 16, 16), 0)
+    pixmap = pymupdf.Pixmap(pymupdf.csRGB, (0, 0, 16, 16), 0)
     pixmap.clear_with(255)
-    image_page.insert_image(fitz.Rect(0, 0, 16, 16), pixmap=pixmap)
+    image_page.insert_image(pymupdf.Rect(0, 0, 16, 16), pixmap=pixmap)
     document.new_page().insert_text((72, 72), "Later native page text.")
     pdf = document.tobytes()
     document.close()
@@ -110,12 +110,12 @@ def test_mixed_native_and_ocr_output_remains_in_page_order_and_has_provenance():
 
 
 def test_mixed_document_with_empty_ocr_page_fails_closed():
-    document = fitz.open()
+    document = pymupdf.open()
     document.new_page().insert_text((72, 72), "Native page text.")
     image_page = document.new_page()
-    pixmap = fitz.Pixmap(fitz.csRGB, (0, 0, 16, 16), 0)
+    pixmap = pymupdf.Pixmap(pymupdf.csRGB, (0, 0, 16, 16), 0)
     pixmap.clear_with(255)
-    image_page.insert_image(fitz.Rect(0, 0, 16, 16), pixmap=pixmap)
+    image_page.insert_image(pymupdf.Rect(0, 0, 16, 16), pixmap=pixmap)
     pdf = document.tobytes()
     document.close()
 
@@ -125,3 +125,19 @@ def test_mixed_document_with_empty_ocr_page_fails_closed():
 
     with pytest.raises(PdfParseError, match="page 1"):
         PyMuPDFDocumentParser().parse_bytes_with_ocr(pdf, EmptyOCR())
+
+
+def test_no_module_uses_the_deprecated_fitz_alias():
+    """C-open-4: PyMuPDF's ``fitz`` name is a deprecated alias; use ``pymupdf``."""
+    import re
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[3]
+    pattern = re.compile(r"^\s*(import fitz\b|from fitz\b)", re.MULTILINE)
+    offenders = [
+        str(path.relative_to(root))
+        for folder in ("api", "worker", "evaluation", "tests")
+        for path in (root / folder).rglob("*.py")
+        if ".venv" not in path.parts and pattern.search(path.read_text(encoding="utf-8", errors="ignore"))
+    ]
+    assert offenders == []

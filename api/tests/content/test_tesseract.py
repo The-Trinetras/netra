@@ -1,6 +1,6 @@
 from pathlib import Path
 
-import fitz
+import pymupdf
 import pytest
 from PIL import Image
 
@@ -61,12 +61,12 @@ def test_missing_ocr_output_fields_are_malformed(tmp_path: Path, monkeypatch):
 
 
 def test_mixed_native_and_image_pages_request_ocr_for_the_image_page():
-    document = fitz.open()
+    document = pymupdf.open()
     document.new_page().insert_text((72, 72), "Native page text.")
     image_page = document.new_page()
-    pixmap = fitz.Pixmap(fitz.csRGB, (0, 0, 16, 16), 0)
+    pixmap = pymupdf.Pixmap(pymupdf.csRGB, (0, 0, 16, 16), 0)
     pixmap.clear_with(255)
-    image_page.insert_image(fitz.Rect(0, 0, 16, 16), pixmap=pixmap)
+    image_page.insert_image(pymupdf.Rect(0, 0, 16, 16), pixmap=pixmap)
     pdf = document.tobytes()
     document.close()
     result = PyMuPDFDocumentParser().parse_bytes(pdf)

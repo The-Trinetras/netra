@@ -1,7 +1,7 @@
 from types import SimpleNamespace
 from uuid import uuid4
 
-import fitz
+import pymupdf
 import pytest
 
 from netra_api.content.settings import ContentSettings
@@ -20,7 +20,7 @@ from netra_worker.jobs.search_projection.pinecone import SearchProjectionJob, Se
 
 
 def _pdf(text="Binary search divides a sorted search space in half."):
-    document = fitz.open()
+    document = pymupdf.open()
     page = document.new_page()
     page.insert_text((72, 72), text)
     data = document.tobytes()

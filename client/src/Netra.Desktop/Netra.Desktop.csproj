@@ -22,4 +22,10 @@
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
 
+  <ItemGroup>
+    <!-- Approved free SDK; exact stable version reviewed for F1 (20 Sep 2026).
+         The Windows Evergreen runtime remains a separate deployment dependency. -->
+    <PackageReference Include="Microsoft.Web.WebView2" Version="[1.0.4191.47]" />
+  </ItemGroup>
+
 </Project>

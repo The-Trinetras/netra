@@ -9,14 +9,8 @@
     <IsTestProject>true</IsTestProject>
   </PropertyGroup>
 
-  <!--
-    TODO: no NuGet lock is committed for the client yet (see
-    docs/architecture/runtime-baseline.md, "Committed NuGet declarations and
-    lockfiles define desktop package versions"). These versions are explicit
-    pins chosen for this scaffold and have NOT been restored or verified in
-    this environment (no network access; restore was not requested). Verify
-    and lock before first real restore.
-  -->
+  <!-- Direct versions are unchanged; packages.lock.json records the graph.
+       client/Directory.Build.props requires locked restore by default. -->
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
     <PackageReference Include="xunit" Version="2.9.2" />

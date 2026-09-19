@@ -9,6 +9,21 @@ production readiness.
 
 ## Checkpoint
 
+### F1 / M5-LOCK — 20 September 2026
+
+| Item | Branch | Result | Remaining owner/gate |
+|---|---|---|---|
+| F1 / M5-LOCK | `arun/F1-nuget-lock` from fetched main `ab92908` | Both NuGet locks generated; default locked restore; approved WebView2 exactly pinned to 1.0.4191.47. Offline locked restore passes. | Arun: Windows xUnit and Evergreen player validation. |
+
+Arun explicitly authorized fetch, first NuGet restore and exact runtime setup.
+SDK 10.0.401 installed on macOS after Microsoft SHA-512 verification. Both WPF
+projects compile; test execution aborts for missing WindowsDesktop runtime on
+macOS (29 existing CS0067 warnings). No Windows/live-server/provider/person run.
+Default locked restore mutation: test SDK 17.12.0 → 17.11.0 fails with NU1004;
+original restored and locked restore passes again. Exact commands/environment
+are in [M5 handoff](handoffs/M5.md#f1--m5-lock--arun-20-september-2026).
+C7 draft is on its separate branch at `6ebb512`, pending Arshad and Ashlin review.
+
 - **Done:** slice A (runtime + baseline), slice B (database, migrations,
   transactions, learning persistence, worker projection/cancellation), slice C
   (real app composition, session routes, model adapters behind controlled

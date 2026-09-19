@@ -99,6 +99,11 @@ each line, write **pass**, **fail** (what NVDA said) or **not tested**.
 - [ ] Paste a public lecture link, press Enter: "Lecture ready: <title>".
       K plays and pauses, J and L move 10 seconds, T reads the time in words.
 - [ ] Tab never lands inside the video; NVDA stays on Netra's controls.
+- [ ] **Known risk to check:** play a lecture, switch to the Conversation
+      tab (Control+4) and back (Control+3). The lecture must keep its place;
+      WPF's TabControl takes the hidden tab out of the visual tree, and it is
+      not yet shown that WebView2 keeps the page loaded when that happens. If
+      the video reloads, record it; the fix is to keep the player in the tree.
 - [ ] Clicking the YouTube logo or "Watch on YouTube" opens nothing.
 - [ ] Holding F9 or sending a typed question pauses the lecture first; it
       stays paused while Netra answers; C continues from the same moment

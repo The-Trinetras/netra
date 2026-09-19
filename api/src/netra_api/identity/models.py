@@ -42,9 +42,8 @@ class DeviceAccess(BaseModel):
 class StoredCredential(BaseModel):
     """A previously issued bearer credential, stored only as a digest.
 
-    Issuance (the system-browser PKCE flow in message-flow.md flow 1) is not
-    defined by any committed contract; this record only lets the server
-    verify a credential that an approved issuer already produced. The raw
+    Issued by the D-CRED access-code exchange (identity/access_codes.py,
+    POST /v1/device-credentials) or the operator provisioning tool. The raw
     token is never stored.
     """
 

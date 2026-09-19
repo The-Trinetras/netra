@@ -1,4 +1,4 @@
-"""Migration 0005 must create exactly the tables M1 declared in M1_METADATA.
+"""Migrations 0005 and 0009 must create exactly the tables M1 declared in M1_METADATA.
 
 Runs the migration's ``upgrade()`` against a recording stand-in for
 ``alembic.op`` (no database) and compares every table, column type,
@@ -20,7 +20,9 @@ import netra_api.identity.postgres  # noqa: F401  (populates M1_METADATA)
 import netra_api.session.postgres  # noqa: F401
 from netra_api.platform.database import M1_METADATA
 
-MIGRATION = Path(__file__).parents[2] / "migrations" / "versions" / "0005_m1_identity_session.py"
+VERSIONS = Path(__file__).parents[2] / "migrations" / "versions"
+MIGRATION = VERSIONS / "0005_m1_identity_session.py"
+M1_MIGRATIONS = (MIGRATION, VERSIONS / "0009_m1_access_codes.py")
 DIALECT = postgresql.dialect()
 
 
@@ -43,10 +45,11 @@ def _migrated() -> _RecordingOp:
     saved = sys.modules.get("alembic")
     sys.modules["alembic"] = fake_alembic
     try:
-        spec = importlib.util.spec_from_file_location("m0005", MIGRATION)
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
-        module.upgrade()
+        for path in M1_MIGRATIONS:
+            spec = importlib.util.spec_from_file_location(path.stem, path)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            module.upgrade()
     finally:
         if saved is not None:
             sys.modules["alembic"] = saved
@@ -88,3 +91,9 @@ def test_migration_0005_creates_every_declared_index():
 def test_migration_0005_follows_the_m2_head():
     source = MIGRATION.read_text(encoding="utf-8")
     assert 'down_revision = "0004_d3_outbox_leases"' in source
+
+
+def test_migration_0009_follows_0008_and_downgrades_what_it_creates():
+    source = (VERSIONS / "0009_m1_access_codes.py").read_text(encoding="utf-8")
+    assert 'down_revision = "0008_learning_questions_attempts"' in source
+    assert 'op.drop_table("access_codes")' in source and 'op.drop_index("ix_access_codes_account_id"' in source

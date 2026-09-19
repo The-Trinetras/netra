@@ -49,8 +49,9 @@ production readiness.
    `set NETRA_API_ENDPOINT=ws://127.0.0.1:<port>/v1/ws`, start `Netra.Desktop`.
    Remove with `cmdkey /delete:Netra:api`. If the server is not up yet, start it
    and choose Refresh in the library (no restart needed). This is an operator
-   integration aid; credential issuance (PKCE) and the production credential
-   store are still undecided (D-CRED).
+   integration aid. For students, credentials come from D-CRED access codes:
+   `python -m netra_api.identity.provisioning --access-code --code-valid-days 7 --credential-valid-days 120`,
+   exchanged by the app at `POST /v1/device-credentials`.
 
 ### Evaluation dataset package (overnight, 2026-09-19)
 
@@ -370,7 +371,7 @@ and in AWS Secrets Manager.
 | D-LIC | Keep PyMuPDF (AGPL-3.0); Netra's source stays public under AGPL-compatible terms | No LlamaParse adapter is needed | M1 |
 | D-AGENT | OpenRouter runs both agents; the Gemini key serves embeddings only | Done (20 September): a set `NETRA_OPENROUTER_API_KEY` wins over Gemini/Groq keys for the agents, and a blank `NETRA_*` line counts as unset. Mock-transport and wiring tests only; no live call made | M1 |
 | D-AX | AX export through the OpenTelemetry SDK | M2 reviews and adds the OpenTelemetry pins to the lock (install authorization needed), then M1 builds the exporter behind `SpanExporter` (slice E) | M2 → M1 |
-| D-CRED | A one-time access code per student, exchanged once by the app; the credential is kept in Windows Credential Manager | Replaces the PKCE browser sign-in of message-flow flow 1 for now; needs an issuance route (M1), the client exchange (M5) and a message-flow update. **C2 contract drafted** on `arshad/C2-access-code-exchange`: `POST /v1/device-credentials` (`shared/contracts/http/v1/device_credential.schema.json`), 12-character Crockford codes, 15-minute same-request_id replay; awaiting Arun's review. Route, table and operator command are A2 | M1 + M5 |
+| D-CRED | A one-time access code per student, exchanged once by the app; the credential is kept in Windows Credential Manager | Replaces the PKCE browser sign-in of message-flow flow 1 for now; needs an issuance route (M1), the client exchange (M5) and a message-flow update. **C2 contract drafted** on `arshad/C2-access-code-exchange`: `POST /v1/device-credentials` (`shared/contracts/http/v1/device_credential.schema.json`), 12-character Crockford codes, 15-minute same-request_id replay; awaiting Arun's review. **A2 built** on `arshad/A2-sign-in` (on top of C2): route, `IdentityService.exchange_access_code`, migration `0009_m1_access_codes` (Ashlin reviews), operator `--access-code`; PostgreSQL test pending the Docker database | M1 + M5 |
 | D-QUOTA | 20,000 characters of speech per student per day; ledger in PostgreSQL | Migration (M2) and ledger (M1), then register ElevenLabs | M1, M2 |
 | D-MIC | M5's INT-11a proposal: separate binary framing (`capture_id`, `sequence`, `end_of_utterance`, `audio/L16;rate=16000`) after `asr.start`; server `asr.transcript`; WinMM capture, no NuGet. **Voice input is the top frontend priority**, ahead of further keyboard/NVDA work | Protocol v1 change: M1 and M5 review; Deepgram adapter (M1), capture (M5) | M1 + M5 |
 | M5-VIDEO | WebView2 approved (free SDK, Evergreen runtime) | Version pinned with M5-LOCK; navigation limited to the YouTube embed origin | M5 |

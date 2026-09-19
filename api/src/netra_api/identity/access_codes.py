@@ -9,15 +9,15 @@ only as a SHA-256 digest of the normalized form.
 
 from __future__ import annotations
 
+import hashlib
 import re
 import secrets
 from datetime import datetime, timedelta
+from enum import Enum
 from typing import Optional
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
-
-from netra_api.identity.service import credential_digest
 
 ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
 """Crockford base32: no I, L, O or U, so a code survives being read aloud."""
@@ -68,4 +68,48 @@ def access_code_digest(code: str) -> str:
     normalized = normalize_access_code(code)
     if normalized is None:
         raise ValueError("not an access code")
-    return credential_digest(normalized)
+    return hashlib.sha256(normalized.encode("ascii")).hexdigest()
+
+
+class AccessCodeRecord(BaseModel):
+    """One issued code as stored (table ``access_codes``); never the code itself."""
+
+    code_id: UUID
+    code_sha256: str = Field(min_length=64, max_length=64)
+    account_id: UUID
+    issued_at: datetime
+    expires_at: datetime
+    credential_lifetime_seconds: int = Field(gt=0)
+    exchanged_at: Optional[datetime] = None
+    exchange_request_id: Optional[UUID] = None
+    credential_id: Optional[UUID] = None
+    """The one live credential this code produced."""
+    revoked_at: Optional[datetime] = None
+
+
+class ExchangeDecision(str, Enum):
+    NEW = "new"
+    REPLAY = "replay"
+    REJECT = "reject"
+
+
+def decide_exchange(record: AccessCodeRecord, request_id: UUID, now: datetime) -> ExchangeDecision:
+    """The whole exchange policy; repositories call it inside their transaction.
+
+    A code is exchanged once. The same request_id may retry for REPLAY_WINDOW
+    after that first exchange (a lost response); anything else is rejected.
+    """
+
+    if record.revoked_at is not None:
+        return ExchangeDecision.REJECT
+    if record.exchanged_at is None:
+        return ExchangeDecision.NEW if now < record.expires_at else ExchangeDecision.REJECT
+    if record.exchange_request_id == request_id and now < record.exchanged_at + REPLAY_WINDOW:
+        return ExchangeDecision.REPLAY
+    return ExchangeDecision.REJECT
+
+
+def new_credential_token() -> str:
+    """A fresh bearer credential: 256 random bits, URL-safe."""
+
+    return secrets.token_urlsafe(32)

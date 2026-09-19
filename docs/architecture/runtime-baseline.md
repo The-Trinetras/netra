@@ -261,8 +261,9 @@ The repository now also follows the agentic-slice-kit layout (`slice/`, `demo/`,
   regenerated and does not contain the two kit packages.
 - The devcontainer uses Python 3.13 so one environment serves both.
 - OpenRouter adapters implement the existing Coordinator and Tutor provider
-  protocols. They are used only when `NETRA_GEMINI_API_KEY` or
-  `NETRA_GROQ_API_KEY` is absent and `NETRA_OPENROUTER_API_KEY` is set, and by
+  protocols. When `NETRA_OPENROUTER_API_KEY` is set they run both agents, even
+  if `NETRA_GEMINI_API_KEY` or `NETRA_GROQ_API_KEY` is also set (decision
+  D-AGENT, 20 September; the Gemini key still serves embeddings), and by
   default send the same approved models (`google/gemini-3.8-flash`,
   `openai/gpt-oss-120b`). One attempt per call, no client retry; OpenRouter
   may route the one request to another host of the same model.

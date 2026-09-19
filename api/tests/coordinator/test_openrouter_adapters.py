@@ -13,6 +13,7 @@ import pytest
 
 from netra_api.bootstrap import production_dependencies
 from netra_api.config import Settings
+from netra_api.content.settings import ContentSettings
 from netra_api.coordinator.decisions import InvalidDecisionError, parse_decision
 from netra_api.coordinator.providers.gemini import DEFAULT_COORDINATOR_MODEL_CONFIG, ToolSpec
 from netra_api.coordinator.providers.gemini_client import GeminiCoordinatorAdapter
@@ -152,10 +153,14 @@ def test_an_empty_key_is_refused():
         OpenRouterTutorAdapter.from_api_key("", model_id="m/x", timeout_seconds=5)
 
 
-def _wiring(**keys):
+def _wire(settings):
     # The engine is never connected: composing the dependencies opens no session.
     engine = create_engine("postgresql+asyncpg://nobody:nothing@127.0.0.1:9/none")
-    return production_dependencies(engine, None, Settings(**keys))
+    return production_dependencies(engine, None, settings)
+
+
+def _wiring(**keys):
+    return _wire(Settings(**keys))
 
 
 def test_openrouter_fills_both_agent_slots_when_no_native_key_is_set():
@@ -166,10 +171,40 @@ def test_openrouter_fills_both_agent_slots_when_no_native_key_is_set():
     assert wired.tutor_services.provider._model_id == "openai/gpt-oss-120b"
 
 
-def test_a_native_key_is_never_silently_replaced_by_openrouter():
+def test_openrouter_runs_both_agents_even_when_gemini_and_groq_keys_are_set():
+    """Decision D-AGENT: the OpenRouter key wins for the agents."""
     wired = _wiring(openrouter_api_key=KEY, gemini_api_key="g-test", groq_api_key="gsk-test")
+    assert isinstance(wired.coordinator_model, OpenRouterCoordinatorAdapter)
+    assert isinstance(wired.tutor_services.provider, OpenRouterTutorAdapter)
+
+
+def test_without_openrouter_the_native_keys_still_run_the_agents():
+    wired = _wiring(openrouter_api_key=None, gemini_api_key="g-test", groq_api_key="gsk-test")
     assert isinstance(wired.coordinator_model, GeminiCoordinatorAdapter)
     assert isinstance(wired.tutor_services.provider, GroqTutorAdapter)
+
+
+def test_with_the_teams_env_the_gemini_key_only_serves_embeddings(monkeypatch):
+    monkeypatch.setenv("NETRA_GEMINI_API_KEY", "g-test")
+    monkeypatch.setenv("NETRA_OPENROUTER_API_KEY", KEY)
+    monkeypatch.delenv("NETRA_GROQ_API_KEY", raising=False)
+    wired = _wire(Settings())
+    assert isinstance(wired.coordinator_model, OpenRouterCoordinatorAdapter)
+    assert isinstance(wired.tutor_services.provider, OpenRouterTutorAdapter)
+    assert ContentSettings().gemini_api_key == "g-test"  # embeddings keep the key
+
+
+def test_a_blank_env_line_counts_as_unset(monkeypatch):
+    monkeypatch.setenv("NETRA_GEMINI_API_KEY", "")
+    monkeypatch.setenv("NETRA_GROQ_API_KEY", "")
+    monkeypatch.setenv("NETRA_OPENROUTER_API_KEY", "")
+    monkeypatch.setenv("NETRA_OPENROUTER_COORDINATOR_MODEL", "")
+    settings = Settings()
+    assert settings.gemini_api_key is None and settings.groq_api_key is None
+    assert settings.openrouter_api_key is None
+    assert settings.openrouter_coordinator_model == "google/gemini-3.8-flash"
+    wired = _wire(settings)  # a blank Gemini key used to raise ValueError here
+    assert wired.coordinator_model is None and wired.tutor_services is None
 
 
 def test_no_key_registers_no_agent():

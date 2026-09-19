@@ -1,8 +1,8 @@
 """One OpenRouter chat-completions request, shared by the Coordinator and Tutor adapters.
 
-OpenRouter is the provider behind the Agent-a-thon key. It is used only where
-the native adapter (Gemini for the Coordinator, Groq for the Tutor) is not
-configured; see netra_api.bootstrap.production_dependencies.
+OpenRouter is the provider behind the Agent-a-thon key. When configured it runs
+both agents (decision D-AGENT); Gemini and Groq back an agent only without it.
+See netra_api.bootstrap.production_dependencies.
 
 Exactly one HTTP attempt per call and no client retries: every attempt is
 counted against the originating turn's budget by the caller, never repeated

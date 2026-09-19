@@ -191,29 +191,31 @@ def production_dependencies(engine: Any, tracer: Optional[Tracer] = None,
     )
     settings = settings or Settings()
     timeout = settings.model_request_timeout_seconds
-    # A native adapter always wins; OpenRouter only fills a slot left empty.
-    if settings.gemini_api_key is not None:
-        from netra_api.coordinator.providers.gemini_client import GeminiCoordinatorAdapter
-
-        dependencies.coordinator_model = GeminiCoordinatorAdapter.from_api_key(
-            settings.gemini_api_key.get_secret_value(), timeout_seconds=timeout)
-    elif settings.openrouter_api_key is not None:
+    # Decision D-AGENT (20 September 2026): an OpenRouter key runs both agents.
+    # Gemini/Groq keys back an agent only when no OpenRouter key is set; the
+    # Gemini key keeps serving embeddings through ContentSettings either way.
+    if settings.openrouter_api_key is not None:
         from netra_api.coordinator.providers.openrouter_client import OpenRouterCoordinatorAdapter
 
         dependencies.coordinator_model = OpenRouterCoordinatorAdapter.from_api_key(
             settings.openrouter_api_key.get_secret_value(), model_id=settings.openrouter_coordinator_model,
             timeout_seconds=timeout)
-    tutor_provider = None
-    if settings.groq_api_key is not None:
-        from netra_api.learning.tutor.providers.groq_client import GroqTutorAdapter
+    elif settings.gemini_api_key is not None:
+        from netra_api.coordinator.providers.gemini_client import GeminiCoordinatorAdapter
 
-        tutor_provider = GroqTutorAdapter.from_api_key(settings.groq_api_key.get_secret_value(), timeout_seconds=timeout)
-    elif settings.openrouter_api_key is not None:
+        dependencies.coordinator_model = GeminiCoordinatorAdapter.from_api_key(
+            settings.gemini_api_key.get_secret_value(), timeout_seconds=timeout)
+    tutor_provider = None
+    if settings.openrouter_api_key is not None:
         from netra_api.learning.tutor.providers.openrouter_client import OpenRouterTutorAdapter
 
         tutor_provider = OpenRouterTutorAdapter.from_api_key(
             settings.openrouter_api_key.get_secret_value(), model_id=settings.openrouter_tutor_model,
             timeout_seconds=timeout)
+    elif settings.groq_api_key is not None:
+        from netra_api.learning.tutor.providers.groq_client import GroqTutorAdapter
+
+        tutor_provider = GroqTutorAdapter.from_api_key(settings.groq_api_key.get_secret_value(), timeout_seconds=timeout)
     if tutor_provider is not None:
         from netra_api.learning.assessment.service import LearningService
         from netra_api.learning.tutor.agent import TutorServices

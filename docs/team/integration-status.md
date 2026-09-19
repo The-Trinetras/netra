@@ -365,7 +365,7 @@ and in AWS Secrets Manager.
 |---|---|---|---|
 | D-INFRA | PostgreSQL on AWS RDS behind PgBouncer, as M2 deployed (see below) | Replaces the Compose-PostgreSQL recommendation. Compose runs the API, worker and proxy only. | M2, M1 |
 | D-LIC | Keep PyMuPDF (AGPL-3.0); Netra's source stays public under AGPL-compatible terms | No LlamaParse adapter is needed | M1 |
-| D-AGENT | OpenRouter runs both agents; the Gemini key serves embeddings only | Code change pending: today a set `NETRA_GEMINI_API_KEY` makes the Coordinator call Gemini directly, and a blank env line counts as set | M1 |
+| D-AGENT | OpenRouter runs both agents; the Gemini key serves embeddings only | Done (20 September): a set `NETRA_OPENROUTER_API_KEY` wins over Gemini/Groq keys for the agents, and a blank `NETRA_*` line counts as unset. Mock-transport and wiring tests only; no live call made | M1 |
 | D-AX | AX export through the OpenTelemetry SDK | M2 reviews and adds the OpenTelemetry pins to the lock (install authorization needed), then M1 builds the exporter behind `SpanExporter` (slice E) | M2 → M1 |
 | D-CRED | A one-time access code per student, exchanged once by the app; the credential is kept in Windows Credential Manager | Replaces the PKCE browser sign-in of message-flow flow 1 for now; needs an issuance route (M1), the client exchange (M5) and a message-flow update | M1 + M5 |
 | D-QUOTA | 20,000 characters of speech per student per day; ledger in PostgreSQL | Migration (M2) and ledger (M1), then register ElevenLabs | M1, M2 |

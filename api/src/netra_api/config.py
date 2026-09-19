@@ -18,7 +18,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="NETRA_", extra="ignore")
+    # A blank line such as ``NETRA_GEMINI_API_KEY=`` in an env file means "not
+    # set", not "set to an empty key" (which used to stop the API at startup).
+    model_config = SettingsConfigDict(env_prefix="NETRA_", extra="ignore", env_ignore_empty=True)
 
     database_url: Optional[str] = None
     """postgresql+asyncpg URL for application access. Unset -> identity and
@@ -43,17 +45,19 @@ class Settings(BaseSettings):
     """Bound on the final flush at orderly shutdown; implementation bound."""
 
     gemini_api_key: Optional[SecretStr] = None
-    """Coordinator model adapter (google-genai). Unset -> no Coordinator is
-    registered and turns fail with PROVIDER_UNAVAILABLE; navigation still works."""
+    """Coordinator model adapter (google-genai), used only when
+    openrouter_api_key is unset. The same variable also serves embeddings
+    (ContentSettings). With neither key no Coordinator is registered and turns
+    fail with PROVIDER_UNAVAILABLE; navigation still works."""
 
     groq_api_key: Optional[SecretStr] = None
-    """Tutor model adapter (groq). Unset -> no Tutor is registered and
-    delegation fails closed."""
+    """Tutor model adapter (groq), used only when openrouter_api_key is unset.
+    With neither key no Tutor is registered and delegation fails closed."""
 
     openrouter_api_key: Optional[SecretStr] = None
-    """OpenRouter (the Agent-a-thon key). Backs the Coordinator only when
-    gemini_api_key is unset and the Tutor only when groq_api_key is unset, so a
-    configured native adapter is never silently replaced. Read from
+    """OpenRouter (the Agent-a-thon key). When set it runs both agents with the
+    same approved models, even if Gemini or Groq keys are also set (decision
+    D-AGENT, docs/team/integration-status.md). Read from
     NETRA_OPENROUTER_API_KEY only: an exported bare OPENROUTER_API_KEY must not
     quietly turn on paid model calls in the API or its tests."""
 

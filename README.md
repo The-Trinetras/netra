@@ -90,11 +90,12 @@ the [architecture overview](docs/architecture/overview.md) and
 | Integration acceptance targets | [checklist](docs/team/integration-checklist.md) |
 | Current gaps and migration checks | [migration report](docs/audits/documentation-migration-report.md) |
 
-**Models.** The Coordinator uses Gemini and the Tutor uses Groq when
-`NETRA_GEMINI_API_KEY` / `NETRA_GROQ_API_KEY` are set. Without them,
-`NETRA_OPENROUTER_API_KEY` (the Agent-a-thon key works) backs each agent with the same
-approved model through OpenRouter: `google/gemini-3.8-flash` and
-`openai/gpt-oss-120b`. The API needs PostgreSQL and reads only `NETRA_*` variables:
+**Models.** `NETRA_OPENROUTER_API_KEY` (the Agent-a-thon key works) runs both agents
+through OpenRouter with the approved models: `google/gemini-3.8-flash` for the
+Coordinator and `openai/gpt-oss-120b` for the Tutor. `NETRA_GEMINI_API_KEY` then serves
+embeddings only. Without an OpenRouter key, the Coordinator uses Gemini and the Tutor
+uses Groq directly when their keys are set. The API needs PostgreSQL and reads only
+`NETRA_*` variables:
 
 ```bash
 uvicorn --env-file .env --app-dir api/src --factory netra_api.main:create_app

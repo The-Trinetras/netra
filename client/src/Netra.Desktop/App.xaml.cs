@@ -179,7 +179,7 @@ public partial class App : Application
                 conversationViewModel.ReportStatus);
         }
 
-        var preferencesViewModel = new PreferencesViewModel(sessionState, timeline, _account);
+        var preferencesViewModel = new PreferencesViewModel(sessionState, timeline, _account, isLive: liveEndpoint is not null);
 
         var shellViewModel = new ShellViewModel(libraryViewModel, studyViewModel, conversationViewModel, preferencesViewModel, lectureViewModel);
         _shellViewModel = shellViewModel;
@@ -210,6 +210,7 @@ public partial class App : Application
         }
 
         _reconnectCoordinator.StatusChanged += (_, message) => conversationViewModel.ReportStatus(message);
+        _reconnectCoordinator.StateChanged += (_, _) => uiDispatcher.Invoke(preferencesViewModel.Refresh);
         _liveStart = new CancellationTokenSource();
 
         // First run: ask for the access code once the main window is up, so

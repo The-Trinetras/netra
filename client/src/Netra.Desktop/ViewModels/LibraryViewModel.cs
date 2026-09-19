@@ -145,13 +145,26 @@ public sealed class LibraryViewModel : ViewModelBase
         VideoResults.Clear();
         SelectedVideoResult = null;
 
-        var results = await _videoDiscoveryService.SearchAsync(VideoSearchQuery, CancellationToken.None);
+        StatusMessage = "Searching for lectures.";
+        IReadOnlyList<VideoDiscoveryResult> results;
+        try
+        {
+            results = await _videoDiscoveryService.SearchAsync(VideoSearchQuery, CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = FailureText.Describe(ex, "search for lectures", CancellationToken.None);
+            return;
+        }
+
         foreach (var result in results)
         {
             VideoResults.Add(result);
         }
 
-        StatusMessage = $"Found {VideoResults.Count} result(s) (fixture data).";
+        StatusMessage = VideoResults.Count == 0
+            ? "No lectures found (fixture data)."
+            : $"Found {VideoResults.Count} lecture result{(VideoResults.Count == 1 ? string.Empty : "s")} (fixture data). Use the arrow keys in the numbered list.";
     }
 
     public async Task RefreshSourcesAsync(CancellationToken cancellationToken)
@@ -301,17 +314,16 @@ public sealed class LibraryViewModel : ViewModelBase
         StatusMessage = $"Selected result {result.Ordinal}: {result.Title}.";
     }
 
-    private static async void FireAndForget(Func<Task> operation)
+    // Never lets an async command crash the app, and never fails silently.
+    private async void FireAndForget(Func<Task> operation)
     {
         try
         {
             await operation();
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            // TODO: surface command failures via StatusMessage once an
-            // error-presentation policy is defined. Never let an async
-            // command crash the app.
+            StatusMessage = FailureText.Describe(ex, "do that", CancellationToken.None);
         }
     }
 }

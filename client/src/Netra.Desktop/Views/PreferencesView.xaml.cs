@@ -13,6 +13,23 @@ public partial class PreferencesView : UserControl
         InitializeComponent();
     }
 
+    // F1: the shortcut list, on its first item, so NVDA starts reading it.
+    public void FocusShortcuts()
+    {
+        if (ShortcutList.Items.Count > 0)
+        {
+            ShortcutList.SelectedIndex = 0;
+            ShortcutList.UpdateLayout();
+            if (ShortcutList.ItemContainerGenerator.ContainerFromIndex(0) is UIElement first)
+            {
+                first.Focus();
+                return;
+            }
+        }
+
+        ShortcutList.Focus();
+    }
+
     // The standard accessible Windows save dialog; cancelling writes nothing.
     private void OnSaveMeasurementsClick(object sender, RoutedEventArgs e)
     {

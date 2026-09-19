@@ -7,19 +7,35 @@
 
     <Window.CommandBindings>
         <CommandBinding Command="{x:Static accessibility:KeyboardCommands.Stop}" Executed="OnStopCommandExecuted" />
-        <CommandBinding Command="{x:Static accessibility:KeyboardCommands.Repeat}" Executed="OnRepeatCommandExecuted" />
-        <CommandBinding Command="{x:Static accessibility:KeyboardCommands.Next}" Executed="OnNextCommandExecuted" />
-        <CommandBinding Command="{x:Static accessibility:KeyboardCommands.Previous}" Executed="OnPreviousCommandExecuted" />
+        <CommandBinding Command="{x:Static accessibility:KeyboardCommands.Pause}" Executed="OnNavigationCommandExecuted" />
+        <CommandBinding Command="{x:Static accessibility:KeyboardCommands.Continue}" Executed="OnNavigationCommandExecuted" />
+        <CommandBinding Command="{x:Static accessibility:KeyboardCommands.Repeat}" Executed="OnNavigationCommandExecuted" />
+        <CommandBinding Command="{x:Static accessibility:KeyboardCommands.Next}" Executed="OnNavigationCommandExecuted" />
+        <CommandBinding Command="{x:Static accessibility:KeyboardCommands.Previous}" Executed="OnNavigationCommandExecuted" />
+        <CommandBinding Command="{x:Static accessibility:KeyboardCommands.WhereAmI}" Executed="OnNavigationCommandExecuted" />
+        <CommandBinding Command="{x:Static accessibility:KeyboardCommands.BackToReading}" Executed="OnNavigationCommandExecuted" />
+        <CommandBinding Command="{x:Static accessibility:KeyboardCommands.UndoJump}" Executed="OnNavigationCommandExecuted" />
+        <CommandBinding Command="{x:Static accessibility:KeyboardCommands.ReturnToQuestion}" Executed="OnNavigationCommandExecuted" />
+        <CommandBinding Command="{x:Static accessibility:KeyboardCommands.GoToTab}" Executed="OnGoToTabExecuted" />
+        <CommandBinding Command="{x:Static accessibility:KeyboardCommands.ShowShortcuts}" Executed="OnShowShortcutsExecuted" />
     </Window.CommandBindings>
+
+    <Window.InputBindings>
+        <KeyBinding Gesture="Ctrl+1" Command="{x:Static accessibility:KeyboardCommands.GoToTab}" CommandParameter="0" />
+        <KeyBinding Gesture="Ctrl+2" Command="{x:Static accessibility:KeyboardCommands.GoToTab}" CommandParameter="1" />
+        <KeyBinding Gesture="Ctrl+3" Command="{x:Static accessibility:KeyboardCommands.GoToTab}" CommandParameter="2" />
+        <KeyBinding Gesture="Ctrl+4" Command="{x:Static accessibility:KeyboardCommands.GoToTab}" CommandParameter="3" />
+        <KeyBinding Gesture="Ctrl+5" Command="{x:Static accessibility:KeyboardCommands.GoToTab}" CommandParameter="4" />
+    </Window.InputBindings>
 
     <!--
         A TabControl gives Library/Study/Conversation/Preferences the
         journey the AgentSpec/M5 guide require, using a control that NVDA,
         JAWS and Narrator already announce natively via UI Automation's
         SelectionItem/Selection patterns (tab name and position, e.g. "Study
-        tab, 2 of 4") — no custom Automation Peer is needed, and keyboard
+        tab, 2 of 5") — no custom Automation Peer is needed, and keyboard
         traversal (Ctrl+Tab / Ctrl+Shift+Tab, arrow keys inside the tab
-        strip) is standard WPF behaviour.
+        strip, and Ctrl+1 to Ctrl+5) is standard WPF behaviour.
     -->
     <TabControl x:Name="ShellTabControl" Margin="4">
         <TabItem x:Name="LibraryTab" Header="Library" AutomationProperties.Name="Library" />

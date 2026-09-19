@@ -1,4 +1,5 @@
 using System.Windows.Input;
+using Netra.Desktop.Accessibility;
 using Netra.Desktop.Diagnostics;
 using Netra.Desktop.Protocol.Dto;
 using Netra.Desktop.State;
@@ -25,13 +26,17 @@ public sealed class PreferencesViewModel : ViewModelBase
     private string _measurementStatus = string.Empty;
 
     private readonly IAccountActions? _account;
+    private readonly bool _isLive;
     private string _accountStatus = string.Empty;
+    private string _activationShortcut = "Activation shortcut: not registered yet.";
 
-    public PreferencesViewModel(ClientSessionState sessionState, PlaybackTimeline? timeline = null, IAccountActions? account = null)
+    public PreferencesViewModel(
+        ClientSessionState sessionState, PlaybackTimeline? timeline = null, IAccountActions? account = null, bool isLive = false)
     {
         _sessionState = sessionState;
         _timeline = timeline;
         _account = account;
+        _isLive = isLive;
         SignInCommand = new RelayCommand(_ => _ = RunAccountActionAsync(a => a.SignInAsync()), _ => _account is not null);
         RefreshAccountStatus();
     }
@@ -108,13 +113,27 @@ public sealed class PreferencesViewModel : ViewModelBase
 
     public SessionInteractionMode InteractionMode => _sessionState.InteractionMode;
 
-    // Always true today: every Library/Study data source in this pass is an
-    // explicit fixture (docs/team/handoffs/M5.md Gaps 1 and 3). This flag
-    // exists so the UI never has to be edited to stop lying once a real
-    // source is wired — the moment a real implementation reports
-    // IsFixtureSourced = false, this should follow it rather than being
-    // hardcoded true.
-    public bool IsUsingFixtureData => true;
+    // Which parts of what the student sees are real server data and which
+    // are still labelled fixtures, stated per part, never reassuringly.
+    public string DataSourceNotice => _isLive
+        ? "Your sources, study session and conversation come from your Netra server. Lecture search results, file preparation, and the figures and tables in the Study tab are still fixture data, not your material."
+        : "Offline mode: no Netra server is configured. Everything shown is fixture data, not your material.";
+
+    public string ActivationShortcut
+    {
+        get => _activationShortcut;
+        private set => SetField(ref _activationShortcut, value);
+    }
+
+    // Every keyboard shortcut in words (F1 lands here).
+    public IReadOnlyList<Shortcut> Shortcuts { get; } =
+        ShortcutGuide.Everywhere.Concat(ShortcutGuide.LectureTab.Select(s => s with { Keys = s.Keys + " in the Lecture tab" })).ToList();
+
+    // Reported by the window after it tries the activation candidates.
+    public void SetActivationShortcut(string? keys) =>
+        ActivationShortcut = keys is null
+            ? "No activation shortcut: other programs already use Netra's choices. Use Alt+Tab to reach Netra."
+            : $"Activation shortcut: {keys} brings Netra to the front from anywhere. It never opens the microphone.";
 
     public void Refresh()
     {

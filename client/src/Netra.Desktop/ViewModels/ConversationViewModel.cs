@@ -40,6 +40,7 @@ public sealed class ConversationViewModel : ViewModelBase, IDisposable
     private readonly SegmentPlaybackQueue? _playbackQueue;
     private readonly PlaybackTimeline? _timeline;
     private readonly ILecturePause? _lecture;
+    private readonly IPlaybackController _playbackController;
 
     // Final transcripts already turned into a turn, by their stable
     // TranscriptId. Recognition providers redeliver results on reconnect
@@ -80,11 +81,10 @@ public sealed class ConversationViewModel : ViewModelBase, IDisposable
         _speechInputService = speechInputService;
         _dispatcher = dispatcher;
 
-        // playbackController is not read directly here; ownership of local
-        // playback lives in InterruptionController/PlaybackAcknowledger. It
-        // is accepted so the composition root (App.xaml.cs) can pass all
-        // session-scoped services through a single constructor.
-        _ = playbackController;
+        // Local playback belongs to InterruptionController/PlaybackAcknowledger;
+        // it is read here only to pause and continue speech at once, before
+        // the server hears of it.
+        _playbackController = playbackController;
 
         _connectionManager.MessageReceived += OnServerMessageReceived;
         _speechInputService.TranscriptReceived += OnTranscriptReceived;
@@ -204,6 +204,19 @@ public sealed class ConversationViewModel : ViewModelBase, IDisposable
         if (parameter is not NavigationCommandType command)
         {
             return;
+        }
+
+        // Pause silences Netra at once, like STOP but keeping what was paused;
+        // continue resumes only a paused, uncancelled segment (the player
+        // refuses cancelled ones). The server then pauses or resumes its own
+        // generation, or reads onward when nothing was paused.
+        if (command == NavigationCommandType.Pause)
+        {
+            _playbackController.Pause();
+        }
+        else if (command == NavigationCommandType.Continue)
+        {
+            _playbackController.Resume();
         }
 
         await _connectionManager.SendNavigationCommandAsync(
@@ -339,9 +352,27 @@ public sealed class ConversationViewModel : ViewModelBase, IDisposable
             // shared with the HTTP source-selection path.
             SnapshotReconciler.Apply(_sessionState, snapshot);
 
-            StatusMessage = $"Session restored: {snapshot.InteractionMode}.";
+            // Snapshots also answer navigation; only the one answering a
+            // resume restores anything, and only a place worth telling about
+            // is announced (D-open-5). The connection status says "Connected."
+            if (envelope.RequestId == _connectionManager.LastResumeRequestId)
+            {
+                var restored = RestoredPlace(snapshot);
+                if (restored is not null)
+                {
+                    StatusMessage = restored;
+                }
+            }
         });
     }
+
+    private static string? RestoredPlace(SessionSnapshotPayload snapshot) => snapshot switch
+    {
+        { PendingQuestion: not null } => "Your place is restored. A question is waiting for your answer.",
+        { InteractionMode: SessionInteractionMode.Reading } => "Your place in the reading is restored.",
+        { InteractionMode: SessionInteractionMode.TutorLesson or SessionInteractionMode.Quiz } => "Your place in the lesson is restored.",
+        _ => null,
+    };
 
     private void HandleQuizQuestion(ServerToClientEnvelope envelope)
     {

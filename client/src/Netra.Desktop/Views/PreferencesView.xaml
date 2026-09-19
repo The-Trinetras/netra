@@ -39,11 +39,39 @@
             <Run Text="{Binding InteractionMode, Mode=OneWay}" />
         </TextBlock>
 
-        <TextBlock AutomationProperties.LiveSetting="Polite"
+        <TextBlock x:Name="DataSourceNoticeText"
+                   Text="{Binding DataSourceNotice, Mode=OneTime}"
                    AutomationProperties.Name="Data source notice"
-                   Margin="0,8,0,0" TextWrapping="Wrap">
-            <Run Text="Fixture data — not a live server response. Library and Study content shown here is a labelled fixture, per docs/team/handoffs/M5.md." />
-        </TextBlock>
+                   Margin="0,8,0,0" TextWrapping="Wrap" />
+
+        <TextBlock x:Name="ActivationShortcutText"
+                   Text="{Binding ActivationShortcut, Mode=OneWay}"
+                   AutomationProperties.Name="Activation shortcut"
+                   Margin="0,8,0,0" TextWrapping="Wrap" />
+
+        <!-- F1 lands here: one shortcut per item, read in full by NVDA. -->
+        <TextBlock x:Name="ShortcutsHeading" Text="Keyboard shortcuts" FontSize="14" Margin="0,16,0,4"
+                   AutomationProperties.HeadingLevel="Level2" />
+        <ListBox x:Name="ShortcutList"
+                 ItemsSource="{Binding Shortcuts, Mode=OneTime}"
+                 AutomationProperties.Name="Keyboard shortcuts"
+                 AutomationProperties.LabeledBy="{Binding ElementName=ShortcutsHeading}"
+                 MaxHeight="220">
+            <ListBox.ItemContainerStyle>
+                <Style TargetType="ListBoxItem">
+                    <Setter Property="AutomationProperties.Name" Value="{Binding Mode=OneWay}" />
+                </Style>
+            </ListBox.ItemContainerStyle>
+            <ListBox.ItemTemplate>
+                <DataTemplate>
+                    <TextBlock>
+                        <Run Text="{Binding Keys, Mode=OneWay}" FontWeight="Bold" />
+                        <Run Text=": " />
+                        <Run Text="{Binding Action, Mode=OneWay}" />
+                    </TextBlock>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
 
         <TextBlock Text="Playback measurements (test use)" FontSize="14" Margin="0,16,0,4" />
         <TextBlock TextWrapping="Wrap" Margin="0,0,0,8"

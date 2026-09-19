@@ -46,9 +46,19 @@ public sealed class ConnectionManager : IAsyncDisposable, IAsrChannel
     public Task ConnectAsync(Uri endpoint, CancellationToken cancellationToken) =>
         _webSocketClient.ConnectAsync(endpoint, cancellationToken);
 
-    public Task SendSessionResumeAsync(SessionResumePayload payload, CancellationToken cancellationToken) =>
-        SendAsync((requestId, sequence) =>
-            MessageFactory.CreateSessionResume(_sessionState.SessionId, requestId, sequence, payload), cancellationToken);
+    // The request id of the latest session.resume: the snapshot answering it
+    // is a restored place, unlike snapshots that answer navigation.
+    public Guid? LastResumeRequestId { get; private set; }
+
+    public Task SendSessionResumeAsync(SessionResumePayload payload, CancellationToken cancellationToken)
+    {
+        var requestId = Guid.NewGuid();
+        LastResumeRequestId = requestId;
+        return SendAsync(
+            requestId,
+            (id, sequence) => MessageFactory.CreateSessionResume(_sessionState.SessionId, id, sequence, payload),
+            cancellationToken);
+    }
 
     public Task SendTurnSubmitAsync(TurnSubmitPayload payload, CancellationToken cancellationToken) =>
         SendMutatingAsync((requestId, sequence) =>

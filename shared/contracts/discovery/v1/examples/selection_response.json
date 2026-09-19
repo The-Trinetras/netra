@@ -1,0 +1,14 @@
+{
+  "request_id": "00000000-0000-0000-0000-000000000002",
+  "session_version": 6,
+  "result_set_id": "00000000-0000-0000-0000-000000000007",
+  "selected_at": "2026-09-20T00:01:00Z",
+  "selection": {
+    "result_ordinal": 1,
+    "youtube_video_id": "AAAAAAAAAAA",
+    "title": "Ohm’s law (synthetic example)",
+    "channel": null,
+    "duration_ms": null,
+    "embeddable": null
+  }
+}

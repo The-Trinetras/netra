@@ -9,6 +9,26 @@ production readiness.
 
 ## Checkpoint
 
+### Arun completion push — 20 September 2026
+
+Current checkout evidence supersedes historical machine/merge claims below.
+`main` and fetched `origin/main` both resolved to `ab92908143b0a8998c74ee067423f9eb610be69a`.
+
+| Item | State | Evidence / next owner |
+|---|---|---|
+| C1/C2/C3 | Review blocked: no draft schemas in this checkout | Arshad supplies microphone, access-code and speech-format/frame-limit contracts. Final D-MIC/D-CRED decisions are accepted, not reopened. |
+| C5/C6 | Review blocked: job schema empty; no public evidence payload | Ashlin supplies drafts; Arun reviews client consumption. |
+| C7 / M5-DISCOVERY | Draft implemented, pending Arshad + Ashlin review; not mounted | Branch `arun/C7-youtube-contract`; `shared/contracts/discovery/v1/README.md`, four schemas/examples, strict executable mirror and 27 new tests. No provider calls. |
+| F1 / M5-LOCK | Setup authorized; SDK download in progress | Arun authorized fetch, first NuGet/WebView2 restore, exact SDK/Python installation. Windows client execution remains unavailable on this Mac. |
+
+C7 checks (CPython 3.13.15; exact `uv.lock`, 102 applicable packages, no lock edits):
+
+- `PYTHON_DOTENV_DISABLED=1 /private/tmp/netra-app-venv/bin/python -m pytest -p no:cacheprovider api/tests/multimedia/test_discovery_wire.py api/tests/multimedia/test_tavily_discovery.py -q` → **48 passed**, including after restoration of all mutations.
+- `PYTHON_DOTENV_DISABLED=1 /private/tmp/netra-app-venv/bin/python -m pytest -p no:cacheprovider --ignore=tests/test_integration.py -q` → **8 collection errors**, missing `sqlite_vec` in notes tests. `requirements.txt` includes `sqlite-vec`/`fastembed`; `uv.lock` does not. Ashlin owns lock reconciliation; no additional unpinned installation performed.
+- `PYTHON_DOTENV_DISABLED=1 /private/tmp/netra-app-venv/bin/python -m pytest -p no:cacheprovider api/tests worker/tests evaluation/scripts -q` → **1166 passed, 1 skipped, 47 deselected**; 5 PyMuPDF deprecation warnings.
+- Eight deliberate defects were each caught by a behavioral test: remove order check, remove duplicate-ID check, accept unknown fields, coerce types, trim the query, replace video identity, raise request limit to 30, accept timezone-less timestamps. Original code restored; focused tests rerun green.
+- `git diff --check` → clean. All C7 execution used synthetic data. No local server, live provider, Windows, microphone, NVDA or participant run. HTTP auth/replay and durable result storage remain unimplemented pending owner review.
+
 - **Done:** slice A (runtime + baseline), slice B (database, migrations,
   transactions, learning persistence, worker projection/cancellation), slice C
   (real app composition, session routes, model adapters behind controlled

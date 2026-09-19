@@ -37,6 +37,7 @@ ClientMessageType = Literal[
     "navigation.command",
     "response.cancel",
     "playback.ack",
+    "asr.start",
 ]
 
 ServerMessageType = Literal[
@@ -44,6 +45,7 @@ ServerMessageType = Literal[
     "response.segment",
     "quiz.question",
     "error",
+    "asr.transcript",
 ]
 
 InputMode = Literal["keyboard", "voice"]
@@ -110,12 +112,19 @@ class PlaybackAckPayload(_StrictModel):
     played_ms: Optional[int] = Field(default=None, ge=0)
 
 
+class AsrStartPayload(_StrictModel):
+    """Starts one push-to-talk capture (D-MIC); audio follows as microphone frames."""
+
+    capture_id: UUID
+
+
 ClientPayload = Union[
     SessionResumePayload,
     TurnSubmitPayload,
     NavigationCommandPayload,
     ResponseCancelPayload,
     PlaybackAckPayload,
+    AsrStartPayload,
 ]
 
 _PAYLOAD_BY_TYPE: dict[str, type[BaseModel]] = {
@@ -124,6 +133,7 @@ _PAYLOAD_BY_TYPE: dict[str, type[BaseModel]] = {
     "navigation.command": NavigationCommandPayload,
     "response.cancel": ResponseCancelPayload,
     "playback.ack": PlaybackAckPayload,
+    "asr.start": AsrStartPayload,
 }
 
 
@@ -230,11 +240,22 @@ class ErrorPayload(_StrictModel):
     details: Optional[dict] = None
 
 
+class AsrTranscriptPayload(_StrictModel):
+    """Recognition result for one capture (D-MIC). Only a final one may become a
+    turn, and the client submits it; empty final text means nothing was heard."""
+
+    capture_id: UUID
+    transcript_id: UUID
+    text: str = Field(max_length=8000)
+    is_final: bool
+
+
 ServerPayload = Union[
     SessionSnapshotPayload,
     ResponseSegmentPayload,
     QuizQuestionPayload,
     ErrorPayload,
+    AsrTranscriptPayload,
 ]
 
 _SERVER_PAYLOAD_BY_TYPE: dict[str, type[BaseModel]] = {
@@ -242,14 +263,15 @@ _SERVER_PAYLOAD_BY_TYPE: dict[str, type[BaseModel]] = {
     "response.segment": ResponseSegmentPayload,
     "quiz.question": QuizQuestionPayload,
     "error": ErrorPayload,
+    "asr.transcript": AsrTranscriptPayload,
 }
 
 
 class ServerToClientMessage(_StrictModel):
     """Mirrors shared/contracts/protocol/v1/server_to_client.schema.json.
 
-    All four server message types are now typed (session.snapshot,
-    response.segment, quiz.question and error). payload stays a plain
+    All server message types are typed (session.snapshot,
+    response.segment, quiz.question, error and asr.transcript). payload stays a plain
     dict on the envelope itself; use build_server_message()/the
     _SERVER_PAYLOAD_BY_TYPE registry to validate one against its type,
     the same pattern parse_client_message() uses for inbound frames.

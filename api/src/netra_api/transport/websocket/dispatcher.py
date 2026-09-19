@@ -63,6 +63,7 @@ from netra_api.speech.playback_metadata import CancelReasonName, DeliveredSenten
 from netra_api.speech.synthesis import SpeechOutput
 from netra_api.transport.websocket.serializer import (
     PROTOCOL_VERSION,
+    AsrStartPayload,
     NavigationCommandPayload,
     PlaybackAckPayload,
     ResponseCancelPayload,
@@ -359,6 +360,9 @@ class Connection:
                 await self._playback_ack(auth, payload)
             elif isinstance(payload, SessionResumePayload):
                 await self._resume(auth)
+            elif isinstance(payload, AsrStartPayload):
+                # Fail closed until recognition is wired to the transport (B1).
+                raise ProviderUnavailableError("speech recognition is not available")
             return None
         except SessionVersionConflictError as exc:
             await self._send_error(envelope.session_id, envelope.request_id, exc, current_version=exc.actual_version)

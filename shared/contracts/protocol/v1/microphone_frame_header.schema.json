@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://netra.local/contracts/protocol/v1/microphone_frame_header.schema.json",
+  "title": "Netra Binary Microphone Frame Header (client to server only)",
+  "$comment": "Decision D-MIC (20 September 2026). Applies ONLY to client-to-server push-to-talk audio sent as WebSocket binary messages after an asr.start text message; it is never read as the server-to-client audio_frame_header format, or the reverse. Wire layout of one binary WebSocket message, the same layout as server audio: [4-byte unsigned big-endian header length][UTF-8 JSON header, matching this schema][raw audio bytes]. The declared header length is checked against the bytes actually present before the header is parsed. Audio bytes are 16-bit signed PCM, mono, 16,000 samples per second, LITTLE-endian (what Windows waveIn captures and what the recognition provider's linear16 input takes; note that RFC 3551's audio/L16 is big-endian, Netra's is not). No base64 fallback.",
+
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "capture_id",
+    "sequence",
+    "end_of_utterance",
+    "media_type"
+  ],
+  "properties": {
+    "version": {
+      "const": 1,
+      "$comment": "Unsupported versions are rejected, not guessed at."
+    },
+    "capture_id": {
+      "type": "string",
+      "format": "uuid",
+      "$comment": "The capture_id of the open asr.start. Well-formed frames for a capture that is unknown, ended or abandoned are dropped silently: they can legitimately still be in flight."
+    },
+    "sequence": {
+      "type": "integer",
+      "minimum": 0,
+      "$comment": "Starts at 0 and increases by exactly 1 per frame within one capture. WebSocket delivery is ordered and reliable, so a gap, duplicate or decrease is a client fault: the capture is abandoned."
+    },
+    "end_of_utterance": {
+      "type": "boolean",
+      "$comment": "True on the capture's last frame (push-to-talk released); it may carry zero audio bytes. Frames after it are dropped. The server then sends the capture's final asr.transcript."
+    },
+    "media_type": {
+      "const": "audio/L16;rate=16000"
+    }
+  },
+
+  "maxHeaderBytes": 1024,
+  "maxAudioBytesPerFrame": 32000,
+  "maxAudioBytesPerCapture": 1920000,
+  "$commentLimits": "Custom keywords, enforced by implementations. A header over 1,024 bytes is rejected before parsing. One frame carries at most 32,000 audio bytes (1 second) and an even number of bytes (whole samples). One capture carries at most 1,920,000 audio bytes (60 seconds). A header that cannot be read (bad length, bad JSON, unknown or mistyped field, unsupported version) cannot be tied to a capture, so the server closes the connection with 1007 (invalid frame payload data); the client reconnects and resumes as usual. Any other violation abandons that capture: the server sends an error message (INVALID_REQUEST) with the capture's request_id and sends no final transcript for it."
+}

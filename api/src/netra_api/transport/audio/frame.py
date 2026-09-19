@@ -96,29 +96,7 @@ def decode_audio_frame(frame: bytes) -> tuple[AudioFrameHeader, bytes]:
     unsupported version.
     """
 
-    if len(frame) < _LENGTH_PREFIX_SIZE:
-        raise AudioFrameError("frame is shorter than the 4-byte length prefix")
-
-    (declared_header_length,) = struct.unpack(">I", frame[:_LENGTH_PREFIX_SIZE])
-
-    if declared_header_length == 0:
-        raise AudioFrameError("declared header length is zero")
-
-    if declared_header_length > MAX_HEADER_BYTES:
-        raise AudioFrameError(
-            f"declared header length {declared_header_length} exceeds the {MAX_HEADER_BYTES}-byte limit"
-        )
-
-    available_after_prefix = len(frame) - _LENGTH_PREFIX_SIZE
-    if declared_header_length > available_after_prefix:
-        raise AudioFrameError(
-            f"declared header length {declared_header_length} exceeds the "
-            f"{available_after_prefix} bytes actually available in the frame"
-        )
-
-    header_start = _LENGTH_PREFIX_SIZE
-    header_end = header_start + declared_header_length
-    header_bytes = frame[header_start:header_end]
+    header_bytes, audio_bytes = split_length_prefixed(frame, MAX_HEADER_BYTES, AudioFrameError)
 
     try:
         header = AudioFrameHeader.model_validate_json(header_bytes)
@@ -128,7 +106,37 @@ def decode_audio_frame(frame: bytes) -> tuple[AudioFrameHeader, bytes]:
     if header.version != _SUPPORTED_VERSION:
         raise AudioFrameError(f"unsupported audio frame version {header.version}")
 
-    return header, frame[header_end:]
+    return header, audio_bytes
+
+
+def split_length_prefixed(frame: bytes, max_header_bytes: int, error: type[Exception]) -> tuple[bytes, bytes]:
+    """Split [4-byte big-endian length][header][rest], checking the length
+    against the bytes actually present before anything is parsed.
+
+    Shared by the server audio and microphone framings, which have the same
+    layout but distinct headers; ``error`` is raised for every fault.
+    """
+
+    if len(frame) < _LENGTH_PREFIX_SIZE:
+        raise error("frame is shorter than the 4-byte length prefix")
+
+    (declared_header_length,) = struct.unpack(">I", frame[:_LENGTH_PREFIX_SIZE])
+
+    if declared_header_length == 0:
+        raise error("declared header length is zero")
+
+    if declared_header_length > max_header_bytes:
+        raise error(f"declared header length {declared_header_length} exceeds the {max_header_bytes}-byte limit")
+
+    available_after_prefix = len(frame) - _LENGTH_PREFIX_SIZE
+    if declared_header_length > available_after_prefix:
+        raise error(
+            f"declared header length {declared_header_length} exceeds the "
+            f"{available_after_prefix} bytes actually available in the frame"
+        )
+
+    header_end = _LENGTH_PREFIX_SIZE + declared_header_length
+    return frame[_LENGTH_PREFIX_SIZE:header_end], frame[header_end:]
 
 
 class GenerationSequenceTracker:

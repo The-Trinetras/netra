@@ -24,7 +24,8 @@
         "session.snapshot",
         "response.segment",
         "quiz.question",
-        "error"
+        "error",
+        "asr.transcript"
       ]
     },
     "payload": {
@@ -32,7 +33,7 @@
     }
   },
 
-  "$comment": "session.snapshot, quiz.question and error were approved 2026-09-12 alongside the canonical interaction_mode vocabulary and the last-stable-result-set design (see docs/architecture/message-flow.md and data-ownership.md). All four server message types are now typed.",
+  "$comment": "session.snapshot, quiz.question and error were approved 2026-09-12 alongside the canonical interaction_mode vocabulary and the last-stable-result-set design (see docs/architecture/message-flow.md and data-ownership.md). All four server message types are now typed. asr.transcript was added 20 September 2026 with decision D-MIC.",
 
   "allOf": [
     {
@@ -80,6 +81,18 @@
       "then": {
         "properties": {
           "payload": { "$ref": "error.schema.json" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": { "const": "asr.transcript" }
+        }
+      },
+      "then": {
+        "properties": {
+          "payload": { "$ref": "#/$defs/AsrTranscript" }
         }
       }
     }
@@ -279,6 +292,35 @@
           "items": {
             "type": "string"
           }
+        }
+      }
+    },
+
+    "AsrTranscript": {
+      "$comment": "Decision D-MIC (20 September 2026): recognition result for the capture started by the asr.start whose request_id the envelope repeats. Interim results (is_final false) are for live captioning only and never become turns or commands. A capture yields at most one final result, sent after its end_of_utterance frame; interim results for that capture share the final's transcript_id, and a redelivered final keeps it. A final with empty text means nothing was recognised: the client says so and submits nothing. Recognition failure is an error message with the same request_id.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "capture_id",
+        "transcript_id",
+        "text",
+        "is_final"
+      ],
+      "properties": {
+        "capture_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "transcript_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "text": {
+          "type": "string",
+          "maxLength": 8000
+        },
+        "is_final": {
+          "type": "boolean"
         }
       }
     }

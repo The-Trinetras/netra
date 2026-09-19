@@ -74,6 +74,15 @@ async def test_client_binary_frame_is_refused_not_reinterpreted():
     assert socket.closed_code == CLOSE_UNSUPPORTED_DATA
 
 
+async def test_asr_start_fails_closed_until_recognition_is_wired():
+    journey = await build_journey()
+    socket, task = await _open(journey)
+    responses = await _send(socket, envelope("asr.start", {"capture_id": str(uuid4())}), "error")
+    assert responses[0]["payload"]["code"] == "PROVIDER_UNAVAILABLE"
+    assert (await journey.sessions.get(SESSION)).session_version == 10
+    await _close(socket, task)
+
+
 async def test_unknown_field_is_rejected_and_changes_nothing():
     journey = await build_journey()
     socket, task = await _open(journey)

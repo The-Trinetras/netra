@@ -6,10 +6,10 @@ turn.submit.transcript_status to "final", so an interim transcript cannot be
 submitted over the wire. This gate applies the same rule wherever a
 recognition adapter produces events server-side.
 
-Microphone (client-to-server) audio upload has no committed contract
-(audio_frame_header.schema.json is server-to-client only), so no server-side
-recognition stream is wired to the transport. The Deepgram adapter stays
-unavailable until that protocol is approved with M5.
+Microphone upload is contracted (D-MIC: asr.start, microphone frames in
+transport/audio/microphone.py, asr.transcript), but no recognition stream is
+wired to the transport yet, so asr.start fails closed. The client, not the
+server, submits the final transcript as turn.submit.
 """
 
 from __future__ import annotations

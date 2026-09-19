@@ -39,7 +39,8 @@
         "turn.submit",
         "navigation.command",
         "response.cancel",
-        "playback.ack"
+        "playback.ack",
+        "asr.start"
       ]
     },
     "payload": {
@@ -105,6 +106,18 @@
       "then": {
         "properties": {
           "payload": { "$ref": "#/$defs/PlaybackAck" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": { "const": "asr.start" }
+        }
+      },
+      "then": {
+        "properties": {
+          "payload": { "$ref": "#/$defs/AsrStart" }
         }
       }
     }
@@ -252,6 +265,21 @@
         "played_ms": {
           "type": "integer",
           "minimum": 0
+        }
+      }
+    },
+
+    "AsrStart": {
+      "$comment": "Decision D-MIC (20 September 2026): starts one push-to-talk capture. The client then sends the capture's audio as binary frames described by microphone_frame_header.schema.json, ending with end_of_utterance. The envelope request_id identifies the capture: every asr.transcript and error about it carries the same request_id. At most one capture is open per connection; a new asr.start ends the open one without a final transcript, and a disconnect abandons it. A capture_id is never reused. The server only transcribes: the client submits the final text as an ordinary turn.submit with input_mode voice, reusing one request_id per transcript_id so a redelivered final cannot create a second turn. Interim text never becomes a turn.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "capture_id"
+      ],
+      "properties": {
+        "capture_id": {
+          "type": "string",
+          "format": "uuid"
         }
       }
     }

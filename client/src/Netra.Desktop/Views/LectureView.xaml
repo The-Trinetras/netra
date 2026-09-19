@@ -1,0 +1,84 @@
+<UserControl x:Class="Netra.Desktop.Views.LectureView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf">
+
+    <!-- The lecture is operated from these WPF controls and the letter keys
+         (K play or pause, J back, L forward, T time, C continue, D describe).
+         The web view is out of the Tab order so focus and NVDA stay on
+         Netra's own controls, never inside the YouTube page. Playback and
+         analysis readiness are two separate lines, never one "ready". -->
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" Text="Lecture" FontSize="16" Margin="0,0,0,8"
+                   AutomationProperties.HeadingLevel="Level2" />
+
+        <Grid Grid.Row="1" Margin="0,0,0,8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <Label x:Name="LinkLabel" Grid.Column="0" Content="YouTube _link" Target="{Binding ElementName=LinkBox}" Padding="0,0,8,0" VerticalAlignment="Center" />
+            <TextBox x:Name="LinkBox" Grid.Column="1"
+                     Text="{Binding LinkText, UpdateSourceTrigger=PropertyChanged}"
+                     AutomationProperties.Name="YouTube link"
+                     AutomationProperties.LabeledBy="{Binding ElementName=LinkLabel}"
+                     AutomationProperties.HelpText="Paste a YouTube lecture link, then press Enter."
+                     Margin="0,0,8,0" VerticalContentAlignment="Center">
+                <TextBox.InputBindings>
+                    <KeyBinding Key="Return" Command="{Binding OpenLinkCommand}" />
+                </TextBox.InputBindings>
+            </TextBox>
+            <Button x:Name="OpenLinkButton" Grid.Column="2" Content="Open link" Command="{Binding OpenLinkCommand}"
+                    AutomationProperties.Name="Open the YouTube link" Padding="8,4" />
+        </Grid>
+
+        <TextBlock x:Name="LectureTitle" Grid.Row="2" Text="{Binding Title}" FontWeight="SemiBold" TextWrapping="Wrap"
+                   Margin="0,0,0,8" AutomationProperties.Name="Lecture title" />
+
+        <wv2:WebView2 x:Name="PlayerView" Grid.Row="3" MinHeight="240"
+                      KeyboardNavigation.IsTabStop="False" Focusable="False"
+                      AutomationProperties.Name="Lecture video, operated with the controls below" />
+
+        <StackPanel Grid.Row="4" Margin="0,8,0,0">
+            <TextBlock x:Name="PlaybackLine" Text="{Binding PlaybackLine}" TextWrapping="Wrap"
+                       AutomationProperties.Name="Playback readiness" />
+            <TextBlock x:Name="AnalysisLine" Text="{Binding AnalysisLine}" TextWrapping="Wrap"
+                       AutomationProperties.Name="Analysis readiness" />
+            <TextBlock x:Name="TimeLine" Text="{Binding TimeText}"
+                       AutomationProperties.Name="Video time" />
+            <TextBlock x:Name="PausePointLine" Text="{Binding PausePointText}" TextWrapping="Wrap"
+                       AutomationProperties.Name="Paused for question" />
+        </StackPanel>
+
+        <WrapPanel Grid.Row="5" Margin="0,8,0,0">
+            <Button x:Name="PlayPauseButton" Content="Play or pause (K)" Command="{Binding PlayPauseCommand}"
+                    AutomationProperties.Name="Play or pause" AutomationProperties.AcceleratorKey="K" Padding="8,4" Margin="0,0,4,4" />
+            <Button x:Name="BackButton" Content="Back 10 seconds (J)" Command="{Binding BackCommand}"
+                    AutomationProperties.Name="Back 10 seconds" AutomationProperties.AcceleratorKey="J" Padding="8,4" Margin="0,0,4,4" />
+            <Button x:Name="ForwardButton" Content="Forward 10 seconds (L)" Command="{Binding ForwardCommand}"
+                    AutomationProperties.Name="Forward 10 seconds" AutomationProperties.AcceleratorKey="L" Padding="8,4" Margin="0,0,4,4" />
+            <Button x:Name="WhereAmIButton" Content="Where am I (T)" Command="{Binding WhereAmICommand}"
+                    AutomationProperties.Name="Where am I in the video" AutomationProperties.AcceleratorKey="T" Padding="8,4" Margin="0,0,4,4" />
+            <Button x:Name="ContinueButton" Content="Continue from pause (C)" Command="{Binding ContinueCommand}"
+                    AutomationProperties.Name="Continue from where it paused" AutomationProperties.AcceleratorKey="C" Padding="8,4" Margin="0,0,4,4" />
+            <Button x:Name="DescribeButton" Content="Describe this moment (D)" Command="{Binding DescribeCommand}"
+                    AutomationProperties.Name="Describe this moment" AutomationProperties.AcceleratorKey="D" Padding="8,4" Margin="0,0,4,4" />
+        </WrapPanel>
+
+        <TextBlock x:Name="LectureStatusRegion" Grid.Row="6" Margin="0,8,0,0" TextWrapping="Wrap"
+                   Text="{Binding StatusMessage}"
+                   AutomationProperties.LiveSetting="Polite"
+                   AutomationProperties.Name="Lecture status" />
+    </Grid>
+</UserControl>

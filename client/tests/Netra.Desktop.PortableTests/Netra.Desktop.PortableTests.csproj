@@ -7,8 +7,9 @@
     the real projects, never copied: Netra.Desktop.Tests stays the canonical
     suite and is what runs on Windows.
 
-    Excluded: views, windows, MediaPlayer playback, WPF focus/hotkey/live-region
-    helpers, the WPF dispatcher and the measurement harness, plus the tests
+    Excluded: views, windows, MediaPlayer playback, the WebView2 player surface,
+    WPF focus/hotkey/live-region helpers, the WPF dispatcher and the
+    measurement harness, plus the tests
     that need a real WPF window (LibraryViewBindingTests and Tests/Views/).
     Passing here is not Windows, WPF, NVDA or real-device evidence.
   -->
@@ -34,7 +35,7 @@
 
   <ItemGroup>
     <Compile Include="../../src/Netra.Desktop/**/*.cs"
-             Exclude="../../src/Netra.Desktop/obj/**;../../src/Netra.Desktop/bin/**;../../src/Netra.Desktop/App.xaml.cs;../../src/Netra.Desktop/Views/**;../../src/Netra.Desktop/Accessibility/FocusService.cs;../../src/Netra.Desktop/Accessibility/GlobalHotKeyService.cs;../../src/Netra.Desktop/Accessibility/KeyboardNavigation.cs;../../src/Netra.Desktop/Accessibility/LiveRegionAnnouncer.cs;../../src/Netra.Desktop/Audio/PlaybackController.cs;../../src/Netra.Desktop/Threading/WpfUiDispatcher.cs;../../src/Netra.Desktop/Diagnostics/PlaybackMeasurementHarness.cs"
+             Exclude="../../src/Netra.Desktop/obj/**;../../src/Netra.Desktop/bin/**;../../src/Netra.Desktop/App.xaml.cs;../../src/Netra.Desktop/Views/**;../../src/Netra.Desktop/Accessibility/FocusService.cs;../../src/Netra.Desktop/Accessibility/GlobalHotKeyService.cs;../../src/Netra.Desktop/Accessibility/KeyboardNavigation.cs;../../src/Netra.Desktop/Accessibility/LiveRegionAnnouncer.cs;../../src/Netra.Desktop/Audio/PlaybackController.cs;../../src/Netra.Desktop/Threading/WpfUiDispatcher.cs;../../src/Netra.Desktop/Diagnostics/PlaybackMeasurementHarness.cs;../../src/Netra.Desktop/Video/WebView2PlayerSurface.cs"
              LinkBase="Production" />
     <Compile Include="../Netra.Desktop.Tests/**/*.cs"
              Exclude="../Netra.Desktop.Tests/obj/**;../Netra.Desktop.Tests/bin/**;../Netra.Desktop.Tests/LibraryViewBindingTests.cs;../Netra.Desktop.Tests/Views/**"

@@ -29,6 +29,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The lecture player page (F8), served to WebView2 from the app folder. -->
+    <Content Include="Video\Player\**" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- Device and wire seams (e.g. the WinMM driver interface) stay internal. -->
     <InternalsVisibleTo Include="Netra.Desktop.Tests" />
   </ItemGroup>

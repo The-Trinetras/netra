@@ -9,6 +9,7 @@ using Netra.Desktop.Protocol.Dto;
 using Netra.Desktop.Speech;
 using Netra.Desktop.State;
 using Netra.Desktop.Threading;
+using Netra.Desktop.Video;
 
 namespace Netra.Desktop.ViewModels;
 
@@ -38,6 +39,7 @@ public sealed class ConversationViewModel : ViewModelBase, IDisposable
     private readonly IUiDispatcher _dispatcher;
     private readonly SegmentPlaybackQueue? _playbackQueue;
     private readonly PlaybackTimeline? _timeline;
+    private readonly ILecturePause? _lecture;
 
     // Final transcripts already turned into a turn, by their stable
     // TranscriptId. Recognition providers redeliver results on reconnect
@@ -65,8 +67,10 @@ public sealed class ConversationViewModel : ViewModelBase, IDisposable
         ISpeechInputService speechInputService,
         IUiDispatcher dispatcher,
         SegmentPlaybackQueue? playbackQueue = null,
-        PlaybackTimeline? timeline = null)
+        PlaybackTimeline? timeline = null,
+        ILecturePause? lecture = null)
     {
+        _lecture = lecture;
         _playbackQueue = playbackQueue;
         _timeline = timeline;
         _sessionState = sessionState;
@@ -135,7 +139,21 @@ public sealed class ConversationViewModel : ViewModelBase, IDisposable
         }
 
         InputText = string.Empty;
-        return SubmitAsync(utterance, Protocol.Dto.InputMode.Keyboard);
+        return SubmitTypedAsync(utterance);
+    }
+
+    // A playing lecture is paused first, so Netra's answer never talks over
+    // it and the question is about where it stopped. (A spoken question has
+    // already paused it at the push-to-talk key.) Sending that time with the
+    // turn waits for C8 on the server.
+    private async Task SubmitTypedAsync(string utterance)
+    {
+        if (_lecture is not null)
+        {
+            await _lecture.PauseForQuestionAsync(CancellationToken.None).ConfigureAwait(false);
+        }
+
+        await SubmitAsync(utterance, Protocol.Dto.InputMode.Keyboard).ConfigureAwait(false);
     }
 
     // The typed draft in InputText is left alone for a voice turn: speaking

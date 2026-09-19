@@ -8,6 +8,7 @@ using Netra.Desktop.Networking;
 using Netra.Desktop.Speech;
 using Netra.Desktop.State;
 using Netra.Desktop.Threading;
+using Netra.Desktop.Video;
 using Netra.Desktop.ViewModels;
 using Netra.Desktop.Views;
 
@@ -47,6 +48,7 @@ public partial class App : Application
     private LiveAccount? _account;
     private LibraryViewModel? _libraryViewModel;
     private ConversationViewModel? _conversationViewModel;
+    private LecturePlayerController? _lecturePlayer;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -134,6 +136,14 @@ public partial class App : Application
             serverAccess);
         _libraryViewModel = libraryViewModel;
         var studyViewModel = new StudyViewModel();
+
+        // Lecture player (F8): the view owns the WebView2 the player page runs in.
+        var lectureView = new LectureView(liveRegionAnnouncer);
+        var lecturePlayer = new LecturePlayerController(lectureView.CreatePlayerSurface());
+        _lecturePlayer = lecturePlayer;
+        var lectureViewModel = new LectureViewModel(lecturePlayer);
+        lectureView.DataContext = lectureViewModel;
+
         var conversationViewModel = new ConversationViewModel(
             sessionState,
             connectionManager,
@@ -143,7 +153,8 @@ public partial class App : Application
             speechInputService,
             uiDispatcher,
             segmentPlaybackQueue,
-            timeline);
+            timeline,
+            lecturePlayer);
         segmentPlaybackQueue.StatusChanged += (_, message) => conversationViewModel.ReportStatus(message);
         _conversationViewModel = conversationViewModel;
 
@@ -170,10 +181,10 @@ public partial class App : Application
 
         var preferencesViewModel = new PreferencesViewModel(sessionState, timeline, _account);
 
-        var shellViewModel = new ShellViewModel(libraryViewModel, studyViewModel, conversationViewModel, preferencesViewModel);
+        var shellViewModel = new ShellViewModel(libraryViewModel, studyViewModel, conversationViewModel, preferencesViewModel, lectureViewModel);
         _shellViewModel = shellViewModel;
 
-        var pushToTalkController = new PushToTalkController(playbackController, interruptionController, speechInputService);
+        var pushToTalkController = new PushToTalkController(playbackController, interruptionController, speechInputService, lecturePlayer);
 
         var libraryView = new LibraryView();
         var studyView = new StudyView();
@@ -186,6 +197,7 @@ public partial class App : Application
             studyView,
             conversationView,
             preferencesView,
+            lectureView,
             pushToTalkController,
             focusService);
         MainWindow = mainWindow;
@@ -308,6 +320,7 @@ public partial class App : Application
     {
         _speechInputService?.Dispose();
         _shellViewModel?.Dispose();
+        _lecturePlayer?.Dispose();
         _playbackAcknowledger?.Dispose();
         _segmentPlaybackQueue?.Dispose();
         _playbackController?.Dispose();

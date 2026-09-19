@@ -24,6 +24,7 @@
     <TabControl x:Name="ShellTabControl" Margin="4">
         <TabItem x:Name="LibraryTab" Header="Library" AutomationProperties.Name="Library" />
         <TabItem x:Name="StudyTab" Header="Study" AutomationProperties.Name="Study" />
+        <TabItem x:Name="LectureTab" Header="Lecture" AutomationProperties.Name="Lecture" />
         <TabItem x:Name="ConversationTab" Header="Conversation" AutomationProperties.Name="Conversation" />
         <TabItem x:Name="PreferencesTab" Header="Preferences" AutomationProperties.Name="Preferences and status" />
     </TabControl>

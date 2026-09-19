@@ -1,6 +1,7 @@
 using Netra.Desktop.Audio;
 using Netra.Desktop.Protocol.Dto;
 using Netra.Desktop.Speech;
+using Netra.Desktop.Video;
 
 namespace Netra.Desktop.Accessibility;
 
@@ -22,6 +23,7 @@ public sealed class PushToTalkController
     private readonly IPlaybackController _playbackController;
     private readonly InterruptionController _interruptionController;
     private readonly ISpeechInputService _speechInputService;
+    private readonly ILecturePause? _lecture;
 
     // Guards against a key-repeat WM_KEYDOWN storm (held keys generate
     // repeated events) re-triggering interrupt/StartListening every few
@@ -31,11 +33,13 @@ public sealed class PushToTalkController
     public PushToTalkController(
         IPlaybackController playbackController,
         InterruptionController interruptionController,
-        ISpeechInputService speechInputService)
+        ISpeechInputService speechInputService,
+        ILecturePause? lecture = null)
     {
         _playbackController = playbackController;
         _interruptionController = interruptionController;
         _speechInputService = speechInputService;
+        _lecture = lecture;
     }
 
     public async Task OnKeyDownAsync(CancellationToken cancellationToken)
@@ -66,14 +70,23 @@ public sealed class PushToTalkController
             }
         }
 
+        // A playing lecture is paused before the microphone opens (the pause
+        // command is sent synchronously), so its sound is not recorded and
+        // the question is about where it stopped. Its time report is awaited
+        // only after capture has started, so no first words are lost.
+        var lecturePause = _lecture?.PauseForQuestionAsync(cancellationToken);
+
         // The key may already be up again (a quick tap while the cancel was
         // being sent); then there is nothing to capture.
-        if (!_isHeld)
+        if (_isHeld)
         {
-            return;
+            await _speechInputService.StartListeningAsync(cancellationToken).ConfigureAwait(false);
         }
 
-        await _speechInputService.StartListeningAsync(cancellationToken).ConfigureAwait(false);
+        if (lecturePause is not null)
+        {
+            await lecturePause.ConfigureAwait(false);
+        }
     }
 
     public void OnKeyUp()

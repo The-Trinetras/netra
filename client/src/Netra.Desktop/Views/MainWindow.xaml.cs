@@ -29,6 +29,7 @@ public partial class MainWindow : Window
         StudyView studyView,
         ConversationView conversationView,
         PreferencesView preferencesView,
+        LectureView lectureView,
         PushToTalkController pushToTalkController,
         IFocusService focusService)
     {
@@ -48,6 +49,14 @@ public partial class MainWindow : Window
         StudyTab.Content = studyView;
         ConversationTab.Content = conversationView;
         PreferencesTab.Content = preferencesView;
+        LectureTab.Content = lectureView;
+        // lectureView's DataContext is the LectureViewModel it was built with.
+
+        shellViewModel.ShowLectureRequested += (_, _) =>
+        {
+            LectureTab.IsSelected = true;
+            _focusService.MoveFocusToFirstFocusable(lectureView);
+        };
 
         Loaded += OnLoaded;
         Closed += OnClosed;

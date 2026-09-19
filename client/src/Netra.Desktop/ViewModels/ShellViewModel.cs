@@ -10,18 +10,41 @@ public sealed class ShellViewModel : ViewModelBase, IDisposable
         LibraryViewModel libraryViewModel,
         StudyViewModel studyViewModel,
         ConversationViewModel conversationViewModel,
-        PreferencesViewModel preferencesViewModel)
+        PreferencesViewModel preferencesViewModel,
+        LectureViewModel? lectureViewModel = null)
     {
         Library = libraryViewModel;
         Study = studyViewModel;
         Conversation = conversationViewModel;
         Preferences = preferencesViewModel;
+        Lecture = lectureViewModel;
+        Library.LecturePlayRequested += OnLecturePlayRequested;
     }
 
     public LibraryViewModel Library { get; }
     public StudyViewModel Study { get; }
     public ConversationViewModel Conversation { get; }
     public PreferencesViewModel Preferences { get; }
+    public LectureViewModel? Lecture { get; }
 
-    public void Dispose() => Conversation.Dispose();
+    // The window moves to the Lecture tab; the lecture opens there.
+    public event EventHandler? ShowLectureRequested;
+
+    private void OnLecturePlayRequested(object? sender, Library.VideoDiscoveryResult result)
+    {
+        if (Lecture is null)
+        {
+            return;
+        }
+
+        ShowLectureRequested?.Invoke(this, EventArgs.Empty);
+        _ = Lecture.OpenResultAsync(result, CancellationToken.None);
+    }
+
+    public void Dispose()
+    {
+        Library.LecturePlayRequested -= OnLecturePlayRequested;
+        Conversation.Dispose();
+        Lecture?.Dispose();
+    }
 }

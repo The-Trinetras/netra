@@ -43,6 +43,7 @@ public sealed class LibraryViewModel : ViewModelBase
 
         SearchVideosCommand = new RelayCommand(_ => FireAndForget(SearchVideosAsync));
         SelectVideoResultCommand = new RelayCommand(parameter => SelectVideoResult(parameter as VideoDiscoveryResult));
+        PlayVideoResultCommand = new RelayCommand(parameter => PlayVideoResult(parameter as VideoDiscoveryResult));
         RefreshSourcesCommand = new RelayCommand(_ => FireAndForget(() => RefreshSourcesAsync(CancellationToken.None)));
         OpenSourceCommand = new RelayCommand(
             parameter => FireAndForget(() => OpenSourceAsync(parameter as CatalogSource ?? SelectedAvailableSource, CancellationToken.None)));
@@ -93,6 +94,10 @@ public sealed class LibraryViewModel : ViewModelBase
 
     public ICommand SearchVideosCommand { get; }
     public ICommand SelectVideoResultCommand { get; }
+    public ICommand PlayVideoResultCommand { get; }
+
+    // The exact result to open in the Lecture tab (after it was selected).
+    public event EventHandler<VideoDiscoveryResult>? LecturePlayRequested;
     public ICommand RefreshSourcesCommand { get; }
     public ICommand OpenSourceCommand { get; }
 
@@ -271,6 +276,18 @@ public sealed class LibraryViewModel : ViewModelBase
         {
             return "Your session changed on the server and could not be refreshed. Choose Refresh, then Open again.";
         }
+    }
+
+    private void PlayVideoResult(VideoDiscoveryResult? result)
+    {
+        if (result is null)
+        {
+            StatusMessage = "Choose a lecture result in the list first.";
+            return;
+        }
+
+        SelectVideoResult(result);
+        LecturePlayRequested?.Invoke(this, result);
     }
 
     private void SelectVideoResult(VideoDiscoveryResult? result)

@@ -73,6 +73,7 @@ from netra_api.learning.quiz.validator import (  # noqa: E402
     UngroundedDraftReason,
     bind_draft_to_evidence,
     evidence_refs_for,
+    validate_draft_is_grounded,
     validate_question_for_approval,
 )
 
@@ -118,13 +119,62 @@ def test_evidence_refs_keep_canonical_identity_and_trust_but_no_text():
     assert "text" not in ref.model_dump()
 
 
-def test_production_approval_still_fails_closed_after_binding_succeeds():
-    """Binding is not grounding. A well-formed, correctly cited draft still
-    stops at the unimplemented support check."""
+def test_production_approval_accepts_a_draft_whose_answer_the_evidence_states():
+    """P-1: TCP is the correct option and the evidence says so."""
 
-    draft = _mc_draft(evidence_ids=["ev-a"])
-    with pytest.raises(NotImplementedError):
-        validate_question_for_approval(draft, [_evidence("ev-a")])
+    validate_question_for_approval(_mc_draft(evidence_ids=["ev-a"]), [_evidence("ev-a")])
+
+
+def _grounding_refusal(draft, text):
+    item = _evidence("ev-a").model_copy(update={"text": text})
+    with pytest.raises(UngroundedDraftError) as caught:
+        validate_draft_is_grounded(draft, [item])
+    return caught.value.reason
+
+
+def _short(prompt, answer):
+    return _mc_draft(kind=QuestionKind.SHORT_ANSWER, options=[], prompt=prompt, answer_key=AnswerKey(correct_answer=answer))
+
+
+def test_an_answer_the_evidence_does_not_state_is_refused():
+    draft = _mc_draft(options=[QuestionOption(option_id="a", text="SCTP"), QuestionOption(option_id="b", text="UDP")], answer_key=AnswerKey(correct_answer="a"))
+    assert _grounding_refusal(draft, "TCP is connection-oriented; UDP is not.") is UngroundedDraftReason.UNSUPPORTED_ANSWER
+
+
+def test_words_from_different_sentences_or_the_opposite_polarity_do_not_support_a_claim():
+    text = "TCP is connection-oriented; UDP is not."
+    assert _grounding_refusal(_short("Describe UDP.", "UDP is connection-oriented"), text) is UngroundedDraftReason.UNSUPPORTED_ANSWER
+    assert _grounding_refusal(_short("Is it constant?", "resistance is constant"), "Resistance is not constant for a diode.") is UngroundedDraftReason.UNSUPPORTED_ANSWER
+    assert _grounding_refusal(_short("Is it constant?", "resistance is not constant"), "Resistance stays constant.") is UngroundedDraftReason.UNSUPPORTED_ANSWER
+
+
+def test_numbers_must_match_exactly_in_the_supporting_sentence():
+    text = "Table 4.1: at 2 A the voltage is 4 V. Resistance stays constant at 2 ohms."
+    validate_draft_is_grounded(_short("What is the resistance in table 4.1?", "2 ohms"), [_evidence("ev-a").model_copy(update={"text": text})])
+    assert _grounding_refusal(_short("What is the resistance in table 4.1?", "3 ohms"), text) is UngroundedDraftReason.UNSUPPORTED_ANSWER
+    assert _grounding_refusal(_short("What is the resistance in table 4.2?", "2 ohms"), text) is UngroundedDraftReason.UNSUPPORTED_PROMPT
+
+
+def test_a_question_about_something_else_is_refused_even_if_its_answer_appears():
+    draft = _short("Who invented the transistor at Bell Labs in December?", "TCP")
+    assert _grounding_refusal(draft, "TCP is connection-oriented; UDP is not.") is UngroundedDraftReason.UNSUPPORTED_PROMPT
+
+
+def test_false_statements_and_empty_answers_are_uncheckable():
+    true_false = [QuestionOption(option_id="t", text="True"), QuestionOption(option_id="f", text="False")]
+    false_statement = _mc_draft(kind=QuestionKind.TRUE_FALSE, prompt="UDP is connection-oriented.", options=true_false, answer_key=AnswerKey(correct_answer="f"))
+    assert _grounding_refusal(false_statement, "TCP is connection-oriented; UDP is not.") is UngroundedDraftReason.UNCHECKABLE
+    true_statement = false_statement.model_copy(update={"prompt": "TCP is connection-oriented.", "answer_key": AnswerKey(correct_answer="t")})
+    validate_draft_is_grounded(true_statement, [_evidence("ev-a")])
+    symbolic = _short("Which protocol is connection-oriented?", "  ")
+    assert _grounding_refusal(symbolic, "TCP is connection-oriented; UDP is not.") is UngroundedDraftReason.UNCHECKABLE
+
+
+def test_free_response_is_asked_only_when_its_rubric_is_in_the_source():
+    free = _mc_draft(kind=QuestionKind.FREE_RESPONSE, options=[], prompt="Explain why TCP is connection-oriented.", answer_key=AnswerKey(rubric="TCP is connection-oriented"))
+    validate_draft_is_grounded(free, [_evidence("ev-a")])
+    invented = free.model_copy(update={"answer_key": AnswerKey(rubric="mentions the three-way handshake and sequence numbers")})
+    assert _grounding_refusal(invented, "TCP is connection-oriented; UDP is not.") is UngroundedDraftReason.UNSUPPORTED_ANSWER
 
 
 def test_production_approval_refuses_an_uncited_draft_before_the_support_check():

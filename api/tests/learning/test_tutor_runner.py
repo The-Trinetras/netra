@@ -158,12 +158,14 @@ async def test_a_new_question_the_store_cannot_resolve_is_never_handed_over():
         await _run(_live_handoff(mode="check_understanding"), services)
 
 
-async def test_the_blocked_check_path_is_a_typed_capability_error():
-    """Production grounding is still fail-closed (D2). M1 receives a
-    NetraError it can map, distinct from a failed turn, and nothing was
-    persisted."""
+async def test_an_unimplemented_capability_is_still_a_typed_error():
+    """Any NotImplementedError from a Tutor path reaches M1 as a NetraError
+    it can map, distinct from a failed turn, and nothing is persisted."""
 
-    services = _services()
+    def _unimplemented(draft, evidence):
+        raise NotImplementedError("pending")
+
+    services = _services(grounding_validator=_unimplemented)
     with pytest.raises(TutorCapabilityPendingError):
         await _run(_live_handoff(mode="check_understanding"), services)
     assert services.pending_questions.persisted == []

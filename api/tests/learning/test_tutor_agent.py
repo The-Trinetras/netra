@@ -18,6 +18,7 @@ from netra_api.learning.assessment.models import AssessmentAttempt, AnswerSubmis
 from netra_api.learning.assessment.service import derive_attempt_id
 from netra_api.learning.quiz.models import AnswerKey, ApprovedQuestion, QuestionDraft, QuestionKind, QuestionOption
 from netra_api.learning.quiz.validator import QuestionValidationError, validate_question_draft
+from netra_api.learning.tutor.agent import CHECK_SKIPPED_TEXT
 from netra_api.learning.tutor.agent import (
     TutorServices,
     build_turn_state,
@@ -350,31 +351,57 @@ async def test_exhausted_budget_returns_a_bounded_failure_not_an_exception():
 # --- check_understanding ---------------------------------------------------
 
 
-async def test_check_understanding_fails_closed_on_evidence_grounding():
-    """validate_draft_is_grounded is deliberately unimplemented pending an
-    M3/M4 product decision; nothing may be persisted or delivered until it
-    exists."""
+async def test_check_understanding_asks_a_question_the_evidence_supports():
+    """P-1 with the production validator: the fixture evidence says congestion
+    control protects the network, so the true statement is asked."""
 
-    handoff = _live_handoff(mode="check_understanding")
     services = _services()
-    state, coro = _run(handoff, services)
+    state, result = _run(_live_handoff(mode="check_understanding"), services)
+    result = await result
 
-    with pytest.raises(NotImplementedError):
-        await coro
+    assert result.status == "awaiting_student_answer"
+    assert len(services.pending_questions.persisted) == 1
 
+
+async def test_the_generator_writes_from_the_evidence_this_turn_resolved():
+    class _Recording(_FakeQuizGenerator):
+        requests = []
+
+        async def generate(self, request):
+            self.requests.append(request)
+            return self.draft
+
+    generator = _Recording()
+    state, result = _run(_live_handoff(mode="check_understanding"), _services(quiz_generator=generator))
+    await result
+    (request,) = generator.requests
+    assert [(e.evidence_id, e.text) for e in request.evidence] == [
+        ("ev-27", "Congestion control limits the sending rate to protect the network.")
+    ]
+
+
+async def test_check_understanding_skips_a_question_the_evidence_does_not_support():
+    """P-1: skipped, said plainly, nothing persisted or recorded (P-2)."""
+
+    draft = _FakeQuizGenerator().draft.model_copy(update={"prompt": "Does congestion control double the link bandwidth?"})
+    services = _services(quiz_generator=_FakeQuizGenerator(draft=draft))
+    state, result = _run(_live_handoff(mode="check_understanding"), services)
+    result = await result
+
+    assert result.status == "completed"
+    assert [s.text for s in result.public_segments] == [CHECK_SKIPPED_TEXT]
     assert services.pending_questions.persisted == []
+    assert "unsupported" in result.decision_summary
+    assert services.learning_service.proposals == []
 
 
 def _approving_grounding(draft, evidence):
     """TEST-ONLY injection standing in for an approved grounding result.
 
-    This does NOT implement grounding and does not bypass it in
-    production: TutorServices defaults to the real fail-closed
-    validate_question_for_approval (see the test above). It exists so the
-    delivery behaviour *downstream* of grounding — persist-before-deliver,
-    answer-key privacy, question identity — can be exercised while the
-    M3/M4 grounding decision is still open. Any claim that grounding is
-    integrated must not rest on these tests.
+    It skips the P-1 support check so the delivery behaviour *downstream*
+    of grounding — persist-before-deliver, answer-key privacy, question
+    identity — is exercised independently of the fixture's wording.
+    Production uses validate_question_for_approval (see the tests above).
     """
 
     validate_question_draft(draft)  # real structural validation still runs
@@ -466,8 +493,9 @@ async def test_approved_check_still_rejects_a_structurally_invalid_draft():
     state, result = _run(handoff, services)
     result = await result
 
-    assert result.status == "failed"
-    assert result.public_segments == []  # nothing delivered
+    assert result.status == "completed"
+    assert [s.text for s in result.public_segments] == [CHECK_SKIPPED_TEXT]
+    assert services.pending_questions.persisted == []
     assert services.pending_questions.persisted == []  # nothing persisted
 
 
@@ -496,6 +524,37 @@ async def test_correct_choice_answer_is_graded_without_a_model_call():
     assert proposal.outcome == AttemptOutcome.CORRECT
     assert proposal.evaluated_by == "grader"
     assert result.proposed_learning_events[0].attempt_id is not None
+
+
+def _bound_question():
+    from netra_api.learning.quiz.models import QuestionEvidenceRef
+
+    ref = QuestionEvidenceRef(evidence_id="ev-27", source_version_id=SOURCE_VERSION, trust=EvidenceTrust.SOURCE_VERIFIED)
+    return _question(evidence_refs=[ref])
+
+
+async def test_an_answer_is_graded_when_the_questions_evidence_is_unchanged():
+    services = _services(pending_questions=_FakePendingQuestions([_bound_question()]))
+    state, result = _run(_answer_handoff("True"), services)
+    result = await result
+    assert result.status == "completed" and len(services.learning_service.proposals) == 1
+
+
+@pytest.mark.parametrize("resolver", [
+    _FakeResolver(source_version_id=uuid4()),  # re-versioned
+    _FakeResolver(reject=True),  # deleted or no longer this student's
+], ids=["re-versioned", "deleted"])
+async def test_changed_evidence_means_no_grade_the_question_kept_and_the_student_told(resolver):
+    """P-3."""
+
+    from netra_api.learning.tutor.agent import EVIDENCE_CHANGED_TEXT
+
+    services = _services(pending_questions=_FakePendingQuestions([_bound_question()]), evidence_resolver=resolver)
+    state, result = _run(_answer_handoff("True"), services)
+    result = await result
+    assert result.status == "awaiting_student_answer" and result.pending_question_id == "q-1"
+    assert [s.text for s in result.public_segments] == [EVIDENCE_CHANGED_TEXT]
+    assert services.learning_service.proposals == [] and services.provider.calls == 0
 
 
 async def test_incorrect_choice_answer_records_an_attempt():
@@ -1288,9 +1347,10 @@ async def test_an_uncited_draft_is_refused_even_with_an_approving_grounding_seam
     state, result = _run(_live_handoff(mode="check_understanding"), services)
     result = await result
 
-    assert result.status == "failed"
-    assert result.public_segments == []
+    assert result.status == "completed"
+    assert [s.text for s in result.public_segments] == [CHECK_SKIPPED_TEXT]
     assert services.pending_questions.persisted == []
+    assert "no_citation" in result.decision_summary
 
 
 async def test_a_draft_citing_evidence_the_turn_did_not_resolve_is_refused():
@@ -1301,8 +1361,10 @@ async def test_a_draft_citing_evidence_the_turn_did_not_resolve_is_refused():
     state, result = _run(_live_handoff(mode="check_understanding"), services)
     result = await result
 
-    assert result.status == "failed"
+    assert result.status == "completed"
+    assert [s.text for s in result.public_segments] == [CHECK_SKIPPED_TEXT]
     assert services.pending_questions.persisted == []
+    assert "unresolved_citation" in result.decision_summary
 
 
 async def test_a_draft_citing_version_mismatched_evidence_is_refused():
@@ -1367,5 +1429,6 @@ async def test_a_draft_for_a_concept_that_was_not_requested_is_refused():
     state, result = _run(_live_handoff(mode="check_understanding"), services)
     result = await result
 
-    assert result.status == "failed"
+    assert result.status == "completed"
+    assert [s.text for s in result.public_segments] == [CHECK_SKIPPED_TEXT]
     assert services.pending_questions.persisted == []

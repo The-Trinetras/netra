@@ -270,12 +270,10 @@ class LearningService:
         6. version: the proposal must target the version actually shown
            (QuestionVersionMismatchError otherwise)
 
-        Evidence/rubric grounding is not checked here: ApprovedQuestion
-        carries no evidence_refs today (see
-        netra_api.learning.quiz.validator.validate_draft_is_grounded,
-        deliberately unimplemented pending the same evidence-grounding
-        product decision) — a gap, not something this method can enforce
-        against a model that does not carry the data.
+        Evidence grounding is checked before this: the question was asked
+        only if its evidence supported it (P-1, validate_draft_is_grounded),
+        and the Tutor grades only while that evidence is unchanged (P-3,
+        tutor/agent.py::_question_evidence_unchanged).
         """
 
         auth.assert_owns_account(proposal.account_id)

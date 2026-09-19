@@ -230,13 +230,16 @@ def production_dependencies(engine: Any, tracer: Optional[Tracer] = None,
         from netra_api.learning.assessment.service import LearningService
         from netra_api.learning.tutor.agent import TutorServices
 
-        # No quiz generator is registered: optional-check support (D2) is an
-        # open decision and fails closed, so drafting questions is not wired.
+        from netra_api.learning.quiz.generator import ModelQuizGenerator
+
+        # P-1: questions are drafted on the Tutor's provider and asked only
+        # when the evidence supports their answer (the default validator).
         dependencies.tutor_services = TutorServices(
             provider=tutor_provider,
             evidence_resolver=dependencies.evidence_resolver,
             pending_questions=learning,
             learning_service=LearningService(learning, None, learning),
+            quiz_generator=ModelQuizGenerator(tutor_provider),
         )
     if (settings.elevenlabs_api_key is not None and settings.elevenlabs_model_id
             and settings.elevenlabs_voice_id):

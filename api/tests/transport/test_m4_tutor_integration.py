@@ -18,7 +18,7 @@ from netra_api.coordinator.limits import MAX_MODEL_DECISIONS_PER_TURN
 from netra_api.coordinator.tutor_gateway import LearningTutorRunner
 from netra_api.learning.assessment.service import LearningService, StatusDerivationPolicy
 from netra_api.learning.quiz.models import AnswerKey, ApprovedQuestion, QuestionKind, QuestionOption
-from netra_api.learning.tutor.agent import TutorServices
+from netra_api.learning.tutor.agent import CHECK_SKIPPED_TEXT, TutorServices
 from netra_api.learning.tutor.providers.groq import TutorModelDecision
 from netra_api.session.modes import InteractionMode
 from netra_api.session.state import ActiveLessonRef, PendingQuestionRef
@@ -253,12 +253,22 @@ def _check_script():
 class _Draft:
     """Labelled QuizGenerator double; ``evidence_ids`` is what the draft cites."""
 
-    def __init__(self, evidence_ids):
+    def __init__(self, evidence_ids, supported=False):
         self.evidence_ids = evidence_ids
+        self.supported = supported
 
     async def generate(self, request):
         from netra_api.learning.quiz.models import QuestionDraft
 
+        if self.supported:  # the table states 4 V at 2 A
+            return QuestionDraft(
+                concept_id="ohms-law",
+                kind=QuestionKind.MULTIPLE_CHOICE,
+                prompt="What voltage does the table show at 2 A?",
+                options=[QuestionOption(option_id="a", text="4 V"), QuestionOption(option_id="b", text="6 V")],
+                answer_key=AnswerKey(correct_answer="a"),
+                evidence_ids=self.evidence_ids,
+            )
         return QuestionDraft(
             concept_id="ohms-law",
             kind=QuestionKind.TRUE_FALSE,
@@ -269,39 +279,50 @@ class _Draft:
         )
 
 
-async def _check_journey(evidence_ids):
+async def _check_journey(evidence_ids, supported=False):
     journey, provider, attempts, pending, _ = await _journey(_check_script())
     gateway = journey.services.coordinator._tutor
-    gateway._runner.services = TutorServices(**{**gateway._runner.services.__dict__, "quiz_generator": _Draft(evidence_ids)})
+    gateway._runner.services = TutorServices(**{**gateway._runner.services.__dict__, "quiz_generator": _Draft(evidence_ids, supported)})
     socket, task = await _open(journey)
     responses = await _submit(socket, _turn("Can you check my understanding?", 10))
     return journey, pending, socket, task, responses
 
 
-async def test_m4_pending_grounding_decision_is_a_bounded_failure_not_a_crash():
-    # The draft cites the evidence this turn resolved, so reference binding
-    # passes and the turn reaches the support check (D2), which is still an
-    # unmade product decision and fails closed. That must surface as the
-    # distinct pending-capability rejection, not a crash or a teaching result.
+async def test_m4_supported_check_is_persisted_and_delivered():
+    # P-1: the table states the answer, so the real validator approves it.
+    journey, pending, socket, task, responses = await _check_journey(["ev-table-tbl01"], supported=True)
+    questions = [m for m in responses if m["type"] == "quiz.question"]
+    assert len(questions) == 1 and questions[0]["payload"]["prompt"] == "What voltage does the table show at 2 A?"
+    assert "4 V" not in json.dumps(questions[0]["payload"].get("answer_key", ""))
+    assert len(pending.questions) == 1
+    assert (await journey.sessions.get(SESSION)).pending_question is not None
+    socket.disconnect()
+    await task
+
+
+async def test_m4_unsupported_check_is_skipped_and_said_plainly():
+    # The draft cites resolved evidence, but the table never says R is
+    # constant, so P-1 skips it: said plainly, nothing persisted or pending.
     journey, pending, socket, task, responses = await _check_journey(["ev-table-tbl01"])
-    assert journey.trace.of_kind("handoff_rejected")[0].detail["check"] == "tutor_capability_pending_decision"
+    assert journey.trace.of_kind("handoff_rejected") == []
+    assert CHECK_SKIPPED_TEXT in json.dumps(responses)
     assert not [m for m in responses if m["type"] == "quiz.question"]
-    assert pending.questions == {}  # fail-closed grounding persisted nothing
+    assert pending.questions == {}
     assert (await journey.sessions.get(SESSION)).pending_question is None
     socket.disconnect()
     await task
 
 
-async def test_m4_uncited_or_unresolved_draft_is_refused_by_binding_not_reported_as_pending():
-    # Reference binding runs before (and independently of) the pending support
-    # decision: a draft citing nothing, or citing evidence this turn never
-    # resolved, is an ordinary bounded failure. It must not be confused with
-    # the pending-capability path, and nothing may be persisted or delivered.
+async def test_m4_uncited_or_unresolved_draft_is_refused_by_binding():
+    # Reference binding runs before the support check: a draft citing
+    # nothing, or citing evidence this turn never resolved, is skipped like
+    # an unsupported one, and nothing may be persisted or delivered.
     for cited in ([], ["ev-not-handed-to-this-turn"]):
-        journey, pending, socket, task, responses = await _check_journey(cited)
+        journey, pending, socket, task, responses = await _check_journey(cited, supported=True)
         assert journey.trace.of_kind("handoff_rejected") == []
         statuses = [e.detail["status"] for e in journey.trace.of_kind("handoff_result") if "status" in e.detail]
-        assert statuses == ["failed"], cited
+        assert statuses == ["completed"], cited
+        assert CHECK_SKIPPED_TEXT in json.dumps(responses)
         assert not [m for m in responses if m["type"] == "quiz.question"]
         assert pending.questions == {}
         assert (await journey.sessions.get(SESSION)).pending_question is None

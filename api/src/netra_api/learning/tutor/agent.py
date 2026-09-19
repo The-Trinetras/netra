@@ -75,6 +75,7 @@ from netra_api.learning.quiz.models import ApprovedQuestion, QuestionDraft
 from netra_api.learning.quiz.repository import PendingQuestionRepository
 from netra_api.learning.quiz.validator import (
     QuestionValidationError,
+    UngroundedDraftError,
     bind_draft_to_evidence,
     evidence_refs_for,
     validate_question_for_approval,
@@ -221,15 +222,11 @@ async def run_turn(state: TutorTurnState, services: TutorServices) -> TutorToCoo
     dispatch"), and budget exhaustion produces the bounded failure
     response that rule requires rather than escaping as an exception.
 
-    The one exception deliberately allowed to escape is the
-    NotImplementedError raised by
-    netra_api.learning.quiz.validator.validate_draft_is_grounded on the
-    check_understanding path. TutorToCoordinatorResult has no field that
-    can express "blocked on an unmade product decision", so collapsing
-    that into status="failed" would make an known architectural gap
-    indistinguishable from a provider outage. See the module docstring of
-    that validator: the definition of evidence support is an open M3/M4
-    decision, and guessing it "would make it policy by default".
+    A NotImplementedError is deliberately allowed to escape: no result
+    field can express "blocked on an unmade decision", and collapsing one
+    into status="failed" would hide it behind an ordinary failure. The
+    runner maps it to TutorCapabilityPendingError. (The optional-check
+    grounding that once raised it is implemented: P-1.)
     """
 
     assert_not_coordinator_state(state)
@@ -376,6 +373,19 @@ async def _run_hint(state: TutorTurnState, services: TutorServices) -> TutorToCo
     )
 
 
+CHECK_SKIPPED_TEXT = (
+    "I couldn't write a check question that I can confirm from your material, "
+    "so I've skipped it. We can keep going."
+)
+"""P-1: said instead of a question the evidence does not support."""
+
+EVIDENCE_CHANGED_TEXT = (
+    "The material this question came from has changed since I asked it, so I won't grade "
+    "this answer. The question is still here if you want it, or we can move on."
+)
+"""P-3: said instead of a grade when the question's evidence changed."""
+
+
 async def _run_check_understanding(
     state: TutorTurnState, services: TutorServices
 ) -> TutorToCoordinatorResult:
@@ -388,8 +398,8 @@ async def _run_check_understanding(
     the client"). A question the student could be asked but the server
     could not later resolve is exactly what that rule prevents.
 
-    Blocked today at validate_question_for_approval — see run_turn's
-    docstring.
+    P-1: a draft the evidence does not support is skipped, and the student
+    is told so (CHECK_SKIPPED_TEXT); nothing is persisted or recorded.
     """
 
     if services.quiz_generator is None:
@@ -417,33 +427,45 @@ async def _run_check_understanding(
 
     _ensure_can_continue(state)
     state.budget.register_model_decision()
-    draft: QuestionDraft = await services.quiz_generator.generate(
-        QuizGenerationRequest(
-            concept_id=concept_id,
-            explanation_level=state.handoff.explanation_level,
-            evidence_refs=list(state.handoff.evidence_refs),
+    try:
+        draft: QuestionDraft = await services.quiz_generator.generate(
+            QuizGenerationRequest(
+                concept_id=concept_id,
+                explanation_level=state.handoff.explanation_level,
+                evidence_refs=list(state.handoff.evidence_refs),
+                evidence=list(evidence),
+            )
         )
-    )
 
-    # The draft's concept is model output. It must be the concept that was
-    # requested, or the question — and every attempt and projection that
-    # later hangs off it — would be filed under a concept the handoff never
-    # targeted (learning.md: "Do not silently create concepts ... from
-    # Tutor output").
-    if draft.concept_id != concept_id:
-        raise QuestionValidationError("question draft targets a concept that was not requested")
+        # The draft's concept is model output. It must be the concept that was
+        # requested, or the question — and every attempt and projection that
+        # later hangs off it — would be filed under a concept the handoff never
+        # targeted (learning.md: "Do not silently create concepts ... from
+        # Tutor output").
+        if draft.concept_id != concept_id:
+            raise QuestionValidationError("question draft targets a concept that was not requested")
 
-    # Reference binding is always enforced here and is not part of the
-    # injectable seam: a draft citing nothing, or citing evidence this turn
-    # did not resolve, is refused (UngroundedDraftError, a bounded failed
-    # result) no matter which grounding validator is installed.
-    bound = bind_draft_to_evidence(draft, evidence)
+        # Reference binding is always enforced here and is not part of the
+        # injectable seam: a draft citing nothing, or citing evidence this turn
+        # did not resolve, is refused no matter which grounding validator is
+        # installed.
+        bound = bind_draft_to_evidence(draft, evidence)
 
-    # Structural validation AND the support check, over only the evidence
-    # the draft cites. The default validator is the production one, which
-    # fails closed on the open support decision; nothing below runs until
-    # that decision lands.
-    services.grounding_validator(draft, bound)
+        # Structural validation AND the P-1 support check, over only the
+        # evidence the draft cites.
+        services.grounding_validator(draft, bound)
+    except QuestionValidationError as refused:
+        # P-1: a question whose answer the evidence does not support is not
+        # asked. Nothing is persisted or recorded (P-2), and the student is
+        # told plainly instead of hearing a generic failure.
+        return _result(
+            state,
+            status="completed",
+            segments=[PublicSegment(kind="explanation", text=CHECK_SKIPPED_TEXT)],
+            decision_summary=f"Check skipped: {type(refused).__name__}"
+            + (f" ({refused.reason.value})" if isinstance(refused, UngroundedDraftError) else "")
+            + ".",
+        )
 
     question = ApprovedQuestion(
         question_id=_derive_question_id(state.handoff, concept_id),
@@ -532,6 +554,17 @@ async def _run_evaluate_answer(
                 f"Pending question is at version {question.question_version}; "
                 f"the handoff targets version {pending_ref.question_version}."
             ),
+        )
+
+    if not await _question_evidence_unchanged(state, services, question):
+        # P-3: the source the question was written from was deleted or
+        # re-versioned. Grading against it could mark a right answer wrong.
+        return _result(
+            state,
+            status="awaiting_student_answer",
+            segments=[PublicSegment(kind="question", text=EVIDENCE_CHANGED_TEXT)],
+            pending_question_id=question.question_id,
+            decision_summary="The question's evidence changed since it was asked; not graded (P-3).",
         )
 
     # Preserved verbatim; the Tutor never rewrites what the student said
@@ -756,6 +789,35 @@ async def _resolve_evidence(state: TutorTurnState, services: TutorServices) -> l
         if compare_source_version(ref, evidence) is SourceVersionComparison.MATCH:
             accepted.append(evidence)
     return accepted
+
+
+async def _question_evidence_unchanged(
+    state: TutorTurnState, services: TutorServices, question: ApprovedQuestion
+) -> bool:
+    """P-3: does the evidence a pending question was bound to still resolve,
+    for this account, at the same source version?
+
+    Evidence ids are immutable per source version, so a deleted or
+    re-versioned source shows up as an id that no longer resolves or a
+    different source version. A question recorded before binding existed
+    has no evidence refs and nothing to re-check.
+    """
+
+    refs = question.evidence_refs
+    if not refs:
+        return True
+    _ensure_can_continue(state)
+    state.budget.register_tool_call()
+    resolutions = await maybe_await(
+        services.evidence_resolver.resolve(state.auth, [ref.evidence_id for ref in refs])
+    )
+    if len(resolutions) != len(refs):
+        return False
+    return all(
+        evidence is not None and evidence.evidence_id == ref.evidence_id
+        and evidence.source_version_id == ref.source_version_id
+        for ref, evidence in zip(refs, _resolved_or_none(resolutions))
+    )
 
 
 def _resolved_or_none(resolutions: Sequence[EvidenceResolution]) -> list[Optional[Evidence]]:

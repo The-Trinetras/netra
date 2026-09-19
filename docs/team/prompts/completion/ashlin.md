@@ -1,4 +1,4 @@
-# Ashlin's prompt — data, infrastructure, media pipeline, Modal
+# Ashlin's prompt — data, infrastructure, media pipeline
 
 Paste everything below the line into Claude Code (Opus 5), started at the root of
 your own clone of https://github.com/The-Trinetras/netra.
@@ -8,9 +8,9 @@ your own clone of https://github.com/The-Trinetras/netra.
 You are the Claude Code session for Ashlin. For this completion push Ashlin owns
 **M2** (PostgreSQL, migrations, ingestion, reading blocks, retrieval, jobs and
 outbox, Pinecone), **AWS and deployment**, the **M3 media pipeline** (Tunelio,
-TwelveLabs, worker media jobs; Arun wrote the adapters and reviews your wiring)
-and the **Modal judge** deployment. Arshad (Coordinator, speech, tracing, Tutor,
-evaluation) and Arun (desktop client, YouTube search, MathML) work in parallel in
+TwelveLabs, worker media jobs; Arun wrote the adapters and reviews your wiring),
+and you review the Modal judge's version pins. Arshad (Coordinator, speech,
+tracing, Tutor, evaluation, the Modal judge) and Arun (desktop client, YouTube search, MathML) work in parallel in
 their own clones with their own sessions. Build working, tested code; do not stop
 at plans.
 
@@ -22,13 +22,12 @@ at plans.
    final; do not reopen them. Also "AWS infrastructure (M2)" and its gaps,
    "Decisions needed", "Open items found".
 4. `docs/team/integration-checklist.md` (definition of done),
-   `docs/architecture/current-scope.md`, `data-ownership.md`, `runtime-baseline.md`,
-   `model-evaluation-plan.md`.
+   `docs/architecture/current-scope.md`, `data-ownership.md`, `runtime-baseline.md`.
 5. `.claude/rules/backend-data.md`, `.claude/rules/multimedia.md`,
    `docs/team/handoffs/M2.md`, `docs/team/handoffs/M3.md`.
 6. `infrastructure/terraform/`, `infrastructure/aws/`, `api/migrations/`,
    `worker/src/netra_worker/`, `api/src/netra_api/content/`,
-   `api/src/netra_api/multimedia/`, `evaluation/deploy/prometheus_modal.py`.
+   `api/src/netra_api/multimedia/`.
    Source and tests are the truth; if a document disagrees, say so in one line and
    follow the code.
 
@@ -55,7 +54,7 @@ at plans.
   docs, logs or commits.
 - Ask Ashlin first, and state the cost, before: any dependency or lock change, any
   live provider call, any `terraform apply` (show the plan), any migration on RDS,
-  any Modal deploy, anything in Arshad's or Arun's areas.
+  anything in Arshad's or Arun's areas.
 
 ## Work queue
 
@@ -119,14 +118,11 @@ Work top to bottom. Skip an item that is blocked, say by whom, and take the next
 - **M5** Neo4j for Arshad's projection: a disposable `neo4j:5.26.30` container or
   a free Aura instance (D-NEO4J).
 
-### Step 5 — Modal judge
+### Step 5 — review the Modal pins
 
-- **J1** In an isolated evaluation environment, resolve the 7 pending pins in
-  `evaluation/deploy/prometheus_modal.py` (D-MODAL-PINS); serve `GET /result` from
-  a CPU function so a lookup never wakes the A100 (OPT-7); count cold starts in the
-  run allowance (OPT-8). Deploy with a spend limit (with a yes), verify
-  unauthenticated calls are rejected before the GPU starts, stop the app after
-  each batch.
+- **J1** Review the version pins Arshad proposes for
+  `evaluation/deploy/prometheus_modal.py` (D-MODAL-PINS): exact versions, no
+  "latest", GPU packages kept out of the shared lock. Arshad deploys.
 
 ### Step 6 — deploy and operate
 

@@ -11,10 +11,10 @@ You are the Claude Code session for Arun. For this completion push Arun owns the
 playback, client protocol), because Sumedhaa is unavailable, plus the
 **user-facing M3 pieces** Arun already wrote: YouTube search, MathML and review of
 media labels. Arshad (Coordinator, speech server side, tracing, Tutor,
-evaluation) and Ashlin (data, jobs, infrastructure, media pipeline, Modal) work in
-parallel in their own clones with their own sessions. **Voice input is the team's
-top frontend priority**, ahead of further keyboard and NVDA polish. Build working,
-tested code; do not stop at mockups or plans.
+evaluation, the Modal judge) and Ashlin (data, jobs, infrastructure, media
+pipeline) work in parallel in their own clones with their own sessions. **Voice
+input is the team's top frontend priority**, ahead of further keyboard and NVDA
+polish. Build working, tested code; do not stop at mockups or plans.
 
 ## Read first, in order
 

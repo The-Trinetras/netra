@@ -8,10 +8,11 @@ your own clone of https://github.com/The-Trinetras/netra.
 You are the Claude Code session for Arshad, Netra's system lead. For this
 completion push Arshad owns **M1** (Coordinator, identity and sign-in, routing,
 transport, server-side speech, tracing) and, because Dhanishka is unavailable,
-**M4** (Tutor, optional checks, factual history, Neo4j projection, evaluation).
-Ashlin (data, jobs, infrastructure, media pipeline, Modal) and Arun (desktop
-client, YouTube search, MathML) work in parallel in their own clones with their
-own sessions. Build working, tested code; do not stop at plans.
+**M4** (Tutor, optional checks, factual history, Neo4j projection, evaluation),
+plus the **Modal judge** deployment (Ashlin reviews its version pins). Ashlin
+(data, jobs, infrastructure, media pipeline) and Arun (desktop client, YouTube
+search, MathML) work in parallel in their own clones with their own sessions.
+Build working, tested code; do not stop at plans.
 
 ## Read first, in order
 
@@ -24,7 +25,8 @@ own sessions. Build working, tested code; do not stop at plans.
    `docs/architecture/current-scope.md`, `message-flow.md`, `agent-boundaries.md`,
    `arize-ax-integration.md`, `model-evaluation-plan.md`.
 5. `.claude/rules/coordinator.md`, `.claude/rules/learning.md`,
-   `docs/team/handoffs/M1.md`, `docs/team/handoffs/M4.md`.
+   `docs/team/handoffs/M1.md`, `docs/team/handoffs/M4.md`,
+   `evaluation/deploy/prometheus_modal.py`, `evaluation/scripts/judge_client.py`.
 6. The code each item touches. Source and tests are the truth; handoff notes and
    this prompt can be out of date — if they disagree with the code, say so in one
    line and follow the code.
@@ -48,7 +50,11 @@ own sessions. Build working, tested code; do not stop at plans.
   test that fails without it; check that by breaking the code once and restoring it.
 - Never read `.env`, print keys or put secrets in code, logs, docs or commits.
 - Ask Arshad first, and state the cost, before: any dependency or lock change, any
-  live provider call, anything on AWS/RDS, anything in Ashlin's or Arun's areas.
+  live provider call, anything on AWS/RDS, any Modal deploy or GPU use, anything in
+  Ashlin's or Arun's areas.
+- Arshad is new to infrastructure. For any Modal, cloud or deployment step,
+  explain in two or three plain sentences what it does and what it can cost, give
+  one command at a time, and check its result before the next.
 
 ## Work queue
 
@@ -119,10 +125,28 @@ Work top to bottom. Skip an item that is blocked, say by whom, and take the next
   export, visible loss, `tracing_mode=ax` working. No student turn waits on AX.
 - **T2** Tutor and learning-commit spans (OPT-12) and trace reconciliation for
   evaluation runs (INT-12).
+- **J1 Modal judge** (D-MODAL-PINS, OPT-7, OPT-8). Nothing a student does may
+  depend on it. In order, one step at a time:
+  1. Arshad sets a spend limit in the Modal dashboard first; wait for his
+     confirmation.
+  2. A separate evaluation virtual environment, never the app's, with the Modal
+     CLI (installing it needs a yes). Arshad runs `modal token set` himself; you
+     never see the tokens.
+  3. Propose exact versions for the 7 pins in `prometheus_modal.py` (Modal SDK,
+     Python, CUDA base image, torch, transformers, accelerate, fastapi); Ashlin
+     reviews them. GPU packages stay out of the shared lock.
+  4. Serve `GET /result` from a CPU function so a lookup never wakes the A100
+     (OPT-7), and count cold starts in the run allowance (OPT-8), with tests.
+  5. With a yes, `modal deploy evaluation/deploy/prometheus_modal.py`; check the
+     printed URL matches `NETRA_EVAL_JUDGE_URL` (without printing secrets).
+  6. Check a request without proxy auth is rejected before any GPU starts, make one
+     small scoring call, then `modal app stop netra-prometheus-judge`. Arshad
+     checks the usage in the dashboard.
 - **T3 Evaluation:** prepare the review batch in `evaluation/review/` for humans to
   label (at least 10 per criterion; you never invent labels), import real Netra
-  outputs, run the judge on Ashlin's Modal deployment, upload to AX, and produce
-  the paired comparison. Meet all 8 AX gates in the checklist.
+  outputs, run the judge on the J1 deployment (stop the app after each batch),
+  upload to AX, and produce the paired comparison. Meet all 8 AX gates in the
+  checklist.
 
 ### Step 6 — acceptance
 

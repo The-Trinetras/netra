@@ -20,8 +20,8 @@ own clone, with the prompt from this folder.
 
 | Person | Prompt | Areas |
 |---|---|---|
-| Arshad | [arshad.md](arshad.md) | M1 Coordinator, identity/sign-in, transport, server speech (ElevenLabs, Deepgram), tracing; **M4** Tutor, optional checks, factual history, Neo4j projection, evaluation |
-| Ashlin | [ashlin.md](ashlin.md) | M2 data, migrations, jobs, uploads, retrieval; AWS and deployment; the **M3 media pipeline** (Tunelio, TwelveLabs, worker media jobs); Modal judge |
+| Arshad | [arshad.md](arshad.md) | M1 Coordinator, identity/sign-in, transport, server speech (ElevenLabs, Deepgram), tracing; **M4** Tutor, optional checks, factual history, Neo4j projection, evaluation; the **Modal judge** (Ashlin reviews its version pins) |
+| Ashlin | [ashlin.md](ashlin.md) | M2 data, migrations, jobs, uploads, retrieval; AWS and deployment; the **M3 media pipeline** (Tunelio, TwelveLabs, worker media jobs) |
 | Arun | [arun.md](arun.md) | **M5 desktop client** (voice input first, sign-in, upload, exploration, video player, playback, accessibility); M3 user-facing pieces (YouTube search route, MathML, media label review) |
 
 ## What remains
@@ -36,7 +36,7 @@ own clone, with the prompt from this folder.
 | Data | OpenTelemetry pins, migrations applied on RDS, upload and job-status routes, live Gemini embeddings and Pinecone | Ashlin |
 | Video | TwelveLabs index on Marengo 3.5 + Pegasus 1.5, Tunelio → S3 → TwelveLabs pipeline, worker media jobs, Coordinator video/figure tools, WebView2 player, YouTube search | Ashlin, Arshad, Arun |
 | Client | Sign-in screen, voice capture, real audio, upload and status, figure/table/equation exploration, MathML, hotkeys | Arun |
-| Tracing and evaluation | AX exporter, Tutor spans, trace reconciliation; Modal judge deployed; labelled dataset; AX paired comparison | Arshad, Ashlin |
+| Tracing and evaluation | AX exporter, Tutor spans, trace reconciliation; Modal judge deployed; labelled dataset; AX paired comparison | Arshad (Ashlin reviews Modal pins) |
 | Deployment | API and worker images, Compose, an application host, PgBouncer reachable from it, RDS backups, shared Terraform state, TLS | Ashlin |
 | People | NVDA/keyboard/voice sessions with students; evaluation labels | Arun leads; everyone |
 
@@ -107,10 +107,9 @@ paused, described and questioned, with the actual player time recorded.
 
 ### Step 5 — tracing and evaluation
 
-- **Ashlin:** Modal pins, the two cost fixes (OPT-7, OPT-8), judge deployed with a
-  spend limit.
-- **Arshad:** AX exporter, spans, trace reconciliation, labelled dataset, real
-  outputs, judge runs, AX paired comparison.
+- **Arshad:** Modal pins (Ashlin reviews), the two cost fixes (OPT-7, OPT-8), judge
+  deployed with a spend limit; AX exporter, spans, trace reconciliation, labelled
+  dataset, real outputs, judge runs, AX paired comparison.
 - **Arun:** STOP-to-silence and responsiveness measured with tracing on and off.
 
 Done when: all 8 AX gates in the checklist pass.

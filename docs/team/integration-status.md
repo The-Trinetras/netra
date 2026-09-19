@@ -460,6 +460,8 @@ Gaps found while reading the Terraform (20 September):
 | D-OTEL-PINS | Exact OpenTelemetry versions (D-AX) | M2 review under the lock cutoff | AX exporter |
 | D-MODAL-PINS | 7 pins in `evaluation/deploy/prometheus_modal.py` are `PENDING_M2_REVIEW` | M2 review; fix OPT-7/OPT-8 before GPU use | Modal judge |
 | INT-11b / INT-11c | ElevenLabs output media type; total audio frame size limit | M1 with M5 | Speech output |
+| M3-MATHML-1 | MathML fidelity for `render_mathml` | Accept the proposal in the M5 handoff (presentation MathML only; symbols not spoken text; units kept; structure checked, never repaired; verified trees only) | F6 MathML (not NVDA-critical: the spoken equation tree already serves screen readers) |
+| C1–C3, C5, C6 (drafts) | Microphone protocol, access-code exchange, speech wire details (Arshad); job status and evidence payload (Ashlin) | Draft them; the client's review requirements for C1 and C2 are in the M5 handoff | F3 end to end, F2 exchange, F4, F5, F6 |
 
 ## Independent work that can proceed
 

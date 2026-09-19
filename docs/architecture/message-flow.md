@@ -56,7 +56,7 @@ The flows below specify approved target behaviour unless an explicit implementat
 - **Authoritative checks:** Confirm authorized evidence/content and current output eligibility. Speech checks cache access and reserves quota before fresh synthesis. Never narrate a full tool/model object or private assessment fields.
 - **Version/idempotency:** Use approved generation/segment/sentence correlation and ordering. One active speaking response; bounded queues apply backpressure. Cache identity includes access scope and synthesis configuration; incomplete cancelled audio is not a completed cache entry.
 - **Agents/writes:** Agents may produce public text, but delivery and speech are services. Speech service writes metadata/reservations in PostgreSQL and completed audio to private S3 as appropriate. Sending audio does not advance played position.
-- **Destination:** Desktop accessible text and local playback. Binary audio framing (approved 2026-09-12, server-to-client only — microphone upload keeps its own approved protocol): `[4-byte big-endian header length][UTF-8 JSON header][raw audio bytes]`, header version/generation_id/segment_id/sequence/end_of_segment/end_of_generation/media_type, 16 KiB header cap, unknown fields and wrong types rejected, declared length validated against actual frame bytes before parsing. No authoritative total-message-size limit exists yet — that remains an explicit open transport-hardening decision. Source-reading versus generated-explanation distinction must remain visible/audible without inventing a new segment-kind value.
+- **Destination:** Desktop accessible text and local playback. Binary audio framing (approved 2026-09-12, server-to-client only — microphone upload keeps its own approved protocol): `[4-byte big-endian header length][UTF-8 JSON header][raw audio bytes]`, header version/generation_id/segment_id/sequence/end_of_segment/end_of_generation/media_type, 16 KiB header cap, unknown fields and wrong types rejected, declared length validated against actual frame bytes before parsing. INT-11c (20 September 2026): at most 64 KiB of audio per frame (81,924 bytes per binary message); senders split, never truncate, and a receiver rejects a larger frame, drops the rest of that segment's audio, keeps its text and keeps the connection. Server speech is `audio/mpeg` (ElevenLabs `mp3_44100_128`, INT-11b). Source-reading versus generated-explanation distinction must remain visible/audible without inventing a new segment-kind value.
 
 ## 7. Cancellation / STOP fencing
 
@@ -113,6 +113,7 @@ The result-set model/repository protocol exists in [result_sets.py](../../api/sr
 | Canonical session interaction-mode vocabulary | `idle`, `reading`, `tutor_lesson`, `quiz` — separate from ConnectionState and from playback state; see [data ownership](data-ownership.md) |
 | Binary audio encoding/framing and generation metadata binding | `audio_frame_header.schema.json`; server-to-client only — see flows 6–7 above |
 | Client retry request identity lifecycle | request_id stable per logical action, reused on retransmit; message_id/sequence fresh per frame — see flow 3 above |
+| Server audio frame size and media type (INT-11b/c, 20 September 2026) | 64 KiB of audio per frame, 81,924 bytes per message; `audio/mpeg` — see flow 6 |
 | Exact Coordinator Gemini model ID | `gemini-3.8-flash` (approved configured pin, not verified provider availability) |
 | S3 SDK/version | `boto3==1.43.92` (approved pin; `uv.lock` regeneration blocked, `uv` not installed) |
 
@@ -124,7 +125,6 @@ The result-set model/repository protocol exists in [result_sets.py](../../api/sr
 | Need for, and shape of, external job contract; current job schema is empty | Pending approved contract/policy decision. |
 | Optional-check grounding criteria and factual activity/answer/reasoning/assistance representation | M4 with M1/M2: define validation and coordinate any contract/schema migration; no automatic labels or review intervals. |
 | AgentSpec 8/12/45 budget and two-revision proposal | M1 with M3/M4: pending alignment; existing 4/6/20 remains approved. |
-| Authoritative total binary-message size limit (the 16 KiB *header* bound is set; no total-frame limit exists anywhere in the runtime baseline or committed contracts) | Pending approved contract/policy decision. |
 | Downstream endpoint/dispatcher wiring for the newly-typed server payloads | Pending implementation. |
 | Retention values | Pending product decision; payload wiring is implementation coordination, not an undefined-schema blocker. |
 

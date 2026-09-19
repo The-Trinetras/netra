@@ -7,9 +7,9 @@ sending audio does not advance played position. Flow 7: cancellation stops
 further frames immediately, including frames already produced by the provider.
 
 Frames use the approved binary framing (transport/audio/frame.py). Frame
-sequence numbers are per generation and strictly increasing. The chunk size
-below only bounds how cached audio is split; it is NOT an authoritative total
-binary-message size limit, which remains an open M1/M5 decision.
+sequence numbers are per generation and strictly increasing. Provider chunks
+larger than MAX_AUDIO_BYTES_PER_FRAME (INT-11c) are split across frames, never
+truncated; cached audio is replayed in smaller chunks.
 
 Speech failure never blocks text: every failure path here returns without
 audio after the text segment has already been delivered.
@@ -28,7 +28,7 @@ from netra_api.platform.errors import NetraError
 from netra_api.speech.playback_metadata import Generation, GenerationRegistry
 from netra_api.platform.tracing import DISABLED_TRACER, Tracer
 from netra_api.speech.quota import QuotaLedger
-from netra_api.transport.audio.frame import AudioFrameHeader, encode_audio_frame
+from netra_api.transport.audio.frame import MAX_AUDIO_BYTES_PER_FRAME, AudioFrameHeader, encode_audio_frame
 
 logger = logging.getLogger(__name__)
 
@@ -171,13 +171,12 @@ class SpeechOutput:
         pending: Optional[bytes] = None
         try:
             async for chunk in self._synthesizer.stream(text):
-                if not chunk:
-                    continue
-                if pending is not None:
-                    if not await self._send_frame(generation, segment_id, config.media_type, pending, False, False, send_bytes):
-                        return False
-                    collected.append(pending)
-                pending = chunk
+                for offset in range(0, len(chunk), MAX_AUDIO_BYTES_PER_FRAME):
+                    if pending is not None:
+                        if not await self._send_frame(generation, segment_id, config.media_type, pending, False, False, send_bytes):
+                            return False
+                        collected.append(pending)
+                    pending = chunk[offset : offset + MAX_AUDIO_BYTES_PER_FRAME]
         except NetraError as exc:
             logger.info("speech provider failed for segment: %s", type(exc).__name__)
             return False

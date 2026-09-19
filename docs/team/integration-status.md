@@ -436,7 +436,7 @@ Gaps found while reading the Terraform (20 September):
 | D-TFSTATE | Terraform state exists only on M2's machine | An S3 backend with state locking | Anyone but M2 changing infrastructure |
 | D-OTEL-PINS | Exact OpenTelemetry versions (D-AX) | M2 review under the lock cutoff | AX exporter |
 | D-MODAL-PINS | 7 pins in `evaluation/deploy/prometheus_modal.py` are `PENDING_M2_REVIEW` | M2 review; fix OPT-7/OPT-8 before GPU use | Modal judge |
-| INT-11b / INT-11c | ElevenLabs output media type; total audio frame size limit | M1 with M5 | Speech output |
+| INT-11b / INT-11c | ElevenLabs output media type; total audio frame size limit | **C3 drafted** on `arshad/C3-speech-wire`: `audio/mpeg` (mp3_44100_128); 64 KiB audio per frame, 81,924 bytes per message, sender splits, receiver drops the rest of the segment's audio and keeps text and connection. Awaiting Arun's review; client check is Arun's | Speech output |
 
 ## Independent work that can proceed
 

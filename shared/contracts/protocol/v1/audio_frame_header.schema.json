@@ -42,10 +42,11 @@
     "media_type": {
       "type": "string",
       "minLength": 1,
-      "$comment": "e.g. audio/mpeg. Identifies the raw-byte encoding that follows the header; this schema does not enumerate a fixed provider-format list."
+      "$comment": "Identifies the raw-byte encoding that follows the header; this schema does not enumerate a fixed provider-format list. INT-11b (20 September 2026): server speech is ElevenLabs with NETRA_ELEVENLABS_OUTPUT_FORMAT mp3_44100_128, sent as audio/mpeg; the server refuses to start with a non-mp3 format. The desktop plays audio/mpeg and audio/wav and keeps text only for anything else."
     }
   },
 
   "maxHeaderBytes": 16384,
-  "$commentMaxHeaderBytes": "The 16 KiB figure above is a structural constant of this schema (custom keyword, not JSON-Schema-enforced automatically): implementations MUST reject a declared header length exceeding it before attempting to parse. This bounds header size only; no authoritative total-binary-message size limit exists yet in the runtime baseline or any committed contract (see docs/architecture/message-flow.md's unresolved-decisions table) — that remains an explicit open transport-hardening decision, not something this schema invents."
+  "maxAudioBytesPerFrame": 65536,
+  "$commentMaxHeaderBytes": "Custom keywords, not enforced by JSON Schema itself. Implementations MUST reject a declared header length over 16 KiB before attempting to parse. INT-11c (20 September 2026): one frame carries at most 64 KiB of audio, so a whole binary message is at most 4 + 16,384 + 65,536 = 81,924 bytes. The sender splits longer audio across frames and never truncates. A receiver that gets a larger or otherwise malformed frame rejects it, discards the rest of that segment's audio (keeping its text, which was delivered first) and keeps the connection open."
 }

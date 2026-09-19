@@ -30,11 +30,12 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from netra_api.platform.errors import NetraError
 
 MAX_HEADER_BYTES = 16 * 1024
-"""Structural cap from audio_frame_header.schema.json. No authoritative
-total-binary-message size limit exists yet anywhere in the runtime
-baseline or committed contracts; that remains an explicit open
-transport-hardening decision this module does not invent (see
-docs/architecture/message-flow.md's unresolved-decisions table)."""
+"""Structural cap from audio_frame_header.schema.json."""
+MAX_AUDIO_BYTES_PER_FRAME = 64 * 1024
+"""INT-11c (20 September 2026): senders split larger audio into more frames;
+a receiver rejects a bigger frame. One frame is therefore at most
+4 + MAX_HEADER_BYTES + MAX_AUDIO_BYTES_PER_FRAME bytes."""
+MAX_FRAME_BYTES = 4 + MAX_HEADER_BYTES + MAX_AUDIO_BYTES_PER_FRAME
 
 _LENGTH_PREFIX_SIZE = 4
 _SUPPORTED_VERSION = 1
@@ -69,10 +70,12 @@ def encode_audio_frame(header: AudioFrameHeader, audio_bytes: bytes) -> bytes:
     """Build one binary WebSocket message from a header and raw audio bytes.
 
     Raises AudioFrameError if the encoded header would exceed
-    MAX_HEADER_BYTES — callers must not silently truncate or fall back to
-    a different framing.
+    MAX_HEADER_BYTES or the audio MAX_AUDIO_BYTES_PER_FRAME — callers split
+    audio across frames; they never truncate or fall back to another framing.
     """
 
+    if len(audio_bytes) > MAX_AUDIO_BYTES_PER_FRAME:
+        raise AudioFrameError(f"frame audio exceeds the {MAX_AUDIO_BYTES_PER_FRAME}-byte limit")
     header_bytes = header.model_dump_json().encode("utf-8")
     if len(header_bytes) > MAX_HEADER_BYTES:
         raise AudioFrameError(
@@ -128,7 +131,11 @@ def decode_audio_frame(frame: bytes) -> tuple[AudioFrameHeader, bytes]:
     if header.version != _SUPPORTED_VERSION:
         raise AudioFrameError(f"unsupported audio frame version {header.version}")
 
-    return header, frame[header_end:]
+    audio_bytes = frame[header_end:]
+    if len(audio_bytes) > MAX_AUDIO_BYTES_PER_FRAME:
+        raise AudioFrameError(f"frame audio exceeds the {MAX_AUDIO_BYTES_PER_FRAME}-byte limit")
+
+    return header, audio_bytes
 
 
 class GenerationSequenceTracker:

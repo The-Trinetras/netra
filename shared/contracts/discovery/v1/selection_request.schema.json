@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://netra.local/contracts/discovery/v1/selection_request.schema.json",
+  "$comment": "C7 REVIEW DRAFT. Arshad and Ashlin review required before route use. Cross-field semantics are specified in README.md.",
+  "additionalProperties": false,
+  "properties": {
+    "request_id": {
+      "format": "uuid",
+      "title": "Request Id",
+      "type": "string"
+    },
+    "expected_session_version": {
+      "minimum": 0,
+      "title": "Expected Session Version",
+      "type": "integer"
+    },
+    "result_set_id": {
+      "format": "uuid",
+      "title": "Result Set Id",
+      "type": "string"
+    },
+    "result_ordinal": {
+      "maximum": 20,
+      "minimum": 1,
+      "title": "Result Ordinal",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "request_id",
+    "expected_session_version",
+    "result_set_id",
+    "result_ordinal"
+  ],
+  "title": "YouTubeSelectionRequest",
+  "type": "object"
+}

@@ -22,4 +22,20 @@
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
 
+  <ItemGroup>
+    <!-- Approved free SDK; exact stable version reviewed for F1 (20 Sep 2026).
+         The Windows Evergreen runtime remains a separate deployment dependency. -->
+    <PackageReference Include="Microsoft.Web.WebView2" Version="[1.0.4191.47]" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The lecture player page (F8), served to WebView2 from the app folder. -->
+    <Content Include="Video\Player\**" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Device and wire seams (e.g. the WinMM driver interface) stay internal. -->
+    <InternalsVisibleTo Include="Netra.Desktop.Tests" />
+  </ItemGroup>
+
 </Project>

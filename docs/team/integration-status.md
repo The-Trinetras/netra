@@ -9,6 +9,47 @@ production readiness.
 
 ## Checkpoint
 
+### F1 / M5-LOCK — 20 September 2026
+
+| Item | Branch | Result | Remaining owner/gate |
+|---|---|---|---|
+| F1 / M5-LOCK | `arun/F1-nuget-lock` from fetched main `ab92908` | Both NuGet locks generated; default locked restore; approved WebView2 exactly pinned to 1.0.4191.47. Offline locked restore passes. | Arun: Windows xUnit and Evergreen player validation. |
+| F3 / D-MIC (client) | `arun/F3-voice-capture`, stacked on F1 | WinMM capture, `asr.start` → `asr.ready` gate → 100 ms L16 frames → one final → one voice `turn.submit`; STOP/focus loss discard; no announcements while the microphone is open. 173 portable tests pass on macOS; Windows build compiles; 16 mutations checked. | Arshad: C1 (client review items in the [M5 handoff](handoffs/M5.md#c1-review-from-the-client-side-for-arshad-before-c1-merges)) and Deepgram; Arun: real microphone on Windows. |
+| C8 / M5-VIDEO contract | `arun/C8-video-contract`, stacked on F3 | Review draft in `shared/contracts/video/v1`: paused player time, playback and analysis verdicts kept apart (with the server's summary sentence), `active_video` session field, `video_moments`; executable mirror `multimedia/video/wire.py`, 12 tests, 6 mutations detected. Nothing mounted; `protocol/v1` untouched. | Arshad: session fields and protocol additions (README "Review items"); Ashlin: the `VideoAsset` identity assumption for YouTube selections. |
+| F2 / D-CRED sign-in (client) | `arun/F2-sign-in`, stacked on C8 | First-run access-code dialog (keyboard/NVDA-first), exchange isolated in `HttpAccessCodeExchange` (C2 proposal), credential written to Windows Credential Manager with a this-run fallback, sign-out with confirmation that clears the screen and session; D-open-1 fixed (real close handshake). 201 portable tests pass; Windows build compiles; 14/14 mutations detected. | Arshad: C2 (client review items in the [M5 handoff](handoffs/M5.md#c2-review-from-the-client-side-for-arshad-before-c2-merges)); Arun: Windows run with a real vault write and NVDA. |
+| F8 / M5-VIDEO lecture player (client) | `arun/F8-lecture-player`, stacked on F2 | Lecture tab: WebView2 player page on the IFrame API, locked to YouTube embeds (no new windows, downloads, devtools, permissions); WPF keyboard control (K/J/L/T/C/D); pause-first time capture from the paused player (never guessed); exact resume; push-to-talk and typed questions pause first; playback and analysis readiness on separate lines. 260 portable tests pass; Windows build compiles; 15/15 mutations detected. | Arun: Windows/WebView2/NVDA run with a real lecture; Arshad: C8 so the kept time reaches the server; C7 so search results are real. |
+| F10 / accessibility (client) | `arun/F10-accessibility`, stacked on F8 | Activation shortcut moved off **Ctrl+Alt+N (NVDA's own start/restart shortcut)** to candidates Ctrl+Alt+Shift+N, then Ctrl+Alt+Shift+F9, with the result told in Preferences; all ten contracted commands as named buttons and window-wide shortcuts (pause/continue act locally first); Ctrl+1–5 tabs; F1 spoken shortcut list; D-open-3 and D-open-5 fixed; honest live/fixture notice; no silent command failures. 273 portable tests pass; 8/8 mutations detected. | Arun: M5-SHORTCUT live conflict test with NVDA (and JAWS if available) on Windows; Arshad: D-open-2. |
+| P1 / people and Windows evidence pack | `arun/P1-session-script`, stacked on F10 | `docs/team/evidence/`: 20-minute NVDA/keyboard/voice session script with consent line, observation sheet, P2 session log (states that **no session has been run**), and a Windows verification runbook for F1–F10 with the expected test count. Documents only. | Arun: recruit testers, run Windows checks and sessions; record only what happened. |
+| P3 / M3-LBL-1 review prep | `arun/P3-label-review`, stacked on P1 | `docs/team/evidence/media-label-review.md`, generated from `m3_media_labels_v1.json`: all 13 synthetic cases with columns for the original's location, result and correction. **No label has been compared with original media yet.** | Arun: review with the permitted original PDF and lecture, then a reviewed v2 of the label file. |
+
+Arun explicitly authorized fetch, first NuGet restore and exact runtime setup.
+SDK 10.0.401 installed on macOS after Microsoft SHA-512 verification. Both WPF
+projects compile; test execution aborts for missing WindowsDesktop runtime on
+macOS (29 existing CS0067 warnings). No Windows/live-server/provider/person run.
+Default locked restore mutation: test SDK 17.12.0 → 17.11.0 fails with NU1004;
+original restored and locked restore passes again. Exact commands/environment
+are in [M5 handoff](handoffs/M5.md#f1--m5-lock--arun-20-september-2026).
+C7 commit `6ebb512` is now included in the current F6 branch, pending Arshad and
+Ashlin review.
+
+### C7 / M5-DISCOVERY completion push — 20 September 2026
+
+The C7 work was originally produced from `main` and `origin/main` at
+`ab92908143b0a8998c74ee067423f9eb610be69a`; it is now included in the current
+F6 branch alongside the checkpoint work above.
+
+| Item | State | Evidence / next owner |
+|---|---|---|
+| C7 / M5-DISCOVERY | Draft implemented, pending Arshad + Ashlin review; not mounted | Commit `6ebb512`, originally on `arun/C7-youtube-contract` and now included in the current F6 branch; `shared/contracts/discovery/v1/README.md`, four schemas/examples, strict executable mirror and 27 new tests. No provider calls. |
+
+C7 checks (CPython 3.13.15; exact `uv.lock`, 102 applicable packages, no lock edits):
+
+- `PYTHON_DOTENV_DISABLED=1 /private/tmp/netra-app-venv/bin/python -m pytest -p no:cacheprovider api/tests/multimedia/test_discovery_wire.py api/tests/multimedia/test_tavily_discovery.py -q` → **48 passed**, including after restoration of all mutations.
+- `PYTHON_DOTENV_DISABLED=1 /private/tmp/netra-app-venv/bin/python -m pytest -p no:cacheprovider --ignore=tests/test_integration.py -q` → **8 collection errors**, missing `sqlite_vec` in notes tests. `requirements.txt` includes `sqlite-vec`/`fastembed`; `uv.lock` does not. Ashlin owns lock reconciliation; no additional unpinned installation performed.
+- `PYTHON_DOTENV_DISABLED=1 /private/tmp/netra-app-venv/bin/python -m pytest -p no:cacheprovider api/tests worker/tests evaluation/scripts -q` → **1166 passed, 1 skipped, 47 deselected**; 5 PyMuPDF deprecation warnings.
+- Eight deliberate defects were each caught by a behavioral test: remove order check, remove duplicate-ID check, accept unknown fields, coerce types, trim the query, replace video identity, raise request limit to 30, accept timezone-less timestamps. Original code restored; focused tests rerun green.
+- `git diff --check` → clean. All C7 execution used synthetic data. No local server, live provider, Windows, microphone, NVDA or participant run. HTTP auth/replay and durable result storage remain unimplemented pending owner review.
+
 - **Done:** slice A (runtime + baseline), slice B (database, migrations,
   transactions, learning persistence, worker projection/cancellation), slice C
   (real app composition, session routes, model adapters behind controlled
@@ -291,8 +332,9 @@ incomplete (partial) · unverified (fixture only) · blocked (decision/hardware/
 | Credential Manager read | partly verified | decode + absent-target read (real `CredReadW`, read-only); reading a stored credential needs a tester-created throw-away entry (opt-in test); **no test writes to the user's vault** |
 | Library view keyboard paths | working (real WPF binding, off-screen window) | `LibraryViewBindingTests` (3); **NVDA announcement not verified** (needs a person) |
 | Audible playback, NVDA, real App startup in live mode | blocked (needs Windows/NVDA session with a person) | not claimed |
-| Voice input | disabled | not claimed; INT-11a mic protocol unapproved |
-| Upload / YouTube discovery in client | fixture | upload/job contract empty; no discovery route |
+| Voice input | client done, server pending (F3) | Client capture and D-MIC protocol tested on fixtures and a real loopback socket; today's server refuses `asr.start`, so the app says voice is not available. Needs C1 + Deepgram (M1) and a Windows microphone run |
+| Upload / YouTube discovery in client | fixture | upload/job contract empty; no discovery route (C7 drafted, unreviewed) |
+| Lecture player (WebView2) | client done, not run on Windows (F8) | Player page protocol tested against a fake page; YouTube, WebView2 and NVDA need a Windows run; time capture not sent until C8 |
 | Optional-check support (D2) | blocked (decision P-1) | binding enforced; support fails closed |
 | Factual activity/assistance/reasoning records (D3) | blocked (review) | proposal code only; no table |
 | AX exporter | unwired (no OTel pins) | slice E |
@@ -351,10 +393,10 @@ cache so every run is identical.
 |---|---|---|
 | C-open-3 | Bounded-failure wording for a refused quiz draft says "a required service is unavailable" | Review with M5 wording; not changed yet |
 | C-open-4 | PyMuPDF provider imports the deprecated `fitz` alias | **Fixed** on `ashlin/i5-pymupdf-import`: `import pymupdf` everywhere (same pinned package); guard test `test_no_module_uses_the_deprecated_fitz_alias` |
-| D-open-1 | `NetraWebSocketClient.CloseAsync` cancels its receive loop first, which aborts the socket, so no close handshake is sent. No production caller (shutdown disposes the socket); tests only | Close output first, then stop the loop; avoid a double `Disconnected` (M5) |
-| D-open-5 | `ConversationViewModel` reports every snapshot (including navigation replies) as "Session restored" | M5 wording review |
-| D-open-2 | Each app launch creates a new session; resuming the previous session after restart needs a persisted session id | M1/M5 decision |
-| D-open-3 | `NetraHttpClient` scaffold is unused (no auth, no typed errors); `NetraApiClient` supersedes it for the session routes | Remove or merge after M5 review |
+| D-open-1 | **Fixed in F2** (`arun/F2-sign-in`): `CloseAsync` sends the close first, waits up to 2 s for the reply, and reports one `Disconnected`; sign-out is its first production caller | `LiveAccountTests.ClosingSendsANormalCloseAndReportsOneDisconnect` |
+| D-open-5 | **Fixed in F10** (`arun/F10-accessibility`): only the snapshot answering a `session.resume` is announced, and only when there is a place to restore (reading, lesson, or a waiting question); navigation replies are silent | `ReadingControlsTests` |
+| D-open-2 | Each app launch creates a new session; resuming the previous session after restart needs a persisted session id | **Still open; needs Arshad (M1).** The client side is small (keep the session id in the user profile, resume it before creating a new one) once M1 confirms a restarted client may resume its own session. |
+| D-open-3 | **Fixed in F10**: the unused `NetraHttpClient` scaffold is removed; `NetraApiClient` and `HttpAccessCodeExchange` are the HTTP clients | — |
 | D-open-4 | The HTTP session/source route shapes are an integration proposal | Formal M1/M5 sign-off |
 | OPT-7 to OPT-13 | Evaluation `/result` wakes the GPU; the run allowance's cold-start accounting; API logging configuration and empty deployment files; answer routing cost; budget headroom; missing Tutor and learning-commit spans; request and dialogue retention | See "Measured optimization and reliability phase". Each row names its owner. |
 
@@ -438,6 +480,8 @@ Gaps found while reading the Terraform (20 September):
 | D-OTEL-PINS | Exact OpenTelemetry versions (D-AX) | M2 review under the lock cutoff | AX exporter |
 | D-MODAL-PINS | 7 pins in `evaluation/deploy/prometheus_modal.py` are `PENDING_M2_REVIEW` | M2 review; fix OPT-7/OPT-8 before GPU use | Modal judge |
 | INT-11b / INT-11c | ElevenLabs output media type; total audio frame size limit | **C3 drafted** on `arshad/C3-speech-wire`: `audio/mpeg` (mp3_44100_128); 64 KiB audio per frame, 81,924 bytes per message, sender splits, receiver drops the rest of the segment's audio and keeps text and connection. Awaiting Arun's review; client check is Arun's | Speech output |
+| M3-MATHML-1 | MathML fidelity for `render_mathml` | Accept the proposal in the M5 handoff (presentation MathML only; symbols not spoken text; units kept; structure checked, never repaired; verified trees only) | F6 MathML (not NVDA-critical: the spoken equation tree already serves screen readers) |
+| C1–C3, C5, C6 (drafts) | Microphone protocol, access-code exchange, speech wire details (Arshad); job status and evidence payload (Ashlin) | Draft them; the client's review requirements for C1 and C2 are in the M5 handoff | F3 end to end, F2 exchange, F4, F5, F6 |
 
 ## Independent work that can proceed
 

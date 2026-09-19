@@ -253,7 +253,7 @@ public sealed class LiveServerTests
 
         Assert.Equal(1, attempts);
         Assert.Equal(ConnectionState.Disconnected, state.ConnectionState);
-        Assert.Equal("Cannot reconnect: Netra did not accept this computer's sign-in. It may have expired.", statuses.Last());
+        Assert.Equal("Cannot reconnect: Netra did not accept this computer's sign-in. It may have expired. Choose Sign in under Preferences and status to enter a new access code.", statuses.Last());
         await connection.DisposeAsync();
     }
 
@@ -302,7 +302,7 @@ public sealed class LiveServerTests
             // Composed before the library/LiveSession, as in App: its snapshot
             // handler runs before LiveSession's resynchronisation waiter.
             Conversation = new ConversationViewModel(
-                State, Connection, Player, Interruption, Processor, new MicrophoneCapture(), dispatcher, queue, Timeline);
+                State, Connection, Player, Interruption, Processor, new MicrophoneCapture(Connection), dispatcher, queue, Timeline);
             Connection.MessageReceived += (_, envelope) => _messages.Enqueue(envelope);
             Socket.BinaryMessageReceived += (_, _) => Interlocked.Increment(ref _rawFrames);
             Processor.AudioBytesAdmitted += (_, frame) => Admitted.Enqueue(frame.Header);

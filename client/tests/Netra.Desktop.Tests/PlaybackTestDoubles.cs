@@ -89,6 +89,8 @@ internal sealed class CapturingSocket : INetraWebSocketClient
         return Task.CompletedTask;
     }
 
+    public Task SendBinaryAsync(ReadOnlyMemory<byte> message, CancellationToken cancellationToken) => Task.CompletedTask;
+
     public Task SendTextAsync(string message, CancellationToken cancellationToken)
     {
         if (FailSends)

@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://netra.local/contracts/video/v1/paused_player_time.schema.json",
+  "$comment": "C8 REVIEW DRAFT. Arshad reviews the session fields before protocol or route use. Cross-field rules and behaviour are specified in README.md; the executable mirror is api/src/netra_api/multimedia/video/wire.py.",
+  "$defs": {
+    "VideoRef": {
+      "additionalProperties": false,
+      "description": "Netra's canonical identity for one selected video (``VideoAsset``).\n\nNever a provider asset id; a YouTube id alone is not a Netra video.",
+      "properties": {
+        "video_id": {
+          "format": "uuid",
+          "title": "Video Id",
+          "type": "string"
+        },
+        "source_version_id": {
+          "format": "uuid",
+          "title": "Source Version Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "video_id",
+        "source_version_id"
+      ],
+      "title": "VideoRef",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Where the student's player actually stood when Netra was asked.\n\nCaptured by the client that owns the player, after the pause took\neffect, from the player itself (the IFrame API's getCurrentTime, or the\nlocal media player's position), rounded down to whole milliseconds.\nNever elapsed wall-clock time and never where Netra last spoke. It is\nthe ``captured_player_time_ms`` that ``timestamps.window_around`` needs.",
+  "properties": {
+    "video": {
+      "$ref": "#/$defs/VideoRef"
+    },
+    "position_ms": {
+      "minimum": 0,
+      "title": "Position Ms",
+      "type": "integer"
+    },
+    "duration_ms": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Duration Ms"
+    }
+  },
+  "required": [
+    "video",
+    "position_ms"
+  ],
+  "title": "PausedPlayerTime",
+  "type": "object"
+}

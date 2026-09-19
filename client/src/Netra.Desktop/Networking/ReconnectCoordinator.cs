@@ -39,6 +39,7 @@ public sealed class ReconnectCoordinator : IAsyncDisposable
     private readonly CancellationTokenSource _stopping = new();
     private readonly object _lock = new();
     private Task? _reconnectLoop;
+    private bool _disconnectedOnPurpose;
 
     public ReconnectCoordinator(
         INetraWebSocketClient socket,
@@ -70,7 +71,18 @@ public sealed class ReconnectCoordinator : IAsyncDisposable
     // resend were sent, or throws when connecting is not possible.
     public async Task ConnectAsync(CancellationToken cancellationToken)
     {
+        Volatile.Write(ref _disconnectedOnPurpose, false);
         await ConnectAndRestoreAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    // A deliberate disconnect (signing out): the socket is closed cleanly and
+    // not reconnected. The next ConnectAsync restores normal reconnection.
+    public async Task DisconnectAsync(CancellationToken cancellationToken)
+    {
+        Volatile.Write(ref _disconnectedOnPurpose, true);
+        await _socket.CloseAsync(cancellationToken).ConfigureAwait(false);
+        _sessionState.ConnectionState = ConnectionState.Disconnected;
+        StateChanged?.Invoke(this, ConnectionState.Disconnected);
     }
 
     public Task? CurrentReconnectLoop
@@ -95,7 +107,7 @@ public sealed class ReconnectCoordinator : IAsyncDisposable
 
     private void OnConnectionLost(object? sender, EventArgs e)
     {
-        if (_stopping.IsCancellationRequested)
+        if (_stopping.IsCancellationRequested || Volatile.Read(ref _disconnectedOnPurpose))
         {
             return;
         }
@@ -130,12 +142,12 @@ public sealed class ReconnectCoordinator : IAsyncDisposable
             }
             catch (Exception ex) when (ex is CredentialUnavailableException or InvalidServerEndpointException)
             {
-                SetState(ConnectionState.Disconnected, "Cannot reconnect: this computer is not signed in to Netra.");
+                SetState(ConnectionState.Disconnected, "Cannot reconnect: this computer is not signed in to Netra. Choose Sign in under Preferences and status.");
                 return;
             }
             catch (CredentialRejectedException)
             {
-                SetState(ConnectionState.Disconnected, "Cannot reconnect: Netra did not accept this computer's sign-in. It may have expired.");
+                SetState(ConnectionState.Disconnected, "Cannot reconnect: Netra did not accept this computer's sign-in. It may have expired. Choose Sign in under Preferences and status to enter a new access code.");
                 return;
             }
             catch (Exception)

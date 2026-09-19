@@ -82,7 +82,7 @@ public sealed class ConversationViewModelDispatchTests
         var interruptionController = new InterruptionController(playbackController, connectionManager);
         var binaryAudioFrameProcessor = new BinaryAudioFrameProcessor(interruptionController);
         socket.BinaryMessageReceived += binaryAudioFrameProcessor.OnBinaryMessageReceived;
-        var speechInputService = new MicrophoneCapture();
+        var speechInputService = new MicrophoneCapture(connectionManager);
         var dispatcher = new RecordingUiDispatcher();
 
         var viewModel = new ConversationViewModel(
@@ -178,6 +178,8 @@ public sealed class ConversationViewModelDispatchTests
         public void RaiseBinaryMessageReceived(byte[] frame) => BinaryMessageReceived?.Invoke(this, frame);
 
         public Task ConnectAsync(Uri endpoint, CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task SendBinaryAsync(ReadOnlyMemory<byte> message, CancellationToken cancellationToken) => Task.CompletedTask;
 
         public Task SendTextAsync(string message, CancellationToken cancellationToken) => Task.CompletedTask;
 

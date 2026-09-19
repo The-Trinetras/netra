@@ -24,6 +24,12 @@ public enum ClientMessageType
 
     [JsonStringEnumMemberName("playback.ack")]
     PlaybackAck,
+
+    // Microphone protocol (decision D-MIC, 20 September 2026). The shared
+    // contract (C1) is Arshad's to draft; until it merges these members are
+    // the client's side of that decision, not a committed wire value.
+    [JsonStringEnumMemberName("asr.start")]
+    AsrStart,
 }
 
 [JsonConverter(typeof(JsonStringEnumConverter<ServerMessageType>))]
@@ -40,6 +46,15 @@ public enum ServerMessageType
 
     [JsonStringEnumMemberName("error")]
     Error,
+
+    // Microphone protocol, pending C1 (see ClientMessageType.AsrStart).
+    // asr.ready is the client's review requirement: the server's explicit
+    // acceptance of one capture before any audio frame is sent.
+    [JsonStringEnumMemberName("asr.ready")]
+    AsrReady,
+
+    [JsonStringEnumMemberName("asr.transcript")]
+    AsrTranscript,
 }
 
 [JsonConverter(typeof(JsonStringEnumConverter<InputMode>))]

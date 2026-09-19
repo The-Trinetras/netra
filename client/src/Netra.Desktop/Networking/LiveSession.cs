@@ -80,6 +80,14 @@ public sealed class LiveSession : ILiveSession
         }
     }
 
+    // After signing out: the next start creates a new session for whoever
+    // signs in next, never reusing the previous student's session id.
+    public void Forget()
+    {
+        _created = false;
+        _starting = null;
+    }
+
     public async Task ResynchronizeAsync(CancellationToken cancellationToken)
     {
         var snapshot = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);

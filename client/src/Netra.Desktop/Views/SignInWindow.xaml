@@ -1,0 +1,50 @@
+<Window x:Class="Netra.Desktop.Views.SignInWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Sign in to Netra"
+        SizeToContent="WidthAndHeight"
+        MinWidth="420" MaxWidth="640"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False"
+        FocusManager.FocusedElement="{Binding ElementName=AccessCodeBox}"
+        AutomationProperties.HelpText="{Binding Intro, Mode=OneTime}">
+
+    <!-- A standard dialog: NVDA reads the title and the help text, then lands
+         in the access code box. Enter signs in (default button), Escape
+         cancels. The code box is a plain TextBox on purpose: a one-time code
+         is exchanged at once, and a screen-reader user must be able to read
+         back what they typed to find a mistake (a PasswordBox reads only
+         "star"). -->
+    <StackPanel Margin="16">
+        <TextBlock x:Name="IntroText" Text="{Binding Intro, Mode=OneTime}" TextWrapping="Wrap" Margin="0,0,0,12" />
+
+        <Label x:Name="AccessCodeLabel" Content="_Access code" Target="{Binding ElementName=AccessCodeBox}" Padding="0,0,0,4" />
+        <TextBox x:Name="AccessCodeBox"
+                 Text="{Binding AccessCode, UpdateSourceTrigger=PropertyChanged}"
+                 AutomationProperties.Name="Access code"
+                 AutomationProperties.LabeledBy="{Binding ElementName=AccessCodeLabel}"
+                 AutomationProperties.HelpText="{Binding Intro, Mode=OneTime}"
+                 SpellCheck.IsEnabled="False"
+                 InputMethod.IsInputMethodEnabled="False"
+                 MaxLength="200"
+                 Padding="4,2" />
+
+        <TextBlock x:Name="SignInStatusRegion"
+                   Text="{Binding StatusMessage}"
+                   TextWrapping="Wrap"
+                   Margin="0,8,0,8"
+                   AutomationProperties.LiveSetting="Polite"
+                   AutomationProperties.Name="Sign-in status" />
+
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button x:Name="SignInButton" Content="_Sign in" IsDefault="True"
+                    Command="{Binding SignInCommand}"
+                    AutomationProperties.Name="Sign in"
+                    Padding="12,4" Margin="0,0,8,0" />
+            <Button x:Name="CancelButton" Content="Cancel" IsCancel="True"
+                    AutomationProperties.Name="Cancel sign-in"
+                    Padding="12,4" />
+        </StackPanel>
+    </StackPanel>
+</Window>

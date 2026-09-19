@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://netra.local/contracts/video/v1/active_video.schema.json",
+  "$comment": "C8 REVIEW DRAFT. Arshad reviews the session fields before protocol or route use. Cross-field rules and behaviour are specified in README.md; the executable mirror is api/src/netra_api/multimedia/video/wire.py.",
+  "$defs": {
+    "VideoRef": {
+      "additionalProperties": false,
+      "description": "Netra's canonical identity for one selected video (``VideoAsset``).\n\nNever a provider asset id; a YouTube id alone is not a Netra video.",
+      "properties": {
+        "video_id": {
+          "format": "uuid",
+          "title": "Video Id",
+          "type": "string"
+        },
+        "source_version_id": {
+          "format": "uuid",
+          "title": "Source Version Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "video_id",
+        "source_version_id"
+      ],
+      "title": "VideoRef",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Proposed ``session.snapshot.active_video``: the video being studied\nand the last paused position the Session service recorded for it, so a\nreconnect or restart cues the player at exactly that position.",
+  "properties": {
+    "video": {
+      "$ref": "#/$defs/VideoRef"
+    },
+    "paused_at_ms": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Paused At Ms"
+    }
+  },
+  "required": [
+    "video"
+  ],
+  "title": "ActiveVideo",
+  "type": "object"
+}

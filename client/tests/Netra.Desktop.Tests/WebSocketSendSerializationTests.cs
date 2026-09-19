@@ -30,10 +30,9 @@ public sealed class WebSocketSendSerializationTests
             var context = await listener.GetContextAsync();
             var accepted = await context.AcceptWebSocketAsync(subProtocol: null);
             var buffer = new byte[64 * 1024];
-            // NetraWebSocketClient.CloseAsync cancels its receive loop before
-            // closing, which aborts the socket without a close handshake
-            // (pre-existing; recorded in integration-status.md). Every message
-            // was received by then, so the abrupt end is tolerated here.
+            // NetraWebSocketClient.CloseAsync now performs a close handshake
+            // (D-open-1, see LiveAccountTests); an abrupt end would still be
+            // tolerated here, because every message was received by then.
             try
             {
             while (accepted.WebSocket.State == WebSocketState.Open)

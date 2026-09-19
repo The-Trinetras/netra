@@ -1,0 +1,167 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://netra.local/contracts/video/v1/video_readiness.schema.json",
+  "$comment": "C8 REVIEW DRAFT. Arshad reviews the session fields before protocol or route use. Cross-field rules and behaviour are specified in README.md; the executable mirror is api/src/netra_api/multimedia/video/wire.py.",
+  "$defs": {
+    "AnalysisFact": {
+      "additionalProperties": false,
+      "description": "The server's analysis verdict. ``transcript_only`` is ready but\ncannot support visual claims; there is no aggregate ready flag.",
+      "properties": {
+        "ready": {
+          "title": "Ready",
+          "type": "boolean"
+        },
+        "supports_visual_evidence": {
+          "title": "Supports Visual Evidence",
+          "type": "boolean"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AnalysisUnreadyReason"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "checked_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Checked At"
+        }
+      },
+      "required": [
+        "ready",
+        "supports_visual_evidence"
+      ],
+      "title": "AnalysisFact",
+      "type": "object"
+    },
+    "AnalysisUnreadyReason": {
+      "description": "Why a selected video cannot yet back visual evidence.",
+      "enum": [
+        "not_checked",
+        "access_denied",
+        "provider_rejected_media",
+        "not_indexed",
+        "indexing_in_progress",
+        "processing_failed",
+        "transcript_only",
+        "provider_unavailable"
+      ],
+      "title": "AnalysisUnreadyReason",
+      "type": "string"
+    },
+    "PlaybackFact": {
+      "additionalProperties": false,
+      "description": "The server's playback verdict (access, media present, embeddable as\nfar as the server knows). The client's player adds what only it can\nobserve, such as an embed refused at load time.",
+      "properties": {
+        "available": {
+          "title": "Available",
+          "type": "boolean"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlaybackUnavailableReason"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "checked_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Checked At"
+        }
+      },
+      "required": [
+        "available"
+      ],
+      "title": "PlaybackFact",
+      "type": "object"
+    },
+    "PlaybackUnavailableReason": {
+      "description": "Why a selected video cannot be played in Netra's own player.",
+      "enum": [
+        "not_checked",
+        "access_denied",
+        "embedding_not_permitted",
+        "unsupported_container",
+        "media_missing",
+        "player_dependency_pending"
+      ],
+      "title": "PlaybackUnavailableReason",
+      "type": "string"
+    },
+    "VideoRef": {
+      "additionalProperties": false,
+      "description": "Netra's canonical identity for one selected video (``VideoAsset``).\n\nNever a provider asset id; a YouTube id alone is not a Netra video.",
+      "properties": {
+        "video_id": {
+          "format": "uuid",
+          "title": "Video Id",
+          "type": "string"
+        },
+        "source_version_id": {
+          "format": "uuid",
+          "title": "Source Version Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "video_id",
+        "source_version_id"
+      ],
+      "title": "VideoRef",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Response of the proposed readiness route: both verdicts, apart, and\nthe one summary sentence every surface must use.",
+  "properties": {
+    "video": {
+      "$ref": "#/$defs/VideoRef"
+    },
+    "playback": {
+      "$ref": "#/$defs/PlaybackFact"
+    },
+    "analysis": {
+      "$ref": "#/$defs/AnalysisFact"
+    },
+    "student_summary": {
+      "maxLength": 500,
+      "minLength": 1,
+      "title": "Student Summary",
+      "type": "string"
+    }
+  },
+  "required": [
+    "video",
+    "playback",
+    "analysis",
+    "student_summary"
+  ],
+  "title": "VideoReadiness",
+  "type": "object"
+}

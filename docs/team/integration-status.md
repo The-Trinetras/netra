@@ -23,6 +23,15 @@ production readiness.
 - **Next slice:** E — OpenTelemetry pins and a real OTLP exporter behind
   `platform/tracing.py`'s `SpanExporter`; stalled/failing collector tests;
   overhead on the real server path.
+- **Agent-a-thon layout (19–20 September):** the repository also follows the
+  agentic-slice-kit layout (`slice/`, `demo/notes/`, `web/`, `scripts/`,
+  `corpus/`, `.devcontainer/`), with one root `pytest.ini`/`conftest.py`.
+  OpenRouter adapters implement the Coordinator and Tutor provider protocols
+  (mock-transport tests only). See the README and the runtime baseline.
+- **Step 0 decisions (20 September):** recorded in "Decisions made" below;
+  what remains open is in "Decisions needed".
+- **AWS (M2):** the RDS/PgBouncer/S3 Terraform is on `main` (PR #17) and those
+  resources exist; see "AWS infrastructure (M2)".
 
 ### How to run the client against the real local server (slice D)
 
@@ -345,18 +354,85 @@ cache so every run is identical.
 | D-open-4 | The HTTP session/source route shapes are an integration proposal | Formal M1/M5 sign-off |
 | OPT-7 to OPT-13 | Evaluation `/result` wakes the GPU; the run allowance's cold-start accounting; API logging configuration and empty deployment files; answer routing cost; budget headroom; missing Tutor and learning-commit spans; request and dialogue retention | See "Measured optimization and reliability phase". Each row names its owner. |
 
+## Decisions made (20 September 2026)
+
+Decided by the system lead (M1). Each owner confirms the rows for their area
+before building; a contract or migration change still needs both owners'
+review. No secret values appear here; they live only in each developer's `.env`
+and in AWS Secrets Manager.
+
+| ID | Decision | Consequence / next step | Acts |
+|---|---|---|---|
+| D-INFRA | PostgreSQL on AWS RDS behind PgBouncer, as M2 deployed (see below) | Replaces the Compose-PostgreSQL recommendation. Compose runs the API, worker and proxy only. | M2, M1 |
+| D-LIC | Keep PyMuPDF (AGPL-3.0); Netra's source stays public under AGPL-compatible terms | No LlamaParse adapter is needed | M1 |
+| D-AGENT | OpenRouter runs both agents; the Gemini key serves embeddings only | Code change pending: today a set `NETRA_GEMINI_API_KEY` makes the Coordinator call Gemini directly, and a blank env line counts as set | M1 |
+| D-AX | AX export through the OpenTelemetry SDK | M2 reviews and adds the OpenTelemetry pins to the lock (install authorization needed), then M1 builds the exporter behind `SpanExporter` (slice E) | M2 → M1 |
+| D-CRED | A one-time access code per student, exchanged once by the app; the credential is kept in Windows Credential Manager | Replaces the PKCE browser sign-in of message-flow flow 1 for now; needs an issuance route (M1), the client exchange (M5) and a message-flow update | M1 + M5 |
+| D-QUOTA | 20,000 characters of speech per student per day; ledger in PostgreSQL | Migration (M2) and ledger (M1), then register ElevenLabs | M1, M2 |
+| D-MIC | M5's INT-11a proposal: separate binary framing (`capture_id`, `sequence`, `end_of_utterance`, `audio/L16;rate=16000`) after `asr.start`; server `asr.transcript`; WinMM capture, no NuGet. **Voice input is the top frontend priority**, ahead of further keyboard/NVDA work | Protocol v1 change: M1 and M5 review; Deepgram adapter (M1), capture (M5) | M1 + M5 |
+| M5-VIDEO | WebView2 approved (free SDK, Evergreen runtime) | Version pinned with M5-LOCK; navigation limited to the YouTube embed origin | M5 |
+| M3-PIN-1 | Marengo 3.5 and Pegasus 1.5 (newest per TwelveLabs' docs on 20 September) | Copy the exact `model_name` strings from the created index into `NETRA_TWELVE_LABS_*` | M3 |
+| M3-YT-ANALYSIS | YouTube videos are analysed through Tunelio, a hosted YouTube downloader (`GET /create` returns a signed, temporary direct link; 6 credits per `/info`, 10 per `/create`) | Risks accepted by the owner: downloading breaks YouTube's Terms of Service and may infringe copyright on lecture videos; the service works around YouTube's bot checks and can stop without notice; students' video choices go to a third party. Guardrails: off unless `NETRA_TUNELIO_API_KEY` is set; the worker copies the video into the private S3 bucket and TwelveLabs reads it through a presigned URL (the upload path, M3-MEDIA-URL); results are labelled AI descriptions. Considered and not chosen: Gemini's official YouTube-link input (no download; public videos only; preview feature). | M3, M2 |
+| M1-M3-V | A generated (Pegasus) description is shown labelled as an AI description; it is never verified evidence and never grades an answer | Matches the evidence ledger's GENERATED handling | M1, M3 |
+| P-1 | A check question is asked only when its answer is supported by the cited evidence; otherwise it is skipped (fail closed) | Implement `validate_draft_is_grounded` | M4 (+M3) |
+| P-2 | A declined check records nothing; history shows "studied, not tested" | Current behaviour kept | M4, M5 |
+| P-3 | Evidence deleted or re-versioned while a question waits: do not grade, keep the question, tell the student | | M4, M2, M1 |
+| P-4 | `source_version_id` is a UUID string; `evidence_version` is carried on `Evidence` | Already implemented (INT-03) | — |
+| D3 / D-CONCEPT | Adopt M4's factual history records and a curated concept catalog, projected before attempts | M2 migrations, M4 services | M4, M2 |
+| D-BUDGET | Keep 4 decisions / 6 tools / 20 s; persist budget use per request id | Migration (M2), accounting (M1) | M1, M2 |
+| INT-10c | Upload and processing status are read by polling an HTTP job-status route | Job schema (M2), routes (M1), screens (M5) | M2, M1, M5 |
+
+## AWS infrastructure (M2)
+
+Terraform: `infrastructure/terraform` (commits `f0a20fe`, `8b0da16`; PR #17).
+The commit calls it "unapplied", but M2 applied it: on 18 September M2 reported
+the PgBouncer instance running with SSM online, RDS available, the application
+database secret created (16 September) and the documents bucket present.
+Terraform state exists only on M2's machine (`*.tfstate` is git-ignored).
+
+| Resource | Configuration |
+|---|---|
+| Network | VPC 10.42.0.0/16 in ap-south-1; 2 public subnets, 2 private database subnets |
+| PgBouncer | EC2 t4g.micro, SSM-managed, no inbound ports; listens on the instance's 127.0.0.1:6432; `pool_mode = session` (asyncpg prepared statements are safe), 10 server connections per pool, 50 clients |
+| RDS | PostgreSQL 17.11, db.t4g.micro, private, encrypted, single-AZ, reachable only from PgBouncer |
+| Secrets | Application database password in Secrets Manager; RDS-managed master secret |
+| S3 | Private documents bucket: public access blocked, AES-256, versioning on |
+| Evaluator GPU | Disabled (`enable_prometheus_gpu = false`); Modal is the evaluator |
+
+Identifiers (instance ID, RDS endpoint, bucket name) come from `terraform output`
+and belong in each developer's `.env`, not in this file. A developer machine
+keeps an SSM port forward open (AWS CLI with the Session Manager plugin) and
+points `NETRA_DATABASE_URL` at `127.0.0.1:6432`:
+
+```
+aws ssm start-session --region ap-south-1 --target <pgbouncer_instance_id> --document-name AWS-StartPortForwardingSession --parameters "portNumber=6432,localPortNumber=6432"
+```
+
+S3 access uses the developer's AWS CLI login through boto3; no keys in `.env`.
+
+Gaps found while reading the Terraform (20 September):
+
+- `backup_retention_period = 0`: RDS has no automated backups.
+- No application host: nothing provisions an instance for the API and worker,
+  and the Compose file and both Dockerfiles are still empty.
+- Migration state on RDS is unverified: run `alembic -c api/alembic.ini current`
+  through the tunnel.
+- `deletion_protection = false` (a development setting).
+- Each API process's default SQLAlchemy pool (5 + 10 overflow) can exceed
+  PgBouncer's 10 server connections in session mode; extra clients wait rather
+  than fail. Revisit before real load.
+
 ## Decisions needed
 
 | ID | Decision | Recommendation | Blocks |
 |---|---|---|---|
-| D-LIC | PyMuPDF 1.28.2 is AGPL-3.0 (or commercial) | Project owner decides; this integration accepts no obligation. Alternative: LlamaParse + Tesseract only. | Distribution, not local integration |
-| D-CONCEPT | No canonical concept records exist in PostgreSQL, so every attempt projection dead-letters (`CONCEPT_NOT_PROJECTED`) | Add a reviewed concept catalog (M4 semantics, M2 storage) populated from curated source metadata and projected first; do not MERGE concepts from attempt data | Neo4j projection only; attempts stay canonical |
-| D-NEO4J | Real Cypher never executed | Authorize pulling `neo4j:5.26.30` for a disposable local container (same controls as PostgreSQL) | Neo4j verification only |
-| D-QUOTA | Speech quota amount and a durable quota ledger | Approve an amount; store the ledger in PostgreSQL | Registering ElevenLabs in production |
-| D-CRED | Desktop credential issuance (PKCE sign-in) **and** the production credential store (INT-10a: DPAPI `ProtectedData` or Credential Manager) | Credential Manager is used only as an integration aid (operator `cmdkey`); M1/M5 decide both | Real student sign-in |
-| D-BUDGET | The turn budget is in memory, so a retransmission after a restart gets a fresh budget | Persist budget use per request id | Budget across restarts |
-| D-MIC | Mic protocol (INT-11a) | Approve before building the Deepgram adapter | Voice input |
-| D3 / P-1 / P-2 / P-3 | Factual activity schema; optional-check support definition; declined-check record; evidence change while a question is pending | See M4 handoff recommendations | Optional checks, history records |
+| D-NEO4J | Real Cypher never executed | Authorize a disposable local `neo4j:5.26.30` container, or a free Aura instance | Neo4j verification |
+| D-HOST | No application host for the API and worker | One EC2 instance in the existing VPC running Compose (API, worker, nginx) with an IAM role for the bucket and the database secret | Deployment |
+| D-BACKUP | RDS automated backups are off | Set a retention period (for example 7 days) before real student data | Production data |
+| D-TFSTATE | Terraform state exists only on M2's machine | An S3 backend with state locking | Anyone but M2 changing infrastructure |
+| D-OTEL-PINS | Exact OpenTelemetry versions (D-AX) | M2 review under the lock cutoff | AX exporter |
+| D-MODAL-PINS | 7 pins in `evaluation/deploy/prometheus_modal.py` are `PENDING_M2_REVIEW` | M2 review; fix OPT-7/OPT-8 before GPU use | Modal judge |
+| INT-11b / INT-11c | ElevenLabs output media type; total audio frame size limit | M1 with M5 | Speech output |
 
 ## Independent work that can proceed
 

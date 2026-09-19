@@ -12,7 +12,7 @@ The flows below specify approved target behaviour unless an explicit implementat
 
 ## 1. Authenticated session establishment
 
-- **Initiator/path:** WPF desktop signs in through the system-browser authorization flow with PKCE. API verifies credentials; authenticated WSS carries interactive traffic. HTTP handles the plan's uploads, sign-in, settings and job-status operations.
+- **Initiator/path:** Each student receives a one-time access code issued by an operator or teacher. The WPF desktop exchanges it once over HTTPS for a device credential and keeps that credential in Windows Credential Manager (decision D-CRED, 20 September 2026, recorded in [integration status](../team/integration-status.md); it replaces the earlier system-browser PKCE sign-in, which may return later). API verifies credentials; authenticated WSS carries interactive traffic. HTTP handles uploads, the access-code exchange, settings and job-status operations.
 - **Authoritative checks:** Identity verifies principal/account/device access and the account–session security binding. A supplied session ID is not authorization. Tokens are validated before accepting the connection and expiry/revocation remains relevant during it.
 - **Version/idempotency:** Validate supported protocol version; load canonical session version rather than accepting client state as truth. A specific establishment mutation payload/operation contract is not defined here.
 - **Agents/writes:** No agent. Identity owns any identity/access persistence; Session service owns initialization of mutable session state in PostgreSQL.

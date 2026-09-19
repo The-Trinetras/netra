@@ -12,6 +12,7 @@ Read these same canonical sources from Claude Code and [Codex](AGENTS.md):
 - [Shared contracts](shared/contracts/): authoritative wire formats, enums, versions and typed handoffs.
 - [Overview](docs/architecture/overview.md), [data ownership](docs/architecture/data-ownership.md), [agent boundaries](docs/architecture/agent-boundaries.md) and [message flow](docs/architecture/message-flow.md): preserved architecture.
 - [M1–M5 guides](docs/team/ownership.md) and [.claude/rules](.claude/rules/): responsibility-specific engineering details.
+- [README](README.md): Agent-a-thon agentic-slice-kit layout. `slice/` is the kit spine (keep it unchanged; `tests/test_architecture.py` pins [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) to its lines); `demo/notes/` is the Netra slice on it; root `pytest.ini`/`conftest.py` configure tests for everything.
 
 The original Engineering Plan is historical where scope is superseded. Product
 changes cannot silently migrate protocols, dependencies or deployment. Source and
@@ -74,7 +75,9 @@ require both owners' review; speech/session integration requires M1/M5 review.
   service is a student-turn or readiness dependency. Export in bounded background
   batches, expose telemetry loss and verify complete evaluation traces. Keep
   reproducible artifacts outside AX; no scale infrastructure is needed for this
-  workload. RDS/PgBouncer alignment remains a decision.
+  workload. PostgreSQL runs on AWS RDS behind PgBouncer (decided 20 September 2026;
+  see [integration status](docs/team/integration-status.md)); the API and worker
+  stay on EC2/Compose.
 - Accessibility is functional correctness. Keyboard/NVDA and optional speech remain;
   deferred/removed features are listed in current scope. YouTube discovery remains.
 

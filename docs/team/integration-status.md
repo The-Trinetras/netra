@@ -15,6 +15,7 @@ production readiness.
 |---|---|---|---|
 | F1 / M5-LOCK | `arun/F1-nuget-lock` from fetched main `ab92908` | Both NuGet locks generated; default locked restore; approved WebView2 exactly pinned to 1.0.4191.47. Offline locked restore passes. | Arun: Windows xUnit and Evergreen player validation. |
 | F3 / D-MIC (client) | `arun/F3-voice-capture`, stacked on F1 | WinMM capture, `asr.start` → `asr.ready` gate → 100 ms L16 frames → one final → one voice `turn.submit`; STOP/focus loss discard; no announcements while the microphone is open. 173 portable tests pass on macOS; Windows build compiles; 16 mutations checked. | Arshad: C1 (client review items in the [M5 handoff](handoffs/M5.md#c1-review-from-the-client-side-for-arshad-before-c1-merges)) and Deepgram; Arun: real microphone on Windows. |
+| C8 / M5-VIDEO contract | `arun/C8-video-contract`, stacked on F3 | Review draft in `shared/contracts/video/v1`: paused player time, playback and analysis verdicts kept apart (with the server's summary sentence), `active_video` session field, `video_moments`; executable mirror `multimedia/video/wire.py`, 12 tests, 6 mutations detected. Nothing mounted; `protocol/v1` untouched. | Arshad: session fields and protocol additions (README "Review items"); Ashlin: the `VideoAsset` identity assumption for YouTube selections. |
 
 Arun explicitly authorized fetch, first NuGet restore and exact runtime setup.
 SDK 10.0.401 installed on macOS after Microsoft SHA-512 verification. Both WPF

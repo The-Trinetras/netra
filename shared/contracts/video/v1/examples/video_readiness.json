@@ -1,0 +1,18 @@
+{
+  "video": {
+    "video_id": "6f1c2a8e-3b4d-4c5e-9f60-7a8b9c0d1e2f",
+    "source_version_id": "0b9d3f4e-5a6b-4c7d-8e9f-a0b1c2d3e4f5"
+  },
+  "playback": {
+    "available": true,
+    "reason": null,
+    "checked_at": "2026-09-20T09:15:00Z"
+  },
+  "analysis": {
+    "ready": true,
+    "supports_visual_evidence": false,
+    "reason": "transcript_only",
+    "checked_at": "2026-09-20T09:14:30Z"
+  },
+  "student_summary": "This lecture can be played, and its spoken words are available. Its visuals have not been analysed, so Netra cannot describe what is shown."
+}

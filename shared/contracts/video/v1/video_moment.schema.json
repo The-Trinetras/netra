@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://netra.local/contracts/video/v1/video_moment.schema.json",
+  "$comment": "C8 REVIEW DRAFT. Arshad reviews the session fields before protocol or route use. Cross-field rules and behaviour are specified in README.md; the executable mirror is api/src/netra_api/multimedia/video/wire.py.",
+  "$defs": {
+    "VideoRef": {
+      "additionalProperties": false,
+      "description": "Netra's canonical identity for one selected video (``VideoAsset``).\n\nNever a provider asset id; a YouTube id alone is not a Netra video.",
+      "properties": {
+        "video_id": {
+          "format": "uuid",
+          "title": "Video Id",
+          "type": "string"
+        },
+        "source_version_id": {
+          "format": "uuid",
+          "title": "Source Version Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "video_id",
+        "source_version_id"
+      ],
+      "title": "VideoRef",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "A time range an answer relies on, so the student can jump to it\n(F9). Whether the moment rests on an AI description is carried by the\nevidence payload (C6), not guessed here.",
+  "properties": {
+    "video": {
+      "$ref": "#/$defs/VideoRef"
+    },
+    "start_ms": {
+      "minimum": 0,
+      "title": "Start Ms",
+      "type": "integer"
+    },
+    "end_ms": {
+      "minimum": 0,
+      "title": "End Ms",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "video",
+    "start_ms",
+    "end_ms"
+  ],
+  "title": "VideoMoment",
+  "type": "object"
+}

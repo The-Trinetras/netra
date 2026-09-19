@@ -246,6 +246,15 @@ public sealed class LibraryViewModel : ViewModelBase
         }
     }
 
+    // Signing out: the previous student's sources leave the screen.
+    public void ClearServerSources()
+    {
+        AvailableSources.Clear();
+        SelectedAvailableSource = null;
+        OpenedSource = null;
+        StatusMessage = "Signed out. Sign in to see your sources.";
+    }
+
     private async Task<string> ResynchronizeAfterConflictAsync(CancellationToken cancellationToken)
     {
         if (_server?.Session is not { } session)

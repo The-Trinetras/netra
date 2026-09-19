@@ -363,6 +363,17 @@ public sealed class ConversationViewModel : ViewModelBase, IDisposable
         });
     }
 
+    // Signing out on a shared computer: the next student must not find the
+    // previous one's conversation on screen.
+    public void ClearForSignOut() => _dispatcher.Invoke(() =>
+    {
+        _speechInputService.AbortListening();
+        Transcript.Clear();
+        InputText = string.Empty;
+        InterimTranscript = string.Empty;
+        _lastAdmittedGenerationId = null;
+    });
+
     // Accessible status from services that are not view models (playback
     // queue, push-to-talk). Marshaled: callers may be on any thread.
     public void ReportStatus(string message) => _dispatcher.Invoke(() => StatusMessage = message);

@@ -68,6 +68,29 @@ public sealed class ClientSessionState
         }
     }
 
+    // Signing out: nothing of the previous student's session is kept.
+    public void Reset()
+    {
+        lock (_lock)
+        {
+            SessionId = Guid.Empty;
+            _sessionVersion = 0;
+            _appliedRequestIds.Clear();
+        }
+
+        AccountContextId = null;
+        ActiveSourceVersionId = null;
+        CurrentBlockId = null;
+        CurrentSentenceId = null;
+        LastAcknowledgedSentenceId = null;
+        InteractionMode = SessionInteractionMode.Idle;
+        ActiveTutorLessonId = null;
+        PendingQuestionId = null;
+        LastResultSetId = null;
+        LastRequestId = null;
+        CurrentGenerationId = null;
+    }
+
     public void Initialize(Guid sessionId, long sessionVersion)
     {
         lock (_lock)

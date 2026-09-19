@@ -253,7 +253,7 @@ public sealed class LiveServerTests
 
         Assert.Equal(1, attempts);
         Assert.Equal(ConnectionState.Disconnected, state.ConnectionState);
-        Assert.Equal("Cannot reconnect: Netra did not accept this computer's sign-in. It may have expired.", statuses.Last());
+        Assert.Equal("Cannot reconnect: Netra did not accept this computer's sign-in. It may have expired. Choose Sign in under Preferences and status to enter a new access code.", statuses.Last());
         await connection.DisposeAsync();
     }
 

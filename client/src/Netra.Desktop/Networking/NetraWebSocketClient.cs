@@ -47,9 +47,13 @@ public sealed class NetraWebSocketClient : INetraWebSocketClient
     // so no failure was observed; this keeps the client within the contract
     // instead of relying on that implementation detail.
     private readonly SemaphoreSlim _sendLock = new(1, 1);
+    // How long a close waits for the server's close reply (client-local).
+    private static readonly TimeSpan CloseReplyTimeout = TimeSpan.FromSeconds(2);
+
     private ClientWebSocket? _socket;
     private CancellationTokenSource? _receiveLoopCts;
     private Task? _receiveLoop;
+    private ClientWebSocket? _disconnectReported;
 
     public bool IsConnected => _socket?.State == WebSocketState.Open;
 
@@ -144,17 +148,25 @@ public sealed class NetraWebSocketClient : INetraWebSocketClient
         }
     }
 
+    // A real close handshake (D-open-1): send our close first, then let the
+    // receive loop see the server's reply and end on its own. Only if no
+    // reply comes in time is the loop stopped, which aborts the socket.
+    // Disconnected is raised once per socket either way.
     public async Task CloseAsync(CancellationToken cancellationToken)
     {
-        _receiveLoopCts?.Cancel();
-
-        if (_socket is { State: WebSocketState.Open } socket)
+        var socket = _socket;
+        var receiveLoop = _receiveLoop;
+        if (socket is { State: WebSocketState.Open })
         {
             await _sendLock.WaitAsync(cancellationToken).ConfigureAwait(false);
             try
             {
-                await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "client_shutdown", cancellationToken)
+                await socket.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, "client_shutdown", cancellationToken)
                     .ConfigureAwait(false);
+            }
+            catch (WebSocketException)
+            {
+                // Already gone; nothing left to hand-shake.
             }
             finally
             {
@@ -162,7 +174,30 @@ public sealed class NetraWebSocketClient : INetraWebSocketClient
             }
         }
 
-        Disconnected?.Invoke(this, EventArgs.Empty);
+        if (receiveLoop is not null)
+        {
+            try
+            {
+                await receiveLoop.WaitAsync(CloseReplyTimeout, cancellationToken).ConfigureAwait(false);
+            }
+            catch (TimeoutException)
+            {
+                _receiveLoopCts?.Cancel();
+            }
+        }
+
+        if (socket is not null)
+        {
+            ReportDisconnected(socket);
+        }
+    }
+
+    private void ReportDisconnected(ClientWebSocket socket)
+    {
+        if (!ReferenceEquals(Interlocked.Exchange(ref _disconnectReported, socket), socket))
+        {
+            Disconnected?.Invoke(this, EventArgs.Empty);
+        }
     }
 
     private async Task ReceiveLoopAsync(ClientWebSocket socket, CancellationToken cancellationToken)
@@ -181,7 +216,7 @@ public sealed class NetraWebSocketClient : INetraWebSocketClient
                     result = await socket.ReceiveAsync(buffer, cancellationToken).ConfigureAwait(false);
                     if (result.MessageType == WebSocketMessageType.Close)
                     {
-                        Disconnected?.Invoke(this, EventArgs.Empty);
+                        ReportDisconnected(socket);
                         return;
                     }
 

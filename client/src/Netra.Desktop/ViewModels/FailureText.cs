@@ -18,7 +18,7 @@ public static class FailureText
         OperationCanceledException when cancellationToken.IsCancellationRequested => "Cancelled.",
         // HttpClient reports its own timeout as a cancellation the caller did not request.
         OperationCanceledException or TimeoutException => $"Timed out trying to {action}. Try again.",
-        CredentialUnavailableException => "This computer is not signed in to Netra.",
+        CredentialUnavailableException => "This computer is not signed in to Netra. Choose Sign in under Preferences and status.",
         NotConnectedException => $"Not connected to Netra, so Netra could not {action}. Your place is kept; try again when connected.",
         CredentialRejectedException => SignInNotAccepted,
         ApiErrorException { Error.Code: ErrorCode.AuthRequired } => SignInNotAccepted,
@@ -29,5 +29,6 @@ public static class FailureText
         _ => $"Netra could not {action}.",
     };
 
-    private const string SignInNotAccepted = "Netra did not accept this computer's sign-in. It may have expired.";
+    private const string SignInNotAccepted =
+        "Netra did not accept this computer's sign-in. It may have expired. Choose Sign in under Preferences and status to enter a new access code.";
 }

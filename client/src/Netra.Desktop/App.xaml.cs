@@ -18,16 +18,15 @@ namespace Netra.Desktop;
 //
 // Two explicit modes:
 // - Live: NETRA_API_ENDPOINT names the server's WebSocket endpoint (wss, or
-//   ws to loopback). The bearer credential is read from Windows Credential
-//   Manager (WindowsCredentialManagerSource). LiveSession creates a session
-//   over HTTP, connects /v1/ws (session.resume restores state), and the
-//   library lists the account's real sources. A failed start is retried by
-//   the library's Refresh; no restart is needed.
+//   ws to loopback). The device credential lives in Windows Credential
+//   Manager (decision D-CRED). On first run, or when the server no longer
+//   accepts it, the sign-in dialog asks for a one-time access code and
+//   exchanges it (C2 pending). LiveSession then creates a session over HTTP,
+//   connects /v1/ws (session.resume restores state), and the library lists
+//   the account's real sources. A failed start is retried by the library's
+//   Refresh; no restart is needed.
 // - Fixture: no endpoint configured. No network call is made, and the status
 //   text says the data shown is fixture data.
-// Credential issuance (PKCE sign-in) and the production credential store are
-// still undecided (INT-10a); a stored operator token is an integration aid,
-// not a production sign-in flow.
 public partial class App : Application
 {
     public const string EndpointVariable = "NETRA_API_ENDPOINT";
@@ -42,6 +41,12 @@ public partial class App : Application
     private TempFileSegmentAudioStore? _segmentAudioStore;
     private ShellViewModel? _shellViewModel;
     private MicrophoneCapture? _speechInputService;
+    private SignedInCredentials? _credentials;
+    private HttpAccessCodeExchange? _accessCodeExchange;
+    private LiveSession? _liveSession;
+    private LiveAccount? _account;
+    private LibraryViewModel? _libraryViewModel;
+    private ConversationViewModel? _conversationViewModel;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -57,7 +62,8 @@ public partial class App : Application
         var timeline = new PlaybackTimeline();
 
         var (liveEndpoint, modeNotice) = ResolveLiveEndpoint();
-        var credentials = liveEndpoint is null ? null : new WindowsCredentialManagerSource();
+        var credentials = liveEndpoint is null ? null : new SignedInCredentials(new WindowsCredentialManagerSource());
+        _credentials = credentials;
         var webSocketClient = new NetraWebSocketClient(credentials);
         var connectionManager = new ConnectionManager(webSocketClient, sessionState);
         _connectionManager = connectionManager;
@@ -113,8 +119,10 @@ public partial class App : Application
         if (liveEndpoint is not null && credentials is not null)
         {
             _apiClient = new NetraApiClient(NetraApiClient.HttpBaseFor(liveEndpoint), credentials);
+            _accessCodeExchange = new HttpAccessCodeExchange(NetraApiClient.HttpBaseFor(liveEndpoint));
             _reconnectCoordinator = new ReconnectCoordinator(webSocketClient, connectionManager, sessionState, liveEndpoint);
             liveSession = new LiveSession(_apiClient, sessionState, connectionManager, _reconnectCoordinator.ConnectAsync);
+            _liveSession = liveSession;
             serverAccess = new LibraryServerAccess(new ApiSourceCatalog(_apiClient, sessionState), sessionState, liveSession);
         }
 
@@ -124,8 +132,8 @@ public partial class App : Application
             new FixtureSourcePreparationService(),
             new FixtureVideoDiscoveryService(),
             serverAccess);
+        _libraryViewModel = libraryViewModel;
         var studyViewModel = new StudyViewModel();
-        var preferencesViewModel = new PreferencesViewModel(sessionState, timeline);
         var conversationViewModel = new ConversationViewModel(
             sessionState,
             connectionManager,
@@ -137,6 +145,30 @@ public partial class App : Application
             segmentPlaybackQueue,
             timeline);
         segmentPlaybackQueue.StatusChanged += (_, message) => conversationViewModel.ReportStatus(message);
+        _conversationViewModel = conversationViewModel;
+
+        if (liveSession is not null && credentials is not null && _reconnectCoordinator is not null)
+        {
+            var reconnect = _reconnectCoordinator;
+            _account = new LiveAccount(
+                credentials,
+                ShowSignIn,
+                () => StartLiveSessionAsync(promptSignIn: false),
+                async () =>
+                {
+                    await reconnect.DisconnectAsync(CancellationToken.None);
+                    liveSession.Forget();
+                    sessionState.Reset();
+                },
+                () =>
+                {
+                    conversationViewModel.ClearForSignOut();
+                    libraryViewModel.ClearServerSources();
+                },
+                conversationViewModel.ReportStatus);
+        }
+
+        var preferencesViewModel = new PreferencesViewModel(sessionState, timeline, _account);
 
         var shellViewModel = new ShellViewModel(libraryViewModel, studyViewModel, conversationViewModel, preferencesViewModel);
         _shellViewModel = shellViewModel;
@@ -159,7 +191,7 @@ public partial class App : Application
         MainWindow = mainWindow;
         mainWindow.Show();
 
-        if (liveSession is null || _reconnectCoordinator is null)
+        if (liveSession is null || _reconnectCoordinator is null || _account is null || credentials is null)
         {
             conversationViewModel.ReportStatus(modeNotice);
             return;
@@ -167,7 +199,30 @@ public partial class App : Application
 
         _reconnectCoordinator.StatusChanged += (_, message) => conversationViewModel.ReportStatus(message);
         _liveStart = new CancellationTokenSource();
-        _ = StartLiveSessionAsync(liveSession, libraryViewModel, conversationViewModel, _liveStart.Token);
+
+        // First run: ask for the access code once the main window is up, so
+        // the dialog has an owner and focus returns there afterwards.
+        if (!credentials.HasCredential)
+        {
+            Dispatcher.BeginInvoke(new Action(() => _ = _account.SignInAsync()));
+            return;
+        }
+
+        _ = StartLiveSessionAsync(promptSignIn: true);
+    }
+
+    // The sign-in dialog (UI thread, modal). Returns its final status after a
+    // sign-in, or null when the student cancelled.
+    private string? ShowSignIn(string? reason)
+    {
+        var viewModel = new SignInViewModel(_accessCodeExchange!, _credentials!, reason);
+        var dialog = new SignInWindow(viewModel, new LiveRegionAnnouncer());
+        if (MainWindow is { IsVisible: true } owner)
+        {
+            dialog.Owner = owner;
+        }
+
+        return dialog.ShowDialog() == true ? viewModel.StatusMessage : null;
     }
 
     // Endpoint from the environment; the value is validated, never logged.
@@ -193,28 +248,41 @@ public partial class App : Application
     // UI thread (network waits are awaited, never blocked on). Starts the
     // live session, then loads sources. On failure the status says why and
     // how to retry; it does not promise offline reading: no study-material
-    // cache is wired into the app yet.
-    private static async Task StartLiveSessionAsync(
-        ILiveSession live, LibraryViewModel library, ConversationViewModel conversation, CancellationToken cancellationToken)
+    // cache is wired into the app yet. A credential the server no longer
+    // accepts opens the sign-in dialog once (promptSignIn), never in a loop.
+    private async Task StartLiveSessionAsync(bool promptSignIn)
     {
+        var cancellationToken = _liveStart?.Token ?? CancellationToken.None;
         try
         {
-            conversation.ReportStatus("Connecting to Netra.");
-            await live.EnsureStartedAsync(cancellationToken);
+            _conversationViewModel!.ReportStatus("Connecting to Netra.");
+            await _liveSession!.EnsureStartedAsync(cancellationToken);
         }
         catch (Exception ex)
         {
-            if (!cancellationToken.IsCancellationRequested)
+            if (cancellationToken.IsCancellationRequested)
             {
-                conversation.ReportStatus(
-                    $"Not connected. {FailureText.Describe(ex, "connect", cancellationToken)} Choose Refresh in the library to try again.");
+                return;
             }
 
+            if (promptSignIn && _account is not null && IsSignInProblem(ex))
+            {
+                await _account.SignInAsync("Netra did not accept this computer's sign-in. It may have expired.");
+                return;
+            }
+
+            _conversationViewModel!.ReportStatus(
+                $"Not connected. {FailureText.Describe(ex, "connect", cancellationToken)} Choose Refresh in the library to try again.");
             return;
         }
 
-        await library.RefreshSourcesAsync(cancellationToken);
+        await _libraryViewModel!.RefreshSourcesAsync(cancellationToken);
     }
+
+    private static bool IsSignInProblem(Exception ex) =>
+        ex is CredentialUnavailableException or CredentialRejectedException
+        || ex is ApiErrorException { Error.Code: Protocol.Dto.ErrorCode.AuthRequired }
+        || ex is ApiErrorException { StatusCode: 401 };
 
     // Local hardware measurement mode; no window, no server. Exit code 0 on a
     // written report, 1 otherwise.
@@ -253,6 +321,7 @@ public partial class App : Application
         }
 
         _apiClient?.Dispose();
+        _accessCodeExchange?.Dispose();
         _liveStart?.Dispose();
 
         if (_connectionManager is not null)

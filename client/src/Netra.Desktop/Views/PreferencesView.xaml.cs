@@ -50,6 +50,29 @@ public partial class PreferencesView : UserControl
         }
     }
 
+    // Signing out cannot be undone without a new access code, so it is
+    // confirmed first in the standard (screen-reader friendly) message box,
+    // with No as the default.
+    private async void OnSignOutClick(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not PreferencesViewModel viewModel)
+        {
+            return;
+        }
+
+        var answer = MessageBox.Show(
+            Window.GetWindow(this)!,
+            "Sign out of Netra on this computer? You will need a new access code from your teacher to sign in again.",
+            "Sign out of Netra",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning,
+            MessageBoxResult.No);
+        if (answer == MessageBoxResult.Yes)
+        {
+            await viewModel.SignOutAsync().ConfigureAwait(true);
+        }
+    }
+
     private void OnClearMeasurementsClick(object sender, RoutedEventArgs e)
     {
         if (DataContext is PreferencesViewModel viewModel)

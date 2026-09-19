@@ -23,10 +23,17 @@ from datetime import datetime, timezone
 from typing import Callable, Optional, Protocol
 from uuid import UUID
 
+from netra_api.identity.access_codes import (
+    CredentialIssued,
+    ExchangeRequest,
+    access_code_digest,
+    new_credential_token,
+    normalize_access_code,
+)
 from netra_api.identity.models import SessionBinding
 from netra_api.identity.repository import IdentityRepository
 from netra_api.platform.auth_context import AuthContext, AuthenticatedPrincipal
-from netra_api.platform.errors import AuthenticationRequiredError, AuthorizationError
+from netra_api.platform.errors import AuthenticationRequiredError, AuthorizationError, InvalidRequestError
 
 Clock = Callable[[], datetime]
 
@@ -79,8 +86,8 @@ class UnconfiguredCredentialVerifier:
 class StoredCredentialVerifier:
     """Verifies bearer credentials previously issued and stored as digests.
 
-    It does not issue credentials and defines no sign-in protocol; issuance
-    remains a pending M1/M5 decision recorded in docs/team/handoffs/M1.md.
+    It does not issue credentials; IdentityService.exchange_access_code does
+    (decision D-CRED).
     """
 
     def __init__(self, repository: IdentityRepository, clock: Clock = _utcnow) -> None:
@@ -164,6 +171,24 @@ class IdentityService:
         return await self._repository.create_session_binding(
             SessionBinding(session_id=session_id, account_id=principal.account_id, created_at=self._clock())
         )
+
+    async def exchange_access_code(self, request: ExchangeRequest) -> CredentialIssued:
+        """POST /v1/device-credentials (D-CRED): a one-time code for a device credential.
+
+        Every refusal is the same AuthenticationRequiredError, so a caller
+        cannot tell an unknown code from an expired, used or revoked one.
+        """
+
+        normalized = normalize_access_code(request.access_code)
+        if normalized is None:
+            raise InvalidRequestError("access code is malformed", field="access_code")
+        token = new_credential_token()
+        expires_at = await self._repository.exchange_access_code(
+            access_code_digest(normalized), request.request_id, credential_digest(token), self._clock()
+        )
+        if expires_at is None:
+            raise AuthenticationRequiredError("access code not accepted")
+        return CredentialIssued(credential=token, expires_at=expires_at)
 
     async def _assert_account_and_device(self, principal: AuthenticatedPrincipal) -> None:
         account = await self._repository.get_account(principal.account_id)

@@ -22,6 +22,7 @@ from netra_api.platform.errors import ProviderUnavailableError
 
 
 class GeminiCoordinatorAdapter:
+    provider_name = "google"
     """GeminiCoordinatorProvider backed by ``genai.Client(...).aio``."""
 
     def __init__(self, client: Any) -> None:

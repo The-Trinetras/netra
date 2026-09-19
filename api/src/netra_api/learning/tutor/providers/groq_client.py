@@ -20,6 +20,7 @@ from netra_api.platform.errors import ProviderUnavailableError
 
 
 class GroqTutorAdapter:
+    provider_name = "groq"
     """GroqTutorProvider backed by ``groq.AsyncGroq``."""
 
     def __init__(self, client: Any) -> None:

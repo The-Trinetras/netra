@@ -13,6 +13,8 @@ testable without it. Routes:
 - POST /v1/sessions, GET /v1/sessions/{id}/sources, POST /v1/sessions/{id}/source —
   M1's reviewed route proposal (see transport/http/sessions.py); pending formal
   M1/M5 sign-off. Every route requires ``Authorization: Bearer``.
+- POST /v1/device-credentials — D-CRED access-code exchange (the one route
+  without a credential); see transport/http/device_credentials.py.
 
 Upload and job-status routes are not exposed: the job contract
 (shared/contracts/jobs/v1/job.schema.json) is still empty.
@@ -38,6 +40,7 @@ from netra_api.content.settings import ContentSettings
 from netra_api.content.telemetry import configure_logging
 from netra_api.platform.errors import NetraError
 from netra_api.transport.http.auth import authenticate
+from netra_api.transport.http.device_credentials import exchange_device_credential
 from netra_api.transport.http.health import liveness
 from netra_api.transport.http.sessions import create_session, error_response, list_sources, select_source
 from netra_api.transport.websocket.endpoint import serve
@@ -110,6 +113,16 @@ def create_app(
             return _error(InvalidRequestError("body is not JSON"))
         status, payload = await select_source(composition.services, principal, session_id, body)
         return JSONResponse(payload, status_code=status)
+
+    @app.post("/v1/device-credentials")
+    async def post_device_credential(request: Request) -> JSONResponse:
+        # D-CRED access-code exchange; takes no credential. no-store: the body is one.
+        try:
+            body = await request.json()
+        except ValueError:
+            body = None
+        status, payload = await exchange_device_credential(composition.services.identity, body)
+        return JSONResponse(payload, status_code=status, headers={"Cache-Control": "no-store"})
 
     @app.websocket(WEBSOCKET_PATH)
     async def websocket_endpoint(websocket: WebSocket) -> None:

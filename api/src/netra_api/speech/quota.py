@@ -4,9 +4,9 @@ message-flow.md flow 6: speech checks cache access and reserves quota before
 fresh synthesis. data-ownership.md: reservations are not refunded merely
 because playback stops — the provider may already have consumed quota.
 
-No quota amount is approved anywhere in the repository, so there is no
-default ledger: composition must supply one explicitly, and the unconfigured
-ledger refuses every reservation (text delivery continues without speech).
+D-QUOTA (20 September 2026): 20,000 characters per student per UTC day,
+kept in PostgreSQL (speech/postgres.py). The unconfigured ledger refuses
+every reservation (text delivery continues without speech).
 """
 
 from __future__ import annotations
@@ -30,9 +30,13 @@ class QuotaReservation(BaseModel):
     reserved_at: datetime
 
 
+class SpeechQuotaExhaustedError(ResourceUnavailableError):
+    """The student's speech allowance for today is used up; replies stay text only."""
+
+
 class QuotaLedger(Protocol):
     async def reserve(self, account_id: UUID, characters: int) -> QuotaReservation:
-        """Reserve before synthesis. Raises ResourceUnavailableError when exhausted."""
+        """Reserve before synthesis. Raises SpeechQuotaExhaustedError when exhausted."""
         ...
 
 
@@ -54,7 +58,7 @@ class InMemoryQuotaLedger:
         async with self._lock:
             used = self._used.get(account_id, 0)
             if used + characters > self._limit:
-                raise ResourceUnavailableError("speech quota exhausted")
+                raise SpeechQuotaExhaustedError("speech quota exhausted")
             self._used[account_id] = used + characters
             reservation = QuotaReservation(
                 reservation_id=uuid4(),

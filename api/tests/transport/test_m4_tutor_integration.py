@@ -10,6 +10,7 @@ constructor requires them; they are test values, not product policy.
 """
 
 import asyncio
+import dataclasses
 import json
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
@@ -18,7 +19,7 @@ from netra_api.coordinator.limits import MAX_MODEL_DECISIONS_PER_TURN
 from netra_api.coordinator.tutor_gateway import LearningTutorRunner
 from netra_api.learning.assessment.service import LearningService, StatusDerivationPolicy
 from netra_api.learning.quiz.models import AnswerKey, ApprovedQuestion, QuestionKind, QuestionOption
-from netra_api.learning.tutor.agent import TutorServices
+from netra_api.learning.tutor.agent import CHECK_SKIPPED_TEXT, TutorServices
 from netra_api.learning.tutor.providers.groq import TutorModelDecision
 from netra_api.session.modes import InteractionMode
 from netra_api.session.state import ActiveLessonRef, PendingQuestionRef
@@ -121,11 +122,18 @@ def _m4_services(pending, provider):
     return services, attempts
 
 
-async def _journey(model, *, state=None, pending=None, groq_text="Each row is 2 volts per ampere, so resistance is 2 ohms."):
+async def _journey(model, *, state=None, pending=None, groq_text="Each row is 2 volts per ampere, so resistance is 2 ohms.", span_exporter=None):
     pending = pending or FixturePendingQuestions()
     provider = ScriptedGroq(groq_text)
     services, attempts = _m4_services(pending, provider)
-    journey = await build_journey(model=model, state=state, tutor=False)
+    if span_exporter is not None:
+        from netra_api.platform.tracing import ExportSettings
+
+        fast = ExportSettings(max_queue_size=256, max_batch_size=32, schedule_delay_seconds=0.01, export_timeout_seconds=0.2, max_retries=1, retry_backoff_seconds=0.01)
+        journey = await build_journey(model=model, state=state, tutor=False, span_exporter=span_exporter, export_settings=fast)
+        services = dataclasses.replace(services, tracer=journey.composition.tracer)  # as compose() does
+    else:
+        journey = await build_journey(model=model, state=state, tutor=False)
     # Register M4's real runner exactly as bootstrap does for IntegrationDependencies.tutor_services.
     from netra_api.coordinator.tutor_gateway import TutorGateway
 
@@ -253,12 +261,22 @@ def _check_script():
 class _Draft:
     """Labelled QuizGenerator double; ``evidence_ids`` is what the draft cites."""
 
-    def __init__(self, evidence_ids):
+    def __init__(self, evidence_ids, supported=False):
         self.evidence_ids = evidence_ids
+        self.supported = supported
 
     async def generate(self, request):
         from netra_api.learning.quiz.models import QuestionDraft
 
+        if self.supported:  # the table states 4 V at 2 A
+            return QuestionDraft(
+                concept_id="ohms-law",
+                kind=QuestionKind.MULTIPLE_CHOICE,
+                prompt="What voltage does the table show at 2 A?",
+                options=[QuestionOption(option_id="a", text="4 V"), QuestionOption(option_id="b", text="6 V")],
+                answer_key=AnswerKey(correct_answer="a"),
+                evidence_ids=self.evidence_ids,
+            )
         return QuestionDraft(
             concept_id="ohms-law",
             kind=QuestionKind.TRUE_FALSE,
@@ -269,41 +287,112 @@ class _Draft:
         )
 
 
-async def _check_journey(evidence_ids):
-    journey, provider, attempts, pending, _ = await _journey(_check_script())
+async def _check_journey(evidence_ids, supported=False, span_exporter=None):
+    journey, provider, attempts, pending, _ = await _journey(_check_script(), span_exporter=span_exporter)
     gateway = journey.services.coordinator._tutor
-    gateway._runner.services = TutorServices(**{**gateway._runner.services.__dict__, "quiz_generator": _Draft(evidence_ids)})
+    gateway._runner.services = TutorServices(**{**gateway._runner.services.__dict__, "quiz_generator": _Draft(evidence_ids, supported)})
     socket, task = await _open(journey)
     responses = await _submit(socket, _turn("Can you check my understanding?", 10))
     return journey, pending, socket, task, responses
 
 
-async def test_m4_pending_grounding_decision_is_a_bounded_failure_not_a_crash():
-    # The draft cites the evidence this turn resolved, so reference binding
-    # passes and the turn reaches the support check (D2), which is still an
-    # unmade product decision and fails closed. That must surface as the
-    # distinct pending-capability rejection, not a crash or a teaching result.
+async def test_m4_supported_check_is_persisted_and_delivered():
+    # P-1: the table states the answer, so the real validator approves it.
+    journey, pending, socket, task, responses = await _check_journey(["ev-table-tbl01"], supported=True)
+    questions = [m for m in responses if m["type"] == "quiz.question"]
+    assert len(questions) == 1 and questions[0]["payload"]["prompt"] == "What voltage does the table show at 2 A?"
+    assert "4 V" not in json.dumps(questions[0]["payload"].get("answer_key", ""))
+    assert len(pending.questions) == 1
+    assert (await journey.sessions.get(SESSION)).pending_question is not None
+    socket.disconnect()
+    await task
+
+
+async def test_m4_unsupported_check_is_skipped_and_said_plainly():
+    # The draft cites resolved evidence, but the table never says R is
+    # constant, so P-1 skips it: said plainly, nothing persisted or pending.
     journey, pending, socket, task, responses = await _check_journey(["ev-table-tbl01"])
-    assert journey.trace.of_kind("handoff_rejected")[0].detail["check"] == "tutor_capability_pending_decision"
+    assert journey.trace.of_kind("handoff_rejected") == []
+    assert CHECK_SKIPPED_TEXT in json.dumps(responses)
     assert not [m for m in responses if m["type"] == "quiz.question"]
-    assert pending.questions == {}  # fail-closed grounding persisted nothing
+    assert pending.questions == {}
     assert (await journey.sessions.get(SESSION)).pending_question is None
     socket.disconnect()
     await task
 
 
-async def test_m4_uncited_or_unresolved_draft_is_refused_by_binding_not_reported_as_pending():
-    # Reference binding runs before (and independently of) the pending support
-    # decision: a draft citing nothing, or citing evidence this turn never
-    # resolved, is an ordinary bounded failure. It must not be confused with
-    # the pending-capability path, and nothing may be persisted or delivered.
+async def test_m4_uncited_or_unresolved_draft_is_refused_by_binding():
+    # Reference binding runs before the support check: a draft citing
+    # nothing, or citing evidence this turn never resolved, is skipped like
+    # an unsupported one, and nothing may be persisted or delivered.
     for cited in ([], ["ev-not-handed-to-this-turn"]):
-        journey, pending, socket, task, responses = await _check_journey(cited)
+        journey, pending, socket, task, responses = await _check_journey(cited, supported=True)
         assert journey.trace.of_kind("handoff_rejected") == []
         statuses = [e.detail["status"] for e in journey.trace.of_kind("handoff_result") if "status" in e.detail]
-        assert statuses == ["failed"], cited
+        assert statuses == ["completed"], cited
+        assert CHECK_SKIPPED_TEXT in json.dumps(responses)
         assert not [m for m in responses if m["type"] == "quiz.question"]
         assert pending.questions == {}
         assert (await journey.sessions.get(SESSION)).pending_question is None
         socket.disconnect()
         await task
+
+
+# --- OPT-12: Tutor and learning-commit spans ----------------------------------
+
+
+def _attributes(span):
+    return dict(span.attributes)
+
+
+async def test_tutor_model_calls_and_results_are_spans_with_allowlisted_facts_only():
+    from netra_api.platform.tracing import InMemorySpanExporter
+
+    exporter = InMemorySpanExporter()
+    journey, pending, socket, task, responses = await _check_journey(["ev-table-tbl01"], supported=True, span_exporter=exporter)
+    socket.disconnect()
+    await task
+    journey.composition.shutdown()
+
+    tutor_models = [s for s in exporter.spans if s.name == "netra.tutor.model"]
+    assert [_attributes(s)["netra.operation"] for s in tutor_models] == ["quiz_generation"]
+    assert _attributes(tutor_models[0])["llm.provider"] == "groq" and _attributes(tutor_models[0])["netra.attempt"] >= 1
+    handoff = next(s for s in exporter.spans if s.name == "netra.tutor.handoff")
+    facts = _attributes(handoff)
+    assert facts["netra.tutor_status"] == "awaiting_student_answer" and facts["netra.evidence_ids"] == ["ev-table-tbl01"]
+    assert facts["netra.handoff_id"] and facts["netra.budget.model_decisions_used"] >= 2
+    assert tutor_models[0].parent_span_id == handoff.span_id and tutor_models[0].trace_id == handoff.trace_id
+    exported = json.dumps([_attributes(s) for s in exporter.spans], default=str)
+    assert "What voltage" not in exported and "4 V" not in exported  # never question or answer text
+
+
+async def test_a_committed_answer_is_a_learning_commit_span():
+    from netra_api.platform.tracing import InMemorySpanExporter
+
+    pending = FixturePendingQuestions()
+    pending.questions[Q_MC.question_id] = Q_MC
+    state = initial_state(
+        interaction_mode=InteractionMode.TUTOR_LESSON,
+        active_lesson=ActiveLessonRef(lesson_id=fid("lesson")),
+        pending_question=PendingQuestionRef(question_id="q-mc", question_version=1, hints_used=0),
+    )
+    model = ScriptedModel([
+        tools(("search_sources", {"query": "table rows"}), requirements=[{"requirement_id": "rows", "description": "table rows"}]),
+        final({
+            "action": "delegate_to_tutor",
+            "assessments": [{"requirement_id": "rows", "status": "supported", "evidence_id": "ev-table-tbl01"}],
+            "tutor": {"mode": "evaluate_answer", "learning_goal": "Evaluate the answer.", "target_concept_ids": ["ohms-law"], "evidence_ids": ["ev-table-tbl01"]},
+        }),
+    ])
+    exporter = InMemorySpanExporter()
+    journey, provider, attempts, pending, sink = await _journey(model, state=state, pending=pending, span_exporter=exporter)
+    socket, task = await _open(journey)
+    await _submit(socket, _turn("8 volts", 10))
+    socket.disconnect()
+    await task
+    journey.composition.shutdown()
+
+    (commit,) = [s for s in exporter.spans if s.name == "netra.learning.commit"]
+    assert _attributes(commit)["netra.operation"] == "learning_commit" and _attributes(commit)["netra.outcome"] == "committed"
+    assert len(attempts.attempts) == 1
+    assert "8 volts" not in json.dumps([_attributes(s) for s in exporter.spans], default=str)

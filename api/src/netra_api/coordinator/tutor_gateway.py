@@ -47,6 +47,7 @@ from netra_api.coordinator.handoff import (
     TutorToCoordinatorResult,
 )
 from netra_api.coordinator.limits import TurnBudget
+from netra_api.learning.quiz.models import QuestionKind
 from netra_api.learning.tutor.agent import build_turn_state
 from netra_api.learning.tutor.state import TutorTurnState
 from netra_api.platform.auth_context import AuthContext
@@ -251,9 +252,8 @@ class TutorGateway:
                 run.cancel()
                 await asyncio.gather(run, return_exceptions=True)
         if run in done and isinstance(run.exception(), NotImplementedError):
-            # M4's check_understanding path fails closed on the open D2
-            # grounding decision. That is a pending product decision, not a
-            # crash and not a teaching result.
+            # A Tutor capability blocked on an unmade decision is a pending
+            # capability, not a crash and not a teaching result.
             raise HandoffRejectedError("tutor_capability_pending_decision")
         if run not in done:
             if budget.cancelled:
@@ -288,8 +288,11 @@ class TutorGateway:
         if approved is None:
             raise HandoffRejectedError("question_not_persisted_before_delivery")
 
+        # Only a short answer's key is answer text. For choice kinds it is an
+        # option id ("a", "true") and the options are public anyway; matching
+        # the id would flag "2 A" (amperes) as a leak of option "a".
         correct = getattr(getattr(approved, "answer_key", None), "correct_answer", None)
-        if correct and len(correct.strip()) > 0:
+        if approved.kind == QuestionKind.SHORT_ANSWER and correct and len(correct.strip()) > 0:
             pattern = re.compile(r"(?<!\w)" + re.escape(correct.strip()) + r"(?!\w)", re.IGNORECASE)
             for segment in result.public_segments:
                 if pattern.search(segment.text):

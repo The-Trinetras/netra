@@ -1,0 +1,14 @@
+{
+  "protocol_version": "1.0",
+  "message_id": "7c2d9e4b-2222-4b3c-8d4e-000000000003",
+  "session_id": "cbfbf24a-eaf7-4a56-9ea9-1abbf160d88f",
+  "request_id": "8a0e6c1f-3b52-4d7a-a1c4-5e2f7b9d0c11",
+  "sequence": 41,
+  "type": "asr.transcript",
+  "payload": {
+    "capture_id": "0d6f4e2a-9c1b-4f3e-8a7d-2b5c6e1f0a93",
+    "transcript_id": "e3a1b7c9-4d2f-4a6b-9e8c-1f0d2b3a4c5e",
+    "text": "Can you explain congestion control?",
+    "is_final": true
+  }
+}

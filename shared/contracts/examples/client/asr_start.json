@@ -1,0 +1,11 @@
+{
+  "protocol_version": "1.0",
+  "message_id": "5f1b2c3d-1111-4a2b-9c3d-000000000002",
+  "session_id": "cbfbf24a-eaf7-4a56-9ea9-1abbf160d88f",
+  "request_id": "8a0e6c1f-3b52-4d7a-a1c4-5e2f7b9d0c11",
+  "sequence": 13,
+  "type": "asr.start",
+  "payload": {
+    "capture_id": "0d6f4e2a-9c1b-4f3e-8a7d-2b5c6e1f0a93"
+  }
+}

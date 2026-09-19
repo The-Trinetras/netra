@@ -3,8 +3,8 @@
 # Authority split (docs/architecture/runtime-baseline.md, "Dependency
 # authority"):
 #   - The ROOT pyproject.toml owns every approved dependency constraint,
-#     the shared CPython version, and the pytest configuration for the
-#     whole monorepo. Do not restate a dependency version here; two
+#     and the shared CPython version; the root pytest.ini configures
+#     pytest for the whole monorepo. Do not restate a dependency version here; two
 #     sources of truth is exactly what that section forbids.
 #   - The committed ROOT uv.lock owns exact resolved versions.
 #   - This file owns the API deployable's own identity and documents how

@@ -1,6 +1,8 @@
 # Python
 __pycache__/
-*.pyc
+*.py[cod]
+.venv/
+venv/
 .pytest_cache/
 .pytest-tmp*/
 *.egg-info/
@@ -23,3 +25,11 @@ obj/
 # by source/version ID and SHA-256 (see evaluation/cases/README.md).
 evaluation/fixtures/documents/
 evaluation/fixtures/_netra/
+
+# agentic-slice-kit run state: run databases and local reports stay local
+*.db
+*.db-wal
+*.db-shm
+out/
+bakeoff_raw.txt
+.DS_Store

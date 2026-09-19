@@ -1,0 +1,60 @@
+#!/bin/bash
+# Application host bootstrap (Ubuntu 24.04 arm64). Installs Docker with the
+# Compose plugin, the AWS CLI and certbot, and installs netra-render-env,
+# which writes the root-only Compose env file from Secrets Manager and SSM
+# Parameter Store at deploy time. No secret value appears in user data.
+set -euo pipefail
+
+export DEBIAN_FRONTEND=noninteractive
+apt-get update
+apt-get install -y ca-certificates curl jq unzip docker.io docker-compose-v2 certbot git
+systemctl enable --now docker
+curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-aarch64.zip" -o /tmp/awscliv2.zip
+unzip -q /tmp/awscliv2.zip -d /tmp
+/tmp/aws/install --update
+rm -rf /tmp/aws /tmp/awscliv2.zip
+systemctl enable --now snap.amazon-ssm-agent.amazon-ssm-agent.service || snap start amazon-ssm-agent
+
+install -d -m 0700 -o root -g root /etc/netra
+install -d -m 0755 /var/www/certbot /opt/netra
+
+cat >/usr/local/sbin/netra-render-env <<'SCRIPT'
+#!/bin/bash
+# Render /etc/netra/netra.env (mode 0600) for docker compose. Rerun after a
+# secret or parameter changes, then restart the services.
+set -euo pipefail
+REGION='${aws_region}'
+PREFIX='${parameter_prefix}'
+DB_SECRET='${database_secret_arn}'
+ENV_SECRET='${environment_secret_arn}'
+OUT=/etc/netra/netra.env
+
+param() { aws ssm get-parameter --region "$REGION" --name "$PREFIX/$1" --query Parameter.Value --output text; }
+
+db_json="$(aws secretsmanager get-secret-value --region "$REGION" --secret-id "$DB_SECRET" --query SecretString --output text)"
+db_user="$(jq -er '.username' <<<"$db_json")"
+db_password="$(jq -er '.password' <<<"$db_json")"
+env_json="$(aws secretsmanager get-secret-value --region "$REGION" --secret-id "$ENV_SECRET" --query SecretString --output text 2>/dev/null || echo '{}')"
+
+tmp="$(mktemp /etc/netra/.netra.env.XXXXXX)"
+chmod 0600 "$tmp"
+{
+  echo "NETRA_DATABASE_URL=postgresql+asyncpg://$db_user:$db_password@$(param pgbouncer_host):6432/$(param database_name)"
+  echo "NETRA_STORAGE_PROVIDER=s3"
+  echo "NETRA_S3_BUCKET=$(param s3_bucket)"
+  echo "NETRA_AWS_REGION=$(param aws_region)"
+  # Operator-provided NETRA_* settings only. They cannot override the four
+  # values above; other keys and multi-line values are ignored.
+  jq -r '["NETRA_DATABASE_URL","NETRA_STORAGE_PROVIDER","NETRA_S3_BUCKET","NETRA_AWS_REGION"] as $fixed
+    | to_entries[]
+    | select(.key | test("^NETRA_[A-Z0-9_]+$"))
+    | select(.key as $k | ($fixed | index($k)) == null)
+    | select(.value | type == "string")
+    | select(.value | test("[\\n\\r]") | not)
+    | "\(.key)=\(.value)"' <<<"$env_json"
+} >"$tmp"
+mv -f "$tmp" "$OUT"
+unset db_json db_password env_json
+echo "rendered $OUT"
+SCRIPT
+chmod 0700 /usr/local/sbin/netra-render-env

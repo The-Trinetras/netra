@@ -16,7 +16,9 @@ resource "aws_db_instance" "netra" {
   db_subnet_group_name        = aws_db_subnet_group.netra.name
   vpc_security_group_ids      = [aws_security_group.rds.id]
   publicly_accessible         = false
-  backup_retention_period     = 0
+  backup_retention_period     = var.db_backup_retention_days
+  backup_window               = "20:00-21:00"
+  maintenance_window          = "sun:21:30-sun:22:30"
   deletion_protection         = false
   skip_final_snapshot         = false
   final_snapshot_identifier   = "${local.name}-postgres-final"

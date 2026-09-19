@@ -10,6 +10,7 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <TextBlock Grid.Row="0" Text="Netra Study Session" FontSize="20" Margin="0,0,0,8" />
@@ -34,13 +35,25 @@
                    AutomationProperties.LiveSetting="Polite"
                    AutomationProperties.Name="Status" />
 
-        <TextBlock x:Name="InterimRegion" Grid.Row="3" Margin="0,4,0,8"
+        <!-- Voice status and live captions are shown, never announced: they
+             change while the microphone is open, and speech from the screen
+             reader would be recorded into the student's question. What was
+             finally heard is announced through Status once capture ends. -->
+        <TextBlock x:Name="VoiceStatusText" Grid.Row="3" Margin="0,4,0,0"
+                   TextWrapping="Wrap"
+                   AutomationProperties.Name="Voice input status">
+            <Run Text="Voice (hold F9 to speak): " FontWeight="Bold" />
+            <Run Text="{Binding VoiceStatus, Mode=OneWay}" />
+        </TextBlock>
+
+        <TextBlock x:Name="InterimRegion" Grid.Row="4" Margin="0,4,0,8"
                    Text="{Binding InterimTranscript}"
                    FontStyle="Italic"
-                   AutomationProperties.LiveSetting="Polite"
+                   TextWrapping="Wrap"
+                   AutomationProperties.LiveSetting="Off"
                    AutomationProperties.Name="Live captioning" />
 
-        <Grid Grid.Row="4">
+        <Grid Grid.Row="5">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />

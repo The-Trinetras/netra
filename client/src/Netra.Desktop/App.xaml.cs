@@ -41,6 +41,7 @@ public partial class App : Application
     private SegmentPlaybackQueue? _segmentPlaybackQueue;
     private TempFileSegmentAudioStore? _segmentAudioStore;
     private ShellViewModel? _shellViewModel;
+    private MicrophoneCapture? _speechInputService;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -93,7 +94,11 @@ public partial class App : Application
         _segmentPlaybackQueue = segmentPlaybackQueue;
         playbackController.PlaybackFailed += segmentPlaybackQueue.OnPlaybackFailed;
 
-        var speechInputService = new MicrophoneCapture();
+        // Voice input over the live connection (D-MIC; C1 pending). In
+        // fixture mode the socket never connects, so a press says voice
+        // input needs a connection and the microphone is never opened.
+        var speechInputService = new MicrophoneCapture(connectionManager);
+        _speechInputService = speechInputService;
         var liveRegionAnnouncer = new LiveRegionAnnouncer();
         var focusService = new FocusService();
         var uiDispatcher = new WpfUiDispatcher(Dispatcher);
@@ -136,11 +141,7 @@ public partial class App : Application
         var shellViewModel = new ShellViewModel(libraryViewModel, studyViewModel, conversationViewModel, preferencesViewModel);
         _shellViewModel = shellViewModel;
 
-        var pushToTalkController = new PushToTalkController(
-            playbackController,
-            interruptionController,
-            speechInputService,
-            () => conversationViewModel.ReportStatus("Voice input is not available in this version. Type your question instead."));
+        var pushToTalkController = new PushToTalkController(playbackController, interruptionController, speechInputService);
 
         var libraryView = new LibraryView();
         var studyView = new StudyView();
@@ -237,6 +238,7 @@ public partial class App : Application
 
     protected override async void OnExit(ExitEventArgs e)
     {
+        _speechInputService?.Dispose();
         _shellViewModel?.Dispose();
         _playbackAcknowledger?.Dispose();
         _segmentPlaybackQueue?.Dispose();

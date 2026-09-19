@@ -1,6 +1,7 @@
 using System.Threading;
 using Netra.Desktop.Protocol;
 using Netra.Desktop.Protocol.Dto;
+using Netra.Desktop.Speech;
 using Netra.Desktop.State;
 
 namespace Netra.Desktop.Networking;
@@ -9,7 +10,7 @@ namespace Netra.Desktop.Networking;
 // the typed message layer. Session/request identifiers are tracked on
 // ClientSessionState per CLAUDE.md ("Client must track request/generation
 // identifiers").
-public sealed class ConnectionManager : IAsyncDisposable
+public sealed class ConnectionManager : IAsyncDisposable, IAsrChannel
 {
     private readonly INetraWebSocketClient _webSocketClient;
     private readonly ClientSessionState _sessionState;
@@ -39,6 +40,8 @@ public sealed class ConnectionManager : IAsyncDisposable
     // current generation on disconnect without depending on the transport
     // interface directly.
     public event EventHandler? Disconnected;
+
+    public bool IsConnected => _webSocketClient.IsConnected;
 
     public Task ConnectAsync(Uri endpoint, CancellationToken cancellationToken) =>
         _webSocketClient.ConnectAsync(endpoint, cancellationToken);
@@ -85,6 +88,20 @@ public sealed class ConnectionManager : IAsyncDisposable
     public Task SendPlaybackAckAsync(PlaybackAckPayload payload, CancellationToken cancellationToken) =>
         SendAsync((requestId, sequence) =>
             MessageFactory.CreatePlaybackAck(_sessionState.SessionId, requestId, sequence, payload), cancellationToken);
+
+    // One capture is one logical action: its request_id correlates the
+    // server's asr.ready, asr.transcript and any error. Not a session
+    // mutation, so it is never resent after a reconnect (the capture ends).
+    // The caller mints request_id first, so a reply that races this send's
+    // completion still matches its capture.
+    public Task SendAsrStartAsync(Guid requestId, AsrStartPayload payload, CancellationToken cancellationToken) =>
+        SendAsync(
+            requestId,
+            (id, sequence) => MessageFactory.CreateAsrStart(_sessionState.SessionId, id, sequence, payload),
+            cancellationToken);
+
+    public Task SendMicrophoneFrameAsync(ReadOnlyMemory<byte> frame, CancellationToken cancellationToken) =>
+        _webSocketClient.SendBinaryAsync(frame, cancellationToken);
 
     // message_id is minted fresh per transmission (inside MessageFactory);
     // request_id is minted once per logical action and passed in here,

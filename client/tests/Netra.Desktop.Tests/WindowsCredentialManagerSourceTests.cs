@@ -19,7 +19,7 @@ public sealed class WindowsCredentialManagerSourceTests
         Assert.Null(WindowsCredentialManagerSource.DecodeSecret(ReadOnlySpan<byte>.Empty));
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task AnAbsentCredentialIsNoCredential()
     {
         var source = new WindowsCredentialManagerSource($"Netra:test-absent-{Guid.NewGuid():N}");

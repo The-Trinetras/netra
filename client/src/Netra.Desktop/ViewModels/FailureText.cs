@@ -19,6 +19,7 @@ public static class FailureText
         // HttpClient reports its own timeout as a cancellation the caller did not request.
         OperationCanceledException or TimeoutException => $"Timed out trying to {action}. Try again.",
         CredentialUnavailableException => "This computer is not signed in to Netra.",
+        NotConnectedException => $"Not connected to Netra, so Netra could not {action}. Your place is kept; try again when connected.",
         CredentialRejectedException => SignInNotAccepted,
         ApiErrorException { Error.Code: ErrorCode.AuthRequired } => SignInNotAccepted,
         ApiErrorException { Error.Code: ErrorCode.AuthorizationDenied } => $"You do not have access to {action}.",

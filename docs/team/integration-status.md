@@ -14,6 +14,7 @@ production readiness.
 | Item | Branch | Result | Remaining owner/gate |
 |---|---|---|---|
 | F1 / M5-LOCK | `arun/F1-nuget-lock` from fetched main `ab92908` | Both NuGet locks generated; default locked restore; approved WebView2 exactly pinned to 1.0.4191.47. Offline locked restore passes. | Arun: Windows xUnit and Evergreen player validation. |
+| F3 / D-MIC (client) | `arun/F3-voice-capture`, stacked on F1 | WinMM capture, `asr.start` → `asr.ready` gate → 100 ms L16 frames → one final → one voice `turn.submit`; STOP/focus loss discard; no announcements while the microphone is open. 173 portable tests pass on macOS; Windows build compiles; 16 mutations checked. | Arshad: C1 (client review items in the [M5 handoff](handoffs/M5.md#c1-review-from-the-client-side-for-arshad-before-c1-merges)) and Deepgram; Arun: real microphone on Windows. |
 
 Arun explicitly authorized fetch, first NuGet restore and exact runtime setup.
 SDK 10.0.401 installed on macOS after Microsoft SHA-512 verification. Both WPF
@@ -305,7 +306,7 @@ incomplete (partial) · unverified (fixture only) · blocked (decision/hardware/
 | Credential Manager read | partly verified | decode + absent-target read (real `CredReadW`, read-only); reading a stored credential needs a tester-created throw-away entry (opt-in test); **no test writes to the user's vault** |
 | Library view keyboard paths | working (real WPF binding, off-screen window) | `LibraryViewBindingTests` (3); **NVDA announcement not verified** (needs a person) |
 | Audible playback, NVDA, real App startup in live mode | blocked (needs Windows/NVDA session with a person) | not claimed |
-| Voice input | disabled | not claimed; INT-11a mic protocol unapproved |
+| Voice input | client done, server pending (F3) | Client capture and D-MIC protocol tested on fixtures and a real loopback socket; today's server refuses `asr.start`, so the app says voice is not available. Needs C1 + Deepgram (M1) and a Windows microphone run |
 | Upload / YouTube discovery in client | fixture | upload/job contract empty; no discovery route |
 | Optional-check support (D2) | blocked (decision P-1) | binding enforced; support fails closed |
 | Factual activity/assistance/reasoning records (D3) | blocked (review) | proposal code only; no table |

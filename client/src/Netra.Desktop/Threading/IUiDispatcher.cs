@@ -1,10 +1,8 @@
-using System.Windows.Threading;
-
 namespace Netra.Desktop.Threading;
 
 // Marshals a callback onto the UI thread. ConnectionManager.MessageReceived
-// fires from the WebSocket receive loop and ISpeechInputService.TranscriptReceived
-// will fire from a future recognition-provider thread — neither is the UI
+// and ISpeechInputService.TranscriptReceived fire from the WebSocket receive
+// loop, and voice status from the capture's own tasks — none is the UI
 // thread, and WPF collection views (ObservableCollection bound to a
 // ListBox/ItemsControl) are not safe to mutate off it. Every handler that
 // touches bound state goes through this instead of calling WPF types directly,
@@ -13,27 +11,6 @@ namespace Netra.Desktop.Threading;
 public interface IUiDispatcher
 {
     void Invoke(Action action);
-}
-
-public sealed class WpfUiDispatcher : IUiDispatcher
-{
-    private readonly Dispatcher _dispatcher;
-
-    public WpfUiDispatcher(Dispatcher dispatcher)
-    {
-        _dispatcher = dispatcher;
-    }
-
-    public void Invoke(Action action)
-    {
-        if (_dispatcher.CheckAccess())
-        {
-            action();
-            return;
-        }
-
-        _dispatcher.Invoke(action);
-    }
 }
 
 // Test double: runs the action immediately on the calling thread. Suitable

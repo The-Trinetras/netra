@@ -302,7 +302,7 @@ public sealed class LiveServerTests
             // Composed before the library/LiveSession, as in App: its snapshot
             // handler runs before LiveSession's resynchronisation waiter.
             Conversation = new ConversationViewModel(
-                State, Connection, Player, Interruption, Processor, new MicrophoneCapture(), dispatcher, queue, Timeline);
+                State, Connection, Player, Interruption, Processor, new MicrophoneCapture(Connection), dispatcher, queue, Timeline);
             Connection.MessageReceived += (_, envelope) => _messages.Enqueue(envelope);
             Socket.BinaryMessageReceived += (_, _) => Interlocked.Increment(ref _rawFrames);
             Processor.AudioBytesAdmitted += (_, frame) => Admitted.Enqueue(frame.Header);

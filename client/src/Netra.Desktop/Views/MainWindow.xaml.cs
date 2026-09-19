@@ -51,6 +51,7 @@ public partial class MainWindow : Window
 
         Loaded += OnLoaded;
         Closed += OnClosed;
+        Deactivated += OnDeactivated;
         PreviewKeyDown += OnPreviewKeyDown;
         PreviewKeyUp += OnPreviewKeyUp;
     }
@@ -111,6 +112,9 @@ public partial class MainWindow : Window
         e.Handled = true;
         _pushToTalkController.OnKeyUp();
     }
+
+    // The push-to-talk key-up would go to another window: discard the capture.
+    private void OnDeactivated(object? sender, EventArgs e) => _pushToTalkController.OnFocusLost();
 
     private void OnClosed(object? sender, EventArgs e) => _globalHotKeyService?.Dispose();
 

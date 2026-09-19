@@ -30,6 +30,10 @@ public static class MessageFactory
         Guid sessionId, Guid requestId, long sequence, PlaybackAckPayload payload) =>
         Create(sessionId, requestId, sequence, ClientMessageType.PlaybackAck, payload);
 
+    public static ClientToServerEnvelope CreateAsrStart(
+        Guid sessionId, Guid requestId, long sequence, AsrStartPayload payload) =>
+        Create(sessionId, requestId, sequence, ClientMessageType.AsrStart, payload);
+
     public static string Serialize(ClientToServerEnvelope envelope) =>
         JsonSerializer.Serialize(envelope, NetraJsonSerialization.Options);
 

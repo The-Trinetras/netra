@@ -65,7 +65,7 @@ public sealed class SessionSnapshotHandlingTests
         var playbackController = new NoOpPlaybackController();
         var interruptionController = new InterruptionController(playbackController, connectionManager);
         var binaryAudioFrameProcessor = new BinaryAudioFrameProcessor(interruptionController);
-        var speechInputService = new MicrophoneCapture();
+        var speechInputService = new MicrophoneCapture(connectionManager);
 
         var viewModel = new ConversationViewModel(
             sessionState, connectionManager, playbackController, interruptionController,
@@ -171,6 +171,8 @@ public sealed class SessionSnapshotHandlingTests
         public void RaiseTextMessageReceived(string json) => TextMessageReceived?.Invoke(this, json);
 
         public Task ConnectAsync(Uri endpoint, CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task SendBinaryAsync(ReadOnlyMemory<byte> message, CancellationToken cancellationToken) => Task.CompletedTask;
 
         public Task SendTextAsync(string message, CancellationToken cancellationToken) => Task.CompletedTask;
 

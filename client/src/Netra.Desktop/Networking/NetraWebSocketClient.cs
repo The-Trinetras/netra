@@ -6,12 +6,11 @@ using System.Threading;
 
 namespace Netra.Desktop.Networking;
 
-// Transport-level abstraction over the single control WebSocket. Carries
-// JSON protocol envelopes only. Per CLAUDE.md protocol rules ("Audio is not
-// transported as large base64 JSON payloads"), binary frames are exposed
-// separately via BinaryMessageReceived rather than folded into JSON text
-// messages; routing them to playback is a TODO until the binary audio
-// framing is defined (see the receive loop below).
+// Transport-level abstraction over the single control WebSocket. JSON
+// protocol envelopes travel as text messages. Per CLAUDE.md protocol rules
+// ("Audio is not transported as large base64 JSON payloads"), audio travels
+// as binary messages: server playback frames arrive on BinaryMessageReceived,
+// and microphone frames (D-MIC, pending C1) leave through SendBinaryAsync.
 public interface INetraWebSocketClient : IAsyncDisposable
 {
     bool IsConnected { get; }
@@ -23,7 +22,18 @@ public interface INetraWebSocketClient : IAsyncDisposable
 
     Task ConnectAsync(Uri endpoint, CancellationToken cancellationToken);
     Task SendTextAsync(string message, CancellationToken cancellationToken);
+    Task SendBinaryAsync(ReadOnlyMemory<byte> message, CancellationToken cancellationToken);
     Task CloseAsync(CancellationToken cancellationToken);
+}
+
+// A send while the socket is not open. Nothing was transmitted, so the
+// student can be told plainly that the action did not reach Netra.
+public sealed class NotConnectedException : InvalidOperationException
+{
+    public NotConnectedException()
+        : base("WebSocket is not connected.")
+    {
+    }
 }
 
 public sealed class NetraWebSocketClient : INetraWebSocketClient
@@ -103,15 +113,30 @@ public sealed class NetraWebSocketClient : INetraWebSocketClient
     {
         if (_socket is not { State: WebSocketState.Open } socket)
         {
-            throw new InvalidOperationException("WebSocket is not connected.");
+            throw new NotConnectedException();
         }
 
         var bytes = Encoding.UTF8.GetBytes(message);
+        await SendAsync(socket, bytes, WebSocketMessageType.Text, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task SendBinaryAsync(ReadOnlyMemory<byte> message, CancellationToken cancellationToken)
+    {
+        if (_socket is not { State: WebSocketState.Open } socket)
+        {
+            throw new NotConnectedException();
+        }
+
+        await SendAsync(socket, message, WebSocketMessageType.Binary, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task SendAsync(
+        ClientWebSocket socket, ReadOnlyMemory<byte> bytes, WebSocketMessageType type, CancellationToken cancellationToken)
+    {
         await _sendLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            await socket.SendAsync(bytes, WebSocketMessageType.Text, endOfMessage: true, cancellationToken)
-                .ConfigureAwait(false);
+            await socket.SendAsync(bytes, type, endOfMessage: true, cancellationToken).ConfigureAwait(false);
         }
         finally
         {

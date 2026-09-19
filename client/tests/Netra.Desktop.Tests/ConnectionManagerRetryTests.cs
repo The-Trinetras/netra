@@ -150,6 +150,8 @@ public sealed class ConnectionManagerRetryTests
 
         public Task ConnectAsync(Uri endpoint, CancellationToken cancellationToken) => Task.CompletedTask;
 
+        public Task SendBinaryAsync(ReadOnlyMemory<byte> message, CancellationToken cancellationToken) => Task.CompletedTask;
+
         public Task SendTextAsync(string message, CancellationToken cancellationToken)
         {
             SentMessages.Add(message);

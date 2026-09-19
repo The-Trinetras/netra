@@ -54,6 +54,7 @@ public sealed class ConversationViewModel : ViewModelBase, IDisposable
     private string _inputText = string.Empty;
     private string _interimTranscript = string.Empty;
     private string _statusMessage = string.Empty;
+    private string _voiceStatus = "Voice input off.";
 
     public ConversationViewModel(
         ClientSessionState sessionState,
@@ -83,10 +84,11 @@ public sealed class ConversationViewModel : ViewModelBase, IDisposable
 
         _connectionManager.MessageReceived += OnServerMessageReceived;
         _speechInputService.TranscriptReceived += OnTranscriptReceived;
+        _speechInputService.StatusChanged += OnVoiceStatusChanged;
 
-        SubmitCommand = new RelayCommand(_ => FireAndForget(SubmitAsync), _ => CanSubmit());
-        StopCommand = new RelayCommand(_ => FireAndForget(StopAsync));
-        NavigationCommandRequest = new RelayCommand(parameter => FireAndForget(() => SendNavigationCommandAsync(parameter)));
+        SubmitCommand = new RelayCommand(_ => FireAndForget(SubmitTypedAsync, "send your question"), _ => CanSubmit());
+        StopCommand = new RelayCommand(_ => FireAndForget(StopAsync, "stop"));
+        NavigationCommandRequest = new RelayCommand(parameter => FireAndForget(() => SendNavigationCommandAsync(parameter), "send that command"));
     }
 
     public ObservableCollection<TranscriptLine> Transcript { get; } = new();
@@ -109,24 +111,39 @@ public sealed class ConversationViewModel : ViewModelBase, IDisposable
         private set => SetField(ref _statusMessage, value);
     }
 
+    // Shown, not announced: it changes while the microphone is open, and a
+    // screen reader reading it aloud would be recorded into the question.
+    // Announcements that matter arrive through StatusMessage once capture ends.
+    public string VoiceStatus
+    {
+        get => _voiceStatus;
+        private set => SetField(ref _voiceStatus, value);
+    }
+
     public ICommand SubmitCommand { get; }
     public ICommand StopCommand { get; }
     public ICommand NavigationCommandRequest { get; }
 
     private bool CanSubmit() => !string.IsNullOrWhiteSpace(InputText);
 
-    private Task SubmitAsync() => SubmitAsync(Protocol.Dto.InputMode.Keyboard);
-
-    private async Task SubmitAsync(Protocol.Dto.InputMode inputMode)
+    private Task SubmitTypedAsync()
     {
         var utterance = InputText.Trim();
         if (utterance.Length == 0)
         {
-            return;
+            return Task.CompletedTask;
         }
 
         InputText = string.Empty;
-        Transcript.Add(new TranscriptLine { Speaker = "You", Text = utterance });
+        return SubmitAsync(utterance, Protocol.Dto.InputMode.Keyboard);
+    }
+
+    // The typed draft in InputText is left alone for a voice turn: speaking
+    // must not overwrite what the student was typing.
+    private async Task SubmitAsync(string utterance, Protocol.Dto.InputMode inputMode)
+    {
+        var speaker = inputMode == Protocol.Dto.InputMode.Voice ? "You (voice)" : "You";
+        _dispatcher.Invoke(() => Transcript.Add(new TranscriptLine { Speaker = speaker, Text = utterance }));
 
         await _connectionManager.SendTurnSubmitAsync(
             new TurnSubmitPayload
@@ -145,10 +162,23 @@ public sealed class ConversationViewModel : ViewModelBase, IDisposable
 
     private async Task StopAsync()
     {
+        // STOP also ends a capture in progress: nothing of it is sent on.
+        _speechInputService.AbortListening();
+
         // Local stop is synchronous inside InterruptionController.StopAsync;
         // the server is only notified after playback has already halted.
-        await _interruptionController.StopAsync(CancelReason.UserStop, CancellationToken.None).ConfigureAwait(false);
-        StatusMessage = "Stopped.";
+        // Local silence and fencing do not depend on that notification (a
+        // disconnect fences the generation too), so a cancel that cannot be
+        // sent must not contradict the stop the student already heard.
+        try
+        {
+            await _interruptionController.StopAsync(CancelReason.UserStop, CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (Exception)
+        {
+        }
+
+        ReportStatus("Stopped.");
     }
 
     private async Task SendNavigationCommandAsync(object? parameter)
@@ -167,8 +197,8 @@ public sealed class ConversationViewModel : ViewModelBase, IDisposable
             CancellationToken.None).ConfigureAwait(false);
     }
 
-    // Fires from a future recognition-provider thread, not the UI thread —
-    // every mutation below is marshaled.
+    // Fires from the WebSocket receive loop (asr.transcript), not the UI
+    // thread — every mutation below is marshaled.
     private void OnTranscriptReceived(object? sender, TranscriptReceivedEventArgs e)
     {
         if (!e.IsFinal)
@@ -184,14 +214,38 @@ public sealed class ConversationViewModel : ViewModelBase, IDisposable
         // A provider that redelivers the same final result must not create
         // a second turn (client.md: "Deduplicate repeated final events
         // according to protocol identity").
-        if (!_submittedTranscriptIds.Add(e.TranscriptId))
+        lock (_submittedTranscriptIds)
         {
-            return;
+            if (!_submittedTranscriptIds.Add(e.TranscriptId))
+            {
+                return;
+            }
         }
 
-        _dispatcher.Invoke(() => InterimTranscript = string.Empty);
-        _dispatcher.Invoke(() => InputText = e.Text);
-        FireAndForget(() => SubmitAsync(Protocol.Dto.InputMode.Voice));
+        _dispatcher.Invoke(() =>
+        {
+            InterimTranscript = string.Empty;
+            // Read back what was heard so a misrecognition can be caught.
+            StatusMessage = $"Heard: {e.Text}";
+        });
+        FireAndForget(() => SubmitAsync(e.Text, Protocol.Dto.InputMode.Voice), "send your question");
+    }
+
+    private void OnVoiceStatusChanged(object? sender, VoiceInputStatus status)
+    {
+        _dispatcher.Invoke(() =>
+        {
+            VoiceStatus = status.Message;
+            if (status.State is VoiceInputState.Unavailable or VoiceInputState.Failed)
+            {
+                InterimTranscript = string.Empty;
+            }
+
+            if (status.Announce)
+            {
+                StatusMessage = status.Message;
+            }
+        });
     }
 
     // Fires from the WebSocket receive loop thread, not the UI thread.
@@ -287,6 +341,12 @@ public sealed class ConversationViewModel : ViewModelBase, IDisposable
 
     private void HandleError(ServerToClientEnvelope envelope)
     {
+        // Voice input reports its own errors in its own words.
+        if (_speechInputService is IVoiceRequestOwner voice && voice.OwnsRequest(envelope.RequestId))
+        {
+            return;
+        }
+
         var error = MessageParser.ParseError(envelope);
 
         _dispatcher.Invoke(() =>
@@ -307,17 +367,17 @@ public sealed class ConversationViewModel : ViewModelBase, IDisposable
     // queue, push-to-talk). Marshaled: callers may be on any thread.
     public void ReportStatus(string message) => _dispatcher.Invoke(() => StatusMessage = message);
 
-    private static async void FireAndForget(Func<Task> operation)
+    // Never lets an async command crash the app, and never fails silently:
+    // a student who cannot see the screen must hear that nothing happened.
+    private async void FireAndForget(Func<Task> operation, string action)
     {
         try
         {
             await operation().ConfigureAwait(false);
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            // TODO: surface command failures via StatusMessage/IScreenReaderService
-            // once an error-presentation policy is defined. Never let an
-            // async command crash the app.
+            ReportStatus(FailureText.Describe(ex, action, CancellationToken.None));
         }
     }
 
@@ -325,5 +385,6 @@ public sealed class ConversationViewModel : ViewModelBase, IDisposable
     {
         _connectionManager.MessageReceived -= OnServerMessageReceived;
         _speechInputService.TranscriptReceived -= OnTranscriptReceived;
+        _speechInputService.StatusChanged -= OnVoiceStatusChanged;
     }
 }

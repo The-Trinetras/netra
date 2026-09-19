@@ -42,3 +42,11 @@ public sealed record PlaybackAckPayload
     public required PlaybackAckStatus Status { get; init; }
     public long? PlayedMs { get; init; }
 }
+
+// asr.start (pending C1): opens one push-to-talk capture. Audio frames for
+// capture_id follow only after the server answers asr.ready.
+public sealed record AsrStartPayload
+{
+    public required Guid CaptureId { get; init; }
+    public required string MediaType { get; init; }
+}

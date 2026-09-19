@@ -1,4 +1,4 @@
-"""Migrations 0005, 0009 and 0010 must create exactly the tables M1 declared in M1_METADATA.
+"""Migrations 0005 and 0009-0011 must create exactly the tables M1 declared in M1_METADATA.
 
 Runs the migration's ``upgrade()`` against a recording stand-in for
 ``alembic.op`` (no database) and compares every table, column type,
@@ -18,11 +18,12 @@ from sqlalchemy.dialects import postgresql
 
 import netra_api.identity.postgres  # noqa: F401  (populates M1_METADATA)
 import netra_api.session.postgres  # noqa: F401
+import netra_api.speech.postgres  # noqa: F401
 from netra_api.platform.database import M1_METADATA
 
 VERSIONS = Path(__file__).parents[2] / "migrations" / "versions"
 MIGRATION = VERSIONS / "0005_m1_identity_session.py"
-M1_MIGRATIONS = (MIGRATION, VERSIONS / "0009_m1_access_codes.py", VERSIONS / "0010_m1_turn_budgets.py")
+M1_MIGRATIONS = (MIGRATION, VERSIONS / "0009_m1_access_codes.py", VERSIONS / "0010_m1_turn_budgets.py", VERSIONS / "0011_m1_speech_quota.py")
 DIALECT = postgresql.dialect()
 
 
@@ -102,3 +103,8 @@ def test_migration_0009_follows_0008_and_downgrades_what_it_creates():
 def test_migration_0010_follows_0009_and_downgrades_what_it_creates():
     source = (VERSIONS / "0010_m1_turn_budgets.py").read_text(encoding="utf-8")
     assert 'down_revision = "0009_m1_access_codes"' in source and 'op.drop_table("turn_budgets")' in source
+
+
+def test_migration_0011_follows_0010_and_downgrades_what_it_creates():
+    source = (VERSIONS / "0011_m1_speech_quota.py").read_text(encoding="utf-8")
+    assert 'down_revision = "0010_m1_turn_budgets"' in source and 'op.drop_table("speech_quota_usage")' in source

@@ -62,6 +62,7 @@ from netra_api.session.outputs import ResponsePlan
 from netra_api.session.service import SessionService
 from netra_api.session.state import ActiveLessonRef, SessionState
 from netra_api.speech.playback_metadata import CancelReasonName, DeliveredSentence, Generation, GenerationRegistry
+from netra_api.speech.quota import SpeechQuotaExhaustedError
 from netra_api.speech.synthesis import SpeechOutput
 from netra_api.transport.websocket.serializer import (
     PROTOCOL_VERSION,
@@ -90,6 +91,13 @@ def _log_unexpected(event: str, exc: BaseException) -> None:
     frames = "".join(traceback.format_tb(exc.__traceback__)).rstrip()
     logger.error("%s: %s\n%s", event, type(exc).__name__, frames)
 
+
+SPEECH_LIMIT_NOTICE = {
+    "code": "RESOURCE_UNAVAILABLE",
+    "message": "Today's speech limit is used up. Netra will keep answering in text.",
+    "retryable": False,
+    "details": {"reason": "speech_quota_exhausted"},
+}
 
 SendText = Callable[[str], Awaitable[None]]
 SendBytes = Callable[[bytes], Awaitable[None]]
@@ -274,6 +282,7 @@ class Connection:
     _sessions: set[UUID] = field(default_factory=set)
     _tasks: set[asyncio.Task] = field(default_factory=set)
     _budget_writes: set[asyncio.Task] = field(default_factory=set)
+    _speech_limit_told: bool = False
     _closed: bool = False
 
     # -- sending ---------------------------------------------------------------
@@ -686,15 +695,31 @@ class Connection:
                 if info.get("origin") == "source_reading"
                 else f"account:{auth.account_id}"
             )
-            sent = await self.services.speech.speak_segment(
-                auth,
-                generation,
-                segment_id=segment["segment_id"],
-                text=segment["text"],
-                access_scope=scope,
-                end_of_generation=index == len(segments) - 1,
-                send_bytes=self._send_bytes,
-            )
+            try:
+                sent = await self.services.speech.speak_segment(
+                    auth,
+                    generation,
+                    segment_id=segment["segment_id"],
+                    text=segment["text"],
+                    access_scope=scope,
+                    end_of_generation=index == len(segments) - 1,
+                    send_bytes=self._send_bytes,
+                )
+            except SpeechQuotaExhaustedError:
+                await self._tell_speech_limit(auth)
+                break
             if not sent and generation.is_cancelled:
                 return
         self.services.generations.complete(generation)
+
+    async def _tell_speech_limit(self, auth: AuthContext) -> None:
+        """D-QUOTA: say once per connection that replies continue as text only.
+
+        A notice, not a failure: the reply's text was already delivered, so it
+        is not retryable and carries details.reason for the client.
+        """
+
+        if self._speech_limit_told:
+            return
+        self._speech_limit_told = True
+        await self._send_message(auth.session_id, auth.request_id, "error", SPEECH_LIMIT_NOTICE)

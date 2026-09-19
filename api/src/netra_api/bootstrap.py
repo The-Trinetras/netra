@@ -236,6 +236,20 @@ def production_dependencies(engine: Any, tracer: Optional[Tracer] = None,
             pending_questions=learning,
             learning_service=LearningService(learning, None, learning),
         )
+    if (settings.elevenlabs_api_key is not None and settings.elevenlabs_model_id
+            and settings.elevenlabs_voice_id):
+        from netra_api.speech.postgres import PostgresQuotaLedger
+        from netra_api.speech.providers.elevenlabs import build_elevenlabs_synthesizer
+        from netra_api.speech.synthesis import BoundedAudioCache
+
+        synthesizer = build_elevenlabs_synthesizer(
+            api_key=settings.elevenlabs_api_key.get_secret_value(), model_id=settings.elevenlabs_model_id,
+            voice_id=settings.elevenlabs_voice_id, output_format=settings.elevenlabs_output_format,
+            timeout_seconds=settings.elevenlabs_timeout_seconds)
+        # compose() binds the transport's GenerationRegistry.
+        dependencies.speech_output = SpeechOutput(
+            synthesizer, PostgresQuotaLedger(engine, settings.speech_daily_characters), BoundedAudioCache(),
+            GenerationRegistry())
     return dependencies
 
 
@@ -313,13 +327,15 @@ def compose(
 
     base_sink = trace_sink or (LoggingTraceSink() if settings.trace_to_log else InMemoryTraceSink())
     sink = FanOutTraceSink(base_sink, TracingTraceSink(tracer)) if tracer.enabled else base_sink
+    generations = GenerationRegistry()
     if dependencies.speech_output is not None:
         dependencies.speech_output.tracer = tracer
+        dependencies.speech_output.registry = generations
     services = TransportServices(
         identity=IdentityService(repositories.identity),
         sessions=sessions,
         navigator=navigator,
-        generations=GenerationRegistry(),
+        generations=generations,
         turns=TurnRegistry(),
         trace_sink=sink,
         coordinator=coordinator,

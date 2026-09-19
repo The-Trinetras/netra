@@ -13,7 +13,7 @@ from collections import Counter
 from typing import Any
 from uuid import NAMESPACE_URL, uuid5
 
-import fitz
+import pymupdf
 from pydantic import BaseModel, Field
 
 from netra_api.content.providers.llamaparse import ParsedBlock
@@ -48,8 +48,8 @@ class PyMuPDFDocumentParser:
             return PdfParseResult(status=PdfParseStatus.EMPTY)
         digest = hashlib.sha256(pdf_bytes).hexdigest()
         try:
-            document = fitz.open(stream=pdf_bytes, filetype="pdf")
-        except (fitz.FileDataError, RuntimeError, ValueError) as exc:
+            document = pymupdf.open(stream=pdf_bytes, filetype="pdf")
+        except (pymupdf.FileDataError, RuntimeError, ValueError) as exc:
             raise PdfParseError("invalid PDF input") from exc
 
         with document:
@@ -112,7 +112,7 @@ class PyMuPDFDocumentParser:
                 if page_has_image and not page_has_text:
                     ocr_pages += 1
 
-            metadata = {"sha256": digest, "parser": "pymupdf", "parser_version": fitz.VersionBind,
+            metadata = {"sha256": digest, "parser": "pymupdf", "parser_version": pymupdf.VersionBind,
                         "native_pages": text_pages, "ocr_pages": ocr_pages}
             if ocr_pages:
                 return PdfParseResult(status=PdfParseStatus.OCR_REQUIRED, blocks=blocks,
@@ -128,8 +128,8 @@ class PyMuPDFDocumentParser:
             return native
         digest = hashlib.sha256(pdf_bytes).hexdigest()
         try:
-            document = fitz.open(stream=pdf_bytes, filetype="pdf")
-        except (fitz.FileDataError, RuntimeError, ValueError) as exc:
+            document = pymupdf.open(stream=pdf_bytes, filetype="pdf")
+        except (pymupdf.FileDataError, RuntimeError, ValueError) as exc:
             raise PdfParseError("invalid PDF input") from exc
         with document:
             native_by_page: dict[int, list[ParsedBlock]] = {}
@@ -171,7 +171,7 @@ class PyMuPDFDocumentParser:
                                                    "ocr_pages": ocr_page_count})
 
     @staticmethod
-    def _style_sizes(document: fitz.Document) -> list[float]:
+    def _style_sizes(document: pymupdf.Document) -> list[float]:
         sizes: list[float] = []
         for page in document:
             for block in page.get_text("dict", sort=True).get("blocks", []):
@@ -180,7 +180,7 @@ class PyMuPDFDocumentParser:
         return [size for size in sizes if size > 0]
 
     @staticmethod
-    def _block(text: str, block_type: str, page: fitz.Page, raw: dict[str, Any], parent_id: str,
+    def _block(text: str, block_type: str, page: pymupdf.Page, raw: dict[str, Any], parent_id: str,
                parent_path: tuple[str, ...], digest: str) -> ParsedBlock:
         bbox = [round(float(value), 3) for value in raw.get("bbox", (0, 0, 0, 0))]
         location = {"page_index": page.number, "bbox": bbox, "parent_id": parent_id,

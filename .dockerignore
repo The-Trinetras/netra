@@ -1,0 +1,30 @@
+# Build context for infrastructure/docker/*.Dockerfile. Never send secrets,
+# local environments, Terraform state or unrelated trees to the daemon.
+.env
+.env.*
+!.env.example
+**/.venv
+**/__pycache__
+**/*.pyc
+.pytest_cache
+.pytest-tmp*
+.git
+.github
+.claude
+client
+docs
+evaluation
+demo
+slice
+corpus
+web
+scripts
+tests
+api/tests
+worker/tests
+infrastructure
+**/*.tfstate
+**/*.tfstate.*
+**/*.tfvars
+**/*.tfplan
+**/.terraform

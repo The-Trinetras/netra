@@ -50,6 +50,20 @@ class Settings(BaseSettings):
     """Tutor model adapter (groq). Unset -> no Tutor is registered and
     delegation fails closed."""
 
+    openrouter_api_key: Optional[SecretStr] = None
+    """OpenRouter (the Agent-a-thon key). Backs the Coordinator only when
+    gemini_api_key is unset and the Tutor only when groq_api_key is unset, so a
+    configured native adapter is never silently replaced. Read from
+    NETRA_OPENROUTER_API_KEY only: an exported bare OPENROUTER_API_KEY must not
+    quietly turn on paid model calls in the API or its tests."""
+
+    openrouter_coordinator_model: str = "google/gemini-3.8-flash"
+    """The approved Coordinator pin under its OpenRouter id. Pinned, never a
+    ``~latest`` alias or a ``:batch`` variant."""
+
+    openrouter_tutor_model: str = "openai/gpt-oss-120b"
+    """The approved Tutor model; OpenRouter uses the same id as Groq."""
+
     model_request_timeout_seconds: float = Field(default=20.0, gt=0, le=20)
     """Transport timeout for one model request. The Coordinator additionally
     bounds every call by the turn's remaining time; this never exceeds the

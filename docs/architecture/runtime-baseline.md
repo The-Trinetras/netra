@@ -245,3 +245,25 @@ The AgentSpec targets PostgreSQL on RDS via PgBouncer; the historical plan place
 PostgreSQL in Compose. The current Compose file is empty. Preserve the established
 EC2/Compose API-worker boundary; database placement/pooling requires M1/M2 review,
 not an implicit infrastructure migration. See [deployment notes](../../infrastructure/aws/README.md).
+
+## Agent-a-thon layout and OpenRouter (19 September 2026, user-authorized)
+
+The repository now also follows the agentic-slice-kit layout (`slice/`, `demo/`,
+`web/`, `scripts/`, `corpus/`, `.devcontainer/`, `requirements.txt`,
+`pytest.ini`). Recorded changes:
+
+- pytest configuration moved from `pyproject.toml` to the root `pytest.ini`
+  (which pytest would otherwise let silently override it); test paths, markers,
+  asyncio mode and the default `-m "not integration"` are unchanged.
+- `requirements.txt` mirrors `pyproject.toml` for pip and the Codespace, and
+  adds only the kit's `sqlite-vec` and `fastembed`. `pyproject.toml` and
+  `uv.lock` remain the authority for the API/worker images; `uv.lock` was not
+  regenerated and does not contain the two kit packages.
+- The devcontainer uses Python 3.13 so one environment serves both.
+- OpenRouter adapters implement the existing Coordinator and Tutor provider
+  protocols. They are used only when `NETRA_GEMINI_API_KEY` or
+  `NETRA_GROQ_API_KEY` is absent and `NETRA_OPENROUTER_API_KEY` is set, and by
+  default send the same approved models (`google/gemini-3.8-flash`,
+  `openai/gpt-oss-120b`). One attempt per call, no client retry; OpenRouter
+  may route the one request to another host of the same model.
+  Verified against a local mock transport only, not against the live provider.

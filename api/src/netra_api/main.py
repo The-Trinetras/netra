@@ -34,6 +34,8 @@ from fastapi.responses import JSONResponse
 
 from netra_api.bootstrap import Composition, IntegrationDependencies, build_production
 from netra_api.config import Settings
+from netra_api.content.settings import ContentSettings
+from netra_api.content.telemetry import configure_logging
 from netra_api.platform.errors import NetraError
 from netra_api.transport.http.auth import authenticate
 from netra_api.transport.http.health import liveness
@@ -52,6 +54,9 @@ def create_app(
 
     @contextlib.asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+        # OPT-9: the same JSON logging as the worker; the formatter drops
+        # fields named like secrets or content, and handlers log type names only.
+        configure_logging(log_format=ContentSettings().log_format)
         yield
         # Bounded final telemetry flush at orderly shutdown; never per turn.
         await asyncio.to_thread(composition.shutdown)

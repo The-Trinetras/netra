@@ -1,5 +1,9 @@
 # Parallel implementation prompts
 
+**Completion push (20 September 2026):** use the [completion guide and the
+prompts for Arshad, Ashlin and Arun](completion/README.md). The prompts below
+are kept as history.
+
 **Continuing a previous build?** Use the [M1–M5 continuation prompts and integration
 playbook](../integration-playbook.md), not a fresh scaffold task. It includes the
 observed merge state, required incomplete-work reports, dependency review, merge

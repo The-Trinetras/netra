@@ -113,7 +113,7 @@ The result-set model/repository protocol exists in [result_sets.py](../../api/sr
 | Canonical session interaction-mode vocabulary | `idle`, `reading`, `tutor_lesson`, `quiz` — separate from ConnectionState and from playback state; see [data ownership](data-ownership.md) |
 | Binary audio encoding/framing and generation metadata binding | `audio_frame_header.schema.json`; server-to-client only — see flows 6–7 above |
 | Client retry request identity lifecycle | request_id stable per logical action, reused on retransmit; message_id/sequence fresh per frame — see flow 3 above |
-| Microphone upload protocol (D-MIC, 20 September 2026) | `asr.start`, `microphone_frame_header.schema.json`, `asr.transcript` — see flow 3 above; server wiring and the recognition adapter are pending |
+| Microphone upload protocol (D-MIC, 20 September 2026) | `asr.start`, `microphone_frame_header.schema.json`, `asr.transcript` — see flow 3 above; served by `Connection.handle_bytes` and the Deepgram adapter (B1) when `NETRA_DEEPGRAM_API_KEY` and `NETRA_DEEPGRAM_MODEL` are set; STOP or a new press ends a capture that is still receiving audio |
 | Exact Coordinator Gemini model ID | `gemini-3.8-flash` (approved configured pin, not verified provider availability) |
 | S3 SDK/version | `boto3==1.43.92` (approved pin; `uv.lock` regeneration blocked, `uv` not installed) |
 

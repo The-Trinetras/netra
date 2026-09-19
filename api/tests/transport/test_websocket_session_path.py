@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from uuid import uuid4
 
 from netra_api.session.modes import InteractionMode
-from netra_api.transport.websocket.endpoint import CLOSE_POLICY_VIOLATION, CLOSE_UNSUPPORTED_DATA, serve
+from netra_api.transport.websocket.endpoint import CLOSE_INVALID_PAYLOAD, CLOSE_POLICY_VIOLATION, serve
 
 from ohm_fixture import (
     DEVICE,
@@ -66,15 +66,15 @@ async def test_unknown_credential_is_refused_before_accept():
     assert socket.accepted is False
 
 
-async def test_client_binary_frame_is_refused_not_reinterpreted():
+async def test_unreadable_binary_frame_is_refused_not_reinterpreted():
     journey = await build_journey()
     socket, task = await _open(journey)
     socket.inbox.put_nowait({"type": "websocket.receive", "bytes": b"\x00\x00\x00\x02{}"})
     await asyncio.wait_for(task, 2)
-    assert socket.closed_code == CLOSE_UNSUPPORTED_DATA
+    assert socket.closed_code == CLOSE_INVALID_PAYLOAD
 
 
-async def test_asr_start_fails_closed_until_recognition_is_wired():
+async def test_asr_start_fails_closed_without_a_recognizer():
     journey = await build_journey()
     socket, task = await _open(journey)
     responses = await _send(socket, envelope("asr.start", {"capture_id": str(uuid4())}), "error")

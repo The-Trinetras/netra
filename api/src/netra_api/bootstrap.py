@@ -83,6 +83,8 @@ class IntegrationDependencies:
     # M1 providers (behind adapters)
     coordinator_model: Optional[GeminiCoordinatorProvider] = None
     speech_output: Optional[SpeechOutput] = None
+    recognizer: Any = None
+    """D-MIC push-to-talk Recognizer (speech/recognition.py); None -> voice input off."""
 
 
 @dataclass
@@ -250,6 +252,12 @@ def production_dependencies(engine: Any, tracer: Optional[Tracer] = None,
         dependencies.speech_output = SpeechOutput(
             synthesizer, PostgresQuotaLedger(engine, settings.speech_daily_characters), BoundedAudioCache(),
             GenerationRegistry())
+    if settings.deepgram_api_key is not None and settings.deepgram_model:
+        from netra_api.speech.providers.deepgram import DeepgramRecognizer
+
+        dependencies.recognizer = DeepgramRecognizer.from_api_key(
+            settings.deepgram_api_key.get_secret_value(), model=settings.deepgram_model,
+            language=settings.deepgram_language, timeout_seconds=settings.deepgram_timeout_seconds)
     return dependencies
 
 
@@ -343,6 +351,7 @@ def compose(
         speech=dependencies.speech_output,
         tracer=tracer,
         budgets=repositories.budgets,
+        recognizer=dependencies.recognizer,
     )
     registered = {
         "persistence": not isinstance(repositories.sessions, UnavailableRepository),
@@ -351,6 +360,7 @@ def compose(
         "coordinator_model": coordinator is not None,
         "tutor": tutor is not None,
         "speech": dependencies.speech_output is not None,
+        "voice_input": dependencies.recognizer is not None,
         "result_sets": ttl is not None and repositories.result_sets is not None,
         "persisted_turn_budget": repositories.budgets is not None,
         **{f"tool:{name}": True for name in tools},

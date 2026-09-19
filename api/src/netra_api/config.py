@@ -80,6 +80,16 @@ class Settings(BaseSettings):
 
     elevenlabs_timeout_seconds: float = Field(default=10.0, gt=0, le=20)
 
+    deepgram_api_key: Optional[SecretStr] = None
+    """Push-to-talk recognition (D-MIC). Registered only with deepgram_model set
+    too: no recognition model is approved by default."""
+
+    deepgram_model: Optional[str] = None
+    deepgram_language: Optional[str] = None
+    """Unset -> Deepgram's default language."""
+
+    deepgram_timeout_seconds: float = Field(default=10.0, gt=0, le=20)
+
     speech_daily_characters: int = Field(default=20_000, ge=1)
     """D-QUOTA: synthesized characters per student per UTC day."""
 

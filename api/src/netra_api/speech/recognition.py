@@ -6,15 +6,16 @@ turn.submit.transcript_status to "final", so an interim transcript cannot be
 submitted over the wire. This gate applies the same rule wherever a
 recognition adapter produces events server-side.
 
-Microphone upload is contracted (D-MIC: asr.start, microphone frames in
-transport/audio/microphone.py, asr.transcript), but no recognition stream is
-wired to the transport yet, so asr.start fails closed. The client, not the
-server, submits the final transcript as turn.submit.
+Push-to-talk (D-MIC): asr.start opens one Recognizer session per capture;
+the transport forwards the capture's microphone frames and relays its
+transcripts as asr.transcript. The server only transcribes. The final text
+passes accept_final_transcript, and the client submits it as turn.submit, so
+turn.submit stays the one way into a turn.
 """
 
 from __future__ import annotations
 
-from typing import AsyncIterator, Optional, Protocol
+from typing import AsyncContextManager, AsyncIterator, Optional, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -31,8 +32,27 @@ class TranscriptEvent(BaseModel):
     """True only when the adapter reports the utterance as finalized."""
 
 
-class RecognitionAdapter(Protocol):
+class RecognitionSession(Protocol):
+    """One push-to-talk capture at the provider."""
+
+    async def send_audio(self, audio: bytes) -> None:
+        """16 kHz 16-bit little-endian mono PCM."""
+        ...
+
+    async def finish(self) -> None:
+        """No more audio (end_of_utterance): the provider flushes, then the
+        transcripts end with exactly one final event."""
+        ...
+
     def transcripts(self) -> AsyncIterator[TranscriptEvent]:
+        """Interim events while audio arrives, then one final after finish().
+        Raises ProviderUnavailableError if the provider fails or ends early."""
+        ...
+
+
+class Recognizer(Protocol):
+    def session(self) -> AsyncContextManager[RecognitionSession]:
+        """Open a provider session; raises ProviderUnavailableError if it cannot."""
         ...
 
 

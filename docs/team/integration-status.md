@@ -383,7 +383,7 @@ and in AWS Secrets Manager.
 | P-3 | Evidence deleted or re-versioned while a question waits: do not grade, keep the question, tell the student | | M4, M2, M1 |
 | P-4 | `source_version_id` is a UUID string; `evidence_version` is carried on `Evidence` | Already implemented (INT-03) | — |
 | D3 / D-CONCEPT | Adopt M4's factual history records and a curated concept catalog, projected before attempts | M2 migrations, M4 services | M4, M2 |
-| D-BUDGET | Keep 4 decisions / 6 tools / 20 s; persist budget use per request id | Migration (M2), accounting (M1) | M1, M2 |
+| D-BUDGET | Keep 4 decisions / 6 tools / 20 s; persist budget use per request id | Migration (M2), accounting (M1). **A3 built** on `arshad/A3-persisted-budget` (on top of A2): `turn_budgets` table (migration 0010, Ashlin reviews), start recorded before any model call, every increment recorded monotonically; a retransmission after a restart resumes its use and original deadline. Fixture-tested; PostgreSQL test pending the Docker database | M1, M2 |
 | INT-10c | Upload and processing status are read by polling an HTTP job-status route | Job schema (M2), routes (M1), screens (M5) | M2, M1, M5 |
 | D-OWNERS | For the completion push, with Dhanishka (M4) and Sumedhaa (M5) unavailable: Arshad covers M1, M4 and the Modal judge deployment (Ashlin reviews its pins); Ashlin covers M2, infrastructure and the M3 media pipeline; Arun covers M5 and the user-facing M3 pieces | Reviews that `CLAUDE.md` requires from M4 or M5 go to Arshad or Arun respectively; `.github/CODEOWNERS` still names the original owners | Arshad |
 

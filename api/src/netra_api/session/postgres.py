@@ -15,13 +15,14 @@ from datetime import datetime, timezone
 from typing import Any, Optional
 from uuid import UUID
 
-from sqlalchemy import Column, DateTime, Integer, String, Table, Text, and_, insert, select, update
+from sqlalchemy import Column, DateTime, Integer, String, Table, Text, and_, func, insert, select, update
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
 
+from netra_api.coordinator.budget_ledger import BudgetUsage
 from netra_api.platform.database import M1_METADATA
-from netra_api.platform.errors import SessionVersionConflictError
+from netra_api.platform.errors import IdempotencyConflictError, SessionVersionConflictError
 from netra_api.platform.idempotency import RecordedRequest
 from netra_api.session.dialogue import DialogueEntry
 from netra_api.session.repository import RequestAlreadyRecordedError
@@ -232,3 +233,46 @@ class PostgresDialogueLog:
 
 def _now() -> datetime:
     return datetime.now(timezone.utc)
+
+
+turn_budgets = Table(
+    "turn_budgets",
+    M1_METADATA,
+    Column("account_id", PGUUID(as_uuid=True), primary_key=True),
+    Column("request_id", PGUUID(as_uuid=True), primary_key=True),
+    Column("session_id", PGUUID(as_uuid=True), nullable=False),
+    Column("started_at", DateTime(timezone=True), nullable=False),
+    Column("model_decisions_used", Integer, nullable=False),
+    Column("tool_calls_used", Integer, nullable=False),
+    Column("nested_model_calls", Integer, nullable=False),
+)
+"""D-BUDGET: turn budget use per request id (migration 0010)."""
+
+
+class PostgresBudgetLedger:
+    """coordinator/budget_ledger.py's BudgetLedger over ``turn_budgets``."""
+
+    def __init__(self, engine: Any) -> None:
+        self._engine = engine
+
+    async def open(self, account_id: UUID, request_id: UUID, session_id: UUID, now: datetime) -> BudgetUsage:
+        async with self._engine.begin() as connection:
+            await connection.execute(pg_insert(turn_budgets).values(
+                account_id=account_id, request_id=request_id, session_id=session_id, started_at=now,
+                model_decisions_used=0, tool_calls_used=0, nested_model_calls=0,
+            ).on_conflict_do_nothing(index_elements=["account_id", "request_id"]))
+            row = (await connection.execute(select(turn_budgets).where(and_(
+                turn_budgets.c.account_id == account_id, turn_budgets.c.request_id == request_id)))).mappings().one()
+        if row["session_id"] != session_id:
+            raise IdempotencyConflictError(str(request_id))
+        return BudgetUsage(row["started_at"], row["model_decisions_used"], row["tool_calls_used"], row["nested_model_calls"])
+
+    async def record(self, account_id: UUID, request_id: UUID, usage: BudgetUsage) -> None:
+        async with self._engine.begin() as connection:
+            await connection.execute(update(turn_budgets).where(and_(
+                turn_budgets.c.account_id == account_id, turn_budgets.c.request_id == request_id,
+            )).values(
+                model_decisions_used=func.greatest(turn_budgets.c.model_decisions_used, usage.model_decisions_used),
+                tool_calls_used=func.greatest(turn_budgets.c.tool_calls_used, usage.tool_calls_used),
+                nested_model_calls=func.greatest(turn_budgets.c.nested_model_calls, usage.nested_model_calls),
+            ))

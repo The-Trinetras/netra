@@ -91,6 +91,8 @@ class Repositories:
     sessions: Any
     result_sets: Any = None
     dialogue: Any = None
+    budgets: Any = None
+    """D-BUDGET ledger; None without a database (the in-process budget then applies)."""
     engine: Any = None
     """The shared async engine when a database is configured (one pool per process)."""
 
@@ -141,7 +143,12 @@ def durable_repositories(settings: Settings) -> Repositories:
 
     from netra_api.identity.postgres import PostgresIdentityRepository
     from netra_api.platform.database import create_engine
-    from netra_api.session.postgres import PostgresDialogueLog, PostgresResultSetRepository, PostgresSessionRepository
+    from netra_api.session.postgres import (
+        PostgresBudgetLedger,
+        PostgresDialogueLog,
+        PostgresResultSetRepository,
+        PostgresSessionRepository,
+    )
 
     engine = create_engine(settings.database_url)
     return Repositories(
@@ -149,6 +156,7 @@ def durable_repositories(settings: Settings) -> Repositories:
         sessions=PostgresSessionRepository(engine),
         result_sets=PostgresResultSetRepository(engine),
         dialogue=PostgresDialogueLog(engine),
+        budgets=PostgresBudgetLedger(engine),
         engine=engine,
     )
 
@@ -318,6 +326,7 @@ def compose(
         dialogue=repositories.dialogue,
         speech=dependencies.speech_output,
         tracer=tracer,
+        budgets=repositories.budgets,
     )
     registered = {
         "persistence": not isinstance(repositories.sessions, UnavailableRepository),
@@ -327,6 +336,7 @@ def compose(
         "tutor": tutor is not None,
         "speech": dependencies.speech_output is not None,
         "result_sets": ttl is not None and repositories.result_sets is not None,
+        "persisted_turn_budget": repositories.budgets is not None,
         **{f"tool:{name}": True for name in tools},
     }
     return Composition(

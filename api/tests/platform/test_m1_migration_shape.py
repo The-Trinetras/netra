@@ -1,4 +1,4 @@
-"""Migrations 0005 and 0009 must create exactly the tables M1 declared in M1_METADATA.
+"""Migrations 0005, 0009 and 0010 must create exactly the tables M1 declared in M1_METADATA.
 
 Runs the migration's ``upgrade()`` against a recording stand-in for
 ``alembic.op`` (no database) and compares every table, column type,
@@ -22,7 +22,7 @@ from netra_api.platform.database import M1_METADATA
 
 VERSIONS = Path(__file__).parents[2] / "migrations" / "versions"
 MIGRATION = VERSIONS / "0005_m1_identity_session.py"
-M1_MIGRATIONS = (MIGRATION, VERSIONS / "0009_m1_access_codes.py")
+M1_MIGRATIONS = (MIGRATION, VERSIONS / "0009_m1_access_codes.py", VERSIONS / "0010_m1_turn_budgets.py")
 DIALECT = postgresql.dialect()
 
 
@@ -97,3 +97,8 @@ def test_migration_0009_follows_0008_and_downgrades_what_it_creates():
     source = (VERSIONS / "0009_m1_access_codes.py").read_text(encoding="utf-8")
     assert 'down_revision = "0008_learning_questions_attempts"' in source
     assert 'op.drop_table("access_codes")' in source and 'op.drop_index("ix_access_codes_account_id"' in source
+
+
+def test_migration_0010_follows_0009_and_downgrades_what_it_creates():
+    source = (VERSIONS / "0010_m1_turn_budgets.py").read_text(encoding="utf-8")
+    assert 'down_revision = "0009_m1_access_codes"' in source and 'op.drop_table("turn_budgets")' in source

@@ -30,11 +30,13 @@ import logging
 import traceback
 from collections import OrderedDict
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from typing import Any, Awaitable, Callable, Optional
 from uuid import UUID, uuid4
 
 from pydantic import ValidationError
 
+from netra_api.coordinator.budget_ledger import BudgetLedger, BudgetUsage
 from netra_api.coordinator.graph import CoordinatorEngine
 from netra_api.coordinator.limits import TurnBudget
 from netra_api.coordinator.state import CoordinatorTurnState, TurnOutcome
@@ -256,6 +258,8 @@ class TransportServices:
     dialogue: Optional[DialogueLog] = None
     speech: Optional[SpeechOutput] = None
     tracer: Tracer = DISABLED_TRACER
+    budgets: Optional[BudgetLedger] = None
+    """D-BUDGET: persisted use per request id. None only in fixture journeys."""
 
 
 @dataclass
@@ -269,6 +273,7 @@ class Connection:
     _send_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     _sessions: set[UUID] = field(default_factory=set)
     _tasks: set[asyncio.Task] = field(default_factory=set)
+    _budget_writes: set[asyncio.Task] = field(default_factory=set)
     _closed: bool = False
 
     # -- sending ---------------------------------------------------------------
@@ -384,6 +389,8 @@ class Connection:
             task.cancel()
         if self._tasks:
             await asyncio.gather(*self._tasks, return_exceptions=True)
+        if self._budget_writes:  # never cancelled: spent budget must be recorded
+            await asyncio.gather(*self._budget_writes, return_exceptions=True)
 
     # -- navigation --------------------------------------------------------------
 
@@ -468,7 +475,16 @@ class Connection:
         if services.coordinator is None:
             raise ProviderUnavailableError("the Coordinator is not available")
 
-        budget = entry.budget.for_retransmission() if entry is not None else TurnBudget()
+        if entry is not None:
+            budget = entry.budget.for_retransmission()
+        elif services.budgets is not None:
+            # D-BUDGET: after a restart the same request_id resumes its recorded use and deadline.
+            usage = await services.budgets.open(auth.account_id, auth.request_id, auth.session_id, datetime.now(timezone.utc))
+            budget = usage.budget()
+        else:
+            budget = TurnBudget()
+        if services.budgets is not None:
+            budget.observer = self._budget_observer(services.budgets, auth)
         services.turns.cancel_session(auth.account_id, auth.session_id, "new_turn", except_request=auth.request_id)
         services.generations.cancel_speaking(auth.session_id, "new_turn")
         entry = TurnEntry(
@@ -481,6 +497,21 @@ class Connection:
         )
         services.turns.put(entry)
         entry.task = self._spawn(self._run_turn(auth, payload, state, entry))
+
+    def _budget_observer(self, ledger: BudgetLedger, auth: AuthContext) -> Callable[[TurnBudget], None]:
+        def observe(budget: TurnBudget) -> None:
+            task = asyncio.ensure_future(self._record_budget(ledger, auth, BudgetUsage.of(budget)))
+            self._budget_writes.add(task)
+            task.add_done_callback(self._budget_writes.discard)
+
+        return observe
+
+    @staticmethod
+    async def _record_budget(ledger: BudgetLedger, auth: AuthContext, usage: BudgetUsage) -> None:
+        try:
+            await ledger.record(auth.account_id, auth.request_id, usage)
+        except Exception as exc:  # the turn goes on; the start and earlier use are already recorded
+            _log_unexpected("turn budget use not recorded", exc)
 
     async def _run_turn(self, auth: AuthContext, payload: TurnSubmitPayload, state: SessionState, entry: TurnEntry) -> None:
         services = self.services

@@ -62,7 +62,7 @@ def _auth():
     )
 
 
-def test_resolve_and_authorize_accepts_derived_evidence_for_matching_version():
+async def test_resolve_and_authorize_accepts_derived_evidence_for_matching_version():
     source_version_id = uuid4()
     evidence = Evidence(
         evidence_id="ev-1",
@@ -77,22 +77,22 @@ def test_resolve_and_authorize_accepts_derived_evidence_for_matching_version():
         evidence_id="ev-1", source_version_id=source_version_id, locator="figure-1"
     )
 
-    resolved = resolve_and_authorize(_auth(), resolver, reference)
+    resolved = await resolve_and_authorize(_auth(), resolver, reference)
 
     assert resolved == evidence
 
 
-def test_resolve_and_authorize_rejects_unresolved_evidence_id():
+async def test_resolve_and_authorize_rejects_unresolved_evidence_id():
     resolver = FakeResolver({})
     reference = VisualEvidenceReference(
         evidence_id="ev-missing", source_version_id=uuid4(), locator="figure-1"
     )
 
     with pytest.raises(UnauthorizedEvidenceReferenceError):
-        resolve_and_authorize(_auth(), resolver, reference)
+        await resolve_and_authorize(_auth(), resolver, reference)
 
 
-def test_resolve_and_authorize_rejects_non_derived_trust():
+async def test_resolve_and_authorize_rejects_non_derived_trust():
     source_version_id = uuid4()
     evidence = Evidence(
         evidence_id="ev-2",
@@ -108,10 +108,10 @@ def test_resolve_and_authorize_rejects_non_derived_trust():
     )
 
     with pytest.raises(UnauthorizedEvidenceReferenceError):
-        resolve_and_authorize(_auth(), resolver, reference)
+        await resolve_and_authorize(_auth(), resolver, reference)
 
 
-def test_resolve_and_authorize_rejects_source_version_mismatch():
+async def test_resolve_and_authorize_rejects_source_version_mismatch():
     evidence = Evidence(
         evidence_id="ev-3",
         source_version_id=uuid4(),
@@ -126,4 +126,4 @@ def test_resolve_and_authorize_rejects_source_version_mismatch():
     )
 
     with pytest.raises(UnauthorizedEvidenceReferenceError):
-        resolve_and_authorize(_auth(), resolver, reference)
+        await resolve_and_authorize(_auth(), resolver, reference)

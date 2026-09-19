@@ -26,7 +26,7 @@ class FigureEvidenceReference(VisualEvidenceReference):
     """Ordinal of this figure within source_version_id, for stable re-reference."""
 
 
-def authorize_figure_evidence(
+async def authorize_figure_evidence(
     auth: AuthContext, resolver: EvidenceResolver, reference: FigureEvidenceReference
 ) -> Evidence:
     """Validate one figure's evidence reference before it may be cited.
@@ -36,4 +36,4 @@ def authorize_figure_evidence(
     reference.source_version_id.
     """
 
-    return resolve_and_authorize(auth, resolver, reference)
+    return await resolve_and_authorize(auth, resolver, reference)

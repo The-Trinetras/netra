@@ -4,6 +4,7 @@ from pathlib import Path
 from uuid import UUID, uuid4
 
 import pytest
+from pydantic import ValidationError
 
 from netra_api.content.retrieval.evidence import (
     Evidence,
@@ -11,7 +12,7 @@ from netra_api.content.retrieval.evidence import (
     EvidenceResolution,
     EvidenceTrust,
 )
-from netra_api.coordinator.handoff import CoordinatorToTutorHandoff
+from netra_api.coordinator.handoff import CoordinatorToTutorHandoff, EvidenceRef
 from netra_api.coordinator.limits import TurnBudget
 from netra_api.learning.assessment.models import AssessmentAttempt, AnswerSubmission, AttemptOutcome
 from netra_api.learning.assessment.service import derive_attempt_id
@@ -34,12 +35,10 @@ SOURCE_VERSION = UUID("0b6f3c1e-5a2d-4e8f-9c7b-1d2e3f4a5b6c")
 """The source version every default test handoff declares and every
 default resolved Evidence carries.
 
-The committed contract example declares ``"src-ver-104"``, which is not a
-UUID. The Tutor cannot compare that with a resolved Evidence's UUID
-source version and therefore refuses the evidence (INT-03, see
-netra_api.learning.tutor.evidence_versions); the example is rewritten
-to this UUID so the default doubles describe a consistent, resolvable
-reference. Tests of the refusal itself build their handoffs explicitly.
+The committed contract example declares its own UUID (INT-03 made the
+source version a canonical UUID in the contract); it is rewritten to this
+one so the default doubles describe a consistent, resolvable reference.
+Tests of refusals build their handoffs explicitly.
 """
 
 
@@ -100,10 +99,14 @@ class _FakeProvider:
 
 
 class _FakeResolver:
-    def __init__(self, evidence=None, reject=False, source_version_id=SOURCE_VERSION):
+    def __init__(self, evidence=None, reject=False, source_version_id=SOURCE_VERSION, evidence_version=1):
         self._evidence = evidence
         self.reject = reject
         self.source_version_id = source_version_id
+        self.evidence_version = evidence_version
+        """Like M2's PostgreSQL resolver, which always reports the owning
+        source version's version_number; None models a producer that
+        cannot say which evidence version it returned."""
 
     def resolve(self, auth, evidence_ids, pinned_source_version_id=None):
         if self.reject:
@@ -118,6 +121,7 @@ class _FakeResolver:
                 or Evidence(
                     evidence_id=eid,
                     source_version_id=self.source_version_id,
+                    evidence_version=self.evidence_version,
                     locator="p. 41",
                     text="Congestion control limits the sending rate to protect the network.",
                     provenance="textbook chapter 4",
@@ -1001,6 +1005,7 @@ def _ohms_evidence() -> list[Evidence]:
         Evidence(
             evidence_id=item["evidence_id"],
             source_version_id=UUID(fixture["source_version_id"]),
+            evidence_version=1,  # what M2's resolver reports for version_number 1
             locator=item["locator"],
             text=item["text"],
             provenance=item["provenance"],
@@ -1170,13 +1175,46 @@ async def test_evidence_from_a_different_source_version_is_not_taught_from():
     assert services.provider.calls == 0
 
 
+def test_the_contract_model_refuses_a_source_version_that_is_not_a_uuid():
+    """INT-03: the handoff contract's source_version_id is the canonical UUID
+    of the source version. A handoff naming anything else cannot be built,
+    so the producer (Coordinator) fails closed before delegation."""
+
+    with pytest.raises(ValidationError):
+        EvidenceRef(evidence_id="ev-27", source_version_id="src-ver-104", evidence_version=1)
+    ref = EvidenceRef(evidence_id="ev-27", source_version_id="{" + str(SOURCE_VERSION).upper() + "}", evidence_version=1)
+    assert ref.source_version_id == str(SOURCE_VERSION)
+
+
 async def test_a_declared_version_that_is_not_a_uuid_cannot_be_verified_and_is_refused():
-    """The committed contract example declares "src-ver-104". Nothing can
-    establish that it names the UUID the resolver returned, so it is
-    refused rather than assumed equal (fail closed)."""
+    """Defence in depth: a handoff that bypassed contract validation and
+    declares a non-UUID version is still refused, not assumed equal."""
 
     services = _services()
-    state, result = _run(_handoff_declaring("src-ver-104", mode="explain"), services)
+    handoff = _handoff_declaring(str(SOURCE_VERSION), mode="explain")
+    unvalidated = EvidenceRef.model_construct(evidence_id="ev-27", source_version_id="src-ver-104", evidence_version=1)
+    state, result = _run(handoff.model_copy(update={"evidence_refs": [unvalidated]}), services)
+    result = await result
+
+    assert result.status == "needs_more_evidence"
+    assert services.provider.calls == 0
+
+
+async def test_evidence_of_another_evidence_version_is_not_taught_from():
+    """Same source version, but the resolver reports a different evidence
+    version than the handoff was built against: dropped, not reinterpreted."""
+
+    services = _services(evidence_resolver=_FakeResolver(evidence_version=2))
+    state, result = _run(_handoff_declaring(str(SOURCE_VERSION), mode="explain"), services)
+    result = await result
+
+    assert result.status == "needs_more_evidence"
+    assert services.provider.calls == 0
+
+
+async def test_evidence_without_an_evidence_version_cannot_be_verified_and_is_refused():
+    services = _services(evidence_resolver=_FakeResolver(evidence_version=None))
+    state, result = _run(_handoff_declaring(str(SOURCE_VERSION), mode="explain"), services)
     result = await result
 
     assert result.status == "needs_more_evidence"

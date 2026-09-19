@@ -31,14 +31,12 @@ from netra_worker.jobs.multimedia.video import (  # noqa: E402
     VideoEvidenceCandidateRecord,
     VideoEvidenceKindName,
 )
+from netra_worker.runtime.errors import JobCancelled, LeaseLostError  # noqa: E402
 from netra_worker.runtime.job_repository import Job  # noqa: E402
 from netra_worker.runtime.leases import Lease  # noqa: E402
 
 NOW = datetime(2026, 9, 18, 12, 0, tzinfo=timezone.utc)
 
-
-class LeaseLostError(Exception):
-    pass
 
 
 class ReferenceJobRepository:
@@ -216,9 +214,35 @@ async def test_an_expired_lease_stops_the_job_before_its_next_provider_stage():
         called.append("second")
         return None
 
-    with pytest.raises(JobCancelledError):
+    # Lease loss, not cancellation: the dispatcher writes nothing and the next
+    # claimant resumes from the recorded stage "a".
+    with pytest.raises(LeaseLostError):
         await run_stages(RepositoryStageRecorder(repository, job, holder), [("a", first), ("b", second)], cancellation=token)
     assert called == ["first"] and repository.job.completed_stages == ["a"]
+
+
+async def test_explicit_cancellation_is_a_cancellation_not_a_lease_loss():
+    job = _job()
+    token = LeaseCancellationToken(LeaseHolder(job.lease), safety_margin=timedelta(0), explicit=Explicit(True), clock=Clock(NOW))
+    assert not token.lease_expired()
+    with pytest.raises(JobCancelledError) as caught:
+        await run_stages(RepositoryStageRecorder(ReferenceJobRepository(job), job, LeaseHolder(job.lease)),
+                         [("a", lambda: None)], cancellation=token)
+    assert isinstance(caught.value, JobCancelled)
+
+
+def test_a_tracking_holder_sees_the_dispatchers_renewal_of_the_job():
+    job = _job()
+    holder = LeaseHolder.tracking(job)
+    clock = Clock(job.lease.expires_at - timedelta(seconds=10))
+    token = LeaseCancellationToken(holder, safety_margin=timedelta(seconds=30), clock=clock)
+    assert token.is_cancelled() and token.lease_expired()
+    # The dispatcher's heartbeat replaces job.lease (same token, later expiry).
+    job.lease = job.lease.model_copy(update={"expires_at": job.lease.expires_at + timedelta(minutes=5)})
+    assert not token.is_cancelled()
+    # A different token would be a new claim; the holder must not adopt it.
+    job.lease = Lease(token=uuid4(), worker_id="w2", expires_at=NOW + timedelta(hours=1))
+    assert holder.lease.token != job.lease.token
 
 
 # ---------------------------------------------------------------- contract fixtures vs reference doubles

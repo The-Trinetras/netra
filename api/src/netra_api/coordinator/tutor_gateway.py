@@ -244,14 +244,18 @@ class TutorGateway:
             done, _ = await asyncio.wait({run, cancel_waiter}, timeout=remaining, return_when=asyncio.FIRST_COMPLETED)
         finally:
             cancel_waiter.cancel()
+            if not run.done():
+                # Deadline, STOP, or this turn task itself being cancelled (a
+                # disconnect cancels it directly): a Tutor run persists
+                # questions and commits attempts, so it must not outlive its turn.
+                run.cancel()
+                await asyncio.gather(run, return_exceptions=True)
         if run in done and isinstance(run.exception(), NotImplementedError):
             # M4's check_understanding path fails closed on the open D2
             # grounding decision. That is a pending product decision, not a
             # crash and not a teaching result.
             raise HandoffRejectedError("tutor_capability_pending_decision")
         if run not in done:
-            run.cancel()
-            await asyncio.gather(run, return_exceptions=True)
             if budget.cancelled:
                 raise TurnCancelledError("turn cancelled during delegation")
             raise ResourceUnavailableError("tutor did not finish before the deadline")

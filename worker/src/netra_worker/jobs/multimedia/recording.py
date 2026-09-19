@@ -39,6 +39,21 @@ class LeaseHolder:
     def __init__(self, lease: Lease) -> None:
         self._lease = lease
 
+    @classmethod
+    def tracking(cls, job: Job) -> "LeaseHolder":
+        """A holder that always reads the job's live lease.
+
+        The worker dispatcher renews a claimed job by replacing ``job.lease``
+        on the very Job object it hands the handler. A holder built from a
+        copy of the lease would keep the ORIGINAL expiry, so a long job's
+        LeaseCancellationToken would stop it at the first expiry despite
+        successful renewals. Composition therefore builds holders with this.
+        """
+
+        if job.lease is None:
+            raise ValueError("a job without a lease cannot be tracked")
+        return _JobLeaseHolder(job)
+
     @property
     def lease(self) -> Lease:
         return self._lease
@@ -47,6 +62,25 @@ class LeaseHolder:
         if lease.token != self._lease.token:
             raise ValueError("a renewal must keep the lease token; a new token is a new claim")
         self._lease = lease
+
+
+class _JobLeaseHolder(LeaseHolder):
+    def __init__(self, job: Job) -> None:
+        super().__init__(job.lease)
+        self._job = job
+
+    @property
+    def lease(self) -> Lease:
+        current = self._job.lease
+        if current is None or current.token != self._lease.token:
+            # The dispatcher never swaps tokens mid-attempt; a different token
+            # would mean a new claim, which this holder must not adopt.
+            return self._lease
+        return current
+
+    def renew(self, lease: Lease) -> None:
+        super().renew(lease)
+        self._job.lease = lease
 
 
 class RepositoryStageRecorder:
@@ -103,6 +137,16 @@ class LeaseCancellationToken:
         if self._explicit is not None and self._explicit.is_cancelled():
             return True
         return self._clock() >= self._holder.lease.expires_at - self._margin
+
+    def lease_expired(self) -> bool:
+        """True when the stop is due to the lease, not an explicit cancellation.
+
+        run_stages raises LeaseLostError for this case (the next claimant
+        resumes the job) and JobCancelledError only for explicit cancellation.
+        """
+
+        explicit = self._explicit is not None and self._explicit.is_cancelled()
+        return not explicit and self._clock() >= self._holder.lease.expires_at - self._margin
 
     def reason(self) -> str:
         if self._explicit is not None and self._explicit.is_cancelled():

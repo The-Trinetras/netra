@@ -1,10 +1,10 @@
 """PostgreSQL session repositories (SQLAlchemy Core over postgresql+asyncpg).
 
-Table shapes are PROPOSED for M2's reviewed Alembic migration; nothing here
-creates schema. The atomic commit uses one short transaction: a conditional
-``UPDATE ... WHERE session_version = :expected`` plus an INSERT into
+Tables are created by migration 0005 (M2-serialized); nothing here creates
+schema. The atomic commit uses one short transaction: an INSERT into
 ``session_request_records`` whose primary key (account_id, request_id) makes
-concurrent identical retransmissions collapse into one effect.
+concurrent identical retransmissions collapse into one effect, then a
+conditional ``UPDATE ... WHERE session_version = :expected``.
 
 No external call ever runs inside these transactions.
 """
@@ -122,6 +122,25 @@ class PostgresSessionRepository:
 
         try:
             async with self._engine.begin() as connection:
+                # Claim the request identity BEFORE the conditional version
+                # update, exactly as the in-memory contract checks the replay
+                # record first. A concurrent identical retransmission then
+                # waits on this primary key and, once the winner commits,
+                # fails with IntegrityError → RequestAlreadyRecordedError (its
+                # recorded result), instead of losing the version race and
+                # being told SESSION_VERSION_CONFLICT. A later version
+                # conflict rolls this insert back with the transaction.
+                if request_id is not None:
+                    await connection.execute(
+                        insert(session_request_records).values(
+                            account_id=account_id,
+                            request_id=request_id,
+                            session_id=session_id,
+                            payload_fingerprint=payload_fingerprint,
+                            result=result,
+                            created_at=_now(),
+                        )
+                    )
                 if new_state is not None:
                     updated = await connection.execute(
                         update(sessions)
@@ -145,19 +164,6 @@ class PostgresSessionRepository:
                             )
                         ).scalar()
                         raise SessionVersionConflictError(expected_version, int(actual or 0))
-
-                if request_id is None:
-                    return new_state
-                await connection.execute(
-                    insert(session_request_records).values(
-                        account_id=account_id,
-                        request_id=request_id,
-                        session_id=session_id,
-                        payload_fingerprint=payload_fingerprint,
-                        result=result,
-                        created_at=_now(),
-                    )
-                )
         except IntegrityError:
             if request_id is None:
                 raise

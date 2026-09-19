@@ -137,11 +137,14 @@
           "type": "string"
         },
         "source_version_id": {
-          "type": "string"
+          "type": "string",
+          "format": "uuid",
+          "$comment": "Canonical lowercase, hyphenated UUID of the immutable source version (PostgreSQL source_versions.source_version_id). Every evidence producer (M2 reading/retrieval, M3 multimedia) mints UUIDs; the Tutor compares canonical UUID values and refuses anything it cannot compare. Clarified 2026-09-18 during integration (INT-03); previously an unconstrained string whose example was not a UUID."
         },
         "evidence_version": {
           "type": "integer",
-          "minimum": 1
+          "minimum": 1,
+          "$comment": "Immutable version of the evidence content: the owning source version's version_number. The Tutor drops evidence whose resolved evidence_version differs or is absent."
         }
       }
     },

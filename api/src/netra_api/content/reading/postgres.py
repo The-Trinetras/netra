@@ -7,6 +7,8 @@ from uuid import UUID
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from netra_api.db.transactions import close_read_only_transaction
+
 from netra_api.content.reading.blocks import BlockType, ReadingBlock, Sentence
 from netra_api.db.models import ReadingBlockRow
 
@@ -25,8 +27,7 @@ class AsyncReadingBlockRepository:
         self.session = session
 
     async def _close_read_transaction(self) -> None:
-        if self.session.in_transaction():
-            await self.session.commit()
+        await close_read_only_transaction(self.session)
 
     async def get_block(self, source_version_id: UUID, block_id: UUID) -> ReadingBlock | None:
         row = (await self.session.execute(select(ReadingBlockRow).where(

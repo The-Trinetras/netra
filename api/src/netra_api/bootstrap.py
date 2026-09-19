@@ -91,6 +91,8 @@ class Repositories:
     sessions: Any
     result_sets: Any = None
     dialogue: Any = None
+    engine: Any = None
+    """The shared async engine when a database is configured (one pool per process)."""
 
 
 class UnavailableRepository:
@@ -111,6 +113,8 @@ class Composition:
     tracer: Optional[Tracer] = None
     langsmith_flags_overridden: list[str] = field(default_factory=list)
     shutdown_timeout_seconds: float = 5.0
+    sources: Any = None
+    """M2 SourceRepository (account-scoped) for the source-listing route."""
 
     def telemetry_diagnostics(self) -> dict[str, Any]:
         """Safe counters only: no identifiers, messages or configuration values."""
@@ -145,7 +149,67 @@ def durable_repositories(settings: Settings) -> Repositories:
         sessions=PostgresSessionRepository(engine),
         result_sets=PostgresResultSetRepository(engine),
         dialogue=PostgresDialogueLog(engine),
+        engine=engine,
     )
+
+
+def production_dependencies(engine: Any, tracer: Optional[Tracer] = None,
+                            settings: Optional[Settings] = None) -> IntegrationDependencies:
+    """Real M2 content services and M4's durable learning store over one engine.
+
+    Every M2 repository is built around one AsyncSession, so each is wrapped in
+    SessionScoped: every call gets its own session and short transactions,
+    never a process-wide shared session. Retrieval degrades to PostgreSQL
+    full-text search when the Gemini/Pinecone providers are not configured and
+    reports RetrievalUnavailableError only when both paths fail.
+
+    Provider-backed agents (Coordinator model, Tutor provider) and speech are
+    added by the caller only when their adapters are configured; absent ones
+    stay unregistered and their requests fail explicitly.
+    """
+
+    from netra_api.content.reading.postgres import AsyncReadingBlockRepository
+    from netra_api.content.reading.postgres_positions import AsyncReadingPositionRepository
+    from netra_api.content.retrieval.factory import build_postgres_retrieval_service
+    from netra_api.content.retrieval.postgres_evidence import AsyncPostgresEvidenceResolver
+    from netra_api.content.settings import ContentSettings
+    from netra_api.content.sources.postgres import AsyncSourceRepository
+    from netra_api.db.scoped import SessionScoped
+    from netra_api.learning.postgres import PostgresLearningStore
+    from netra_api.platform.database import create_session_factory
+
+    sessions = create_session_factory(engine)
+    content = ContentSettings()
+    learning = PostgresLearningStore(sessions)
+    dependencies = IntegrationDependencies(
+        reading_positions=SessionScoped(sessions, AsyncReadingPositionRepository),
+        reading_blocks=SessionScoped(sessions, AsyncReadingBlockRepository),
+        sources=SessionScoped(sessions, AsyncSourceRepository),
+        evidence_resolver=SessionScoped(sessions, AsyncPostgresEvidenceResolver),
+        retrieval=SessionScoped(sessions, lambda session: build_postgres_retrieval_service(session, content, tracer)),
+        pending_questions=learning,
+    )
+    settings = settings or Settings()
+    if settings.gemini_api_key is not None:
+        from netra_api.coordinator.providers.gemini_client import GeminiCoordinatorAdapter
+
+        dependencies.coordinator_model = GeminiCoordinatorAdapter.from_api_key(
+            settings.gemini_api_key.get_secret_value(), timeout_seconds=settings.model_request_timeout_seconds)
+    if settings.groq_api_key is not None:
+        from netra_api.learning.assessment.service import LearningService
+        from netra_api.learning.tutor.agent import TutorServices
+        from netra_api.learning.tutor.providers.groq_client import GroqTutorAdapter
+
+        # No quiz generator is registered: optional-check support (D2) is an
+        # open decision and fails closed, so drafting questions is not wired.
+        dependencies.tutor_services = TutorServices(
+            provider=GroqTutorAdapter.from_api_key(settings.groq_api_key.get_secret_value(),
+                                                   timeout_seconds=settings.model_request_timeout_seconds),
+            evidence_resolver=dependencies.evidence_resolver,
+            pending_questions=learning,
+            learning_service=LearningService(learning, None, learning),
+        )
+    return dependencies
 
 
 def compose(
@@ -157,9 +221,10 @@ def compose(
     span_exporter: Optional[SpanExporter] = None,
     export_settings: Optional[ExportSettings] = None,
     environ: Any = None,
+    tracer: Optional[Tracer] = None,
 ) -> Composition:
     langsmith_flags = disable_langsmith_export(os.environ if environ is None else environ)
-    tracer = build_tracer(
+    tracer = tracer or build_tracer(
         settings.tracing_mode,
         exporter=span_exporter,
         settings=export_settings or ExportSettings(),
@@ -212,7 +277,7 @@ def compose(
             context=ContextSelector(repositories.dialogue),
             tutor=tutor,
             tracer=tracer,
-        )
+        ).orchestrate_with_langgraph()
 
     if settings.auth_mode == "stored_credential" and settings.database_url:
         verifier: CredentialVerifier = StoredCredentialVerifier(repositories.identity)
@@ -252,9 +317,15 @@ def compose(
         tracer=tracer,
         langsmith_flags_overridden=langsmith_flags,
         shutdown_timeout_seconds=settings.tracing_shutdown_timeout_seconds,
+        sources=dependencies.sources,
     )
 
 
 def build_production(settings: Optional[Settings] = None, dependencies: Optional[IntegrationDependencies] = None) -> Composition:
     settings = settings or Settings()
-    return compose(settings, durable_repositories(settings), dependencies or IntegrationDependencies())
+    repositories = durable_repositories(settings)
+    tracer = None
+    if dependencies is None and repositories.engine is not None:
+        tracer = build_tracer(settings.tracing_mode, settings=ExportSettings(), service_name="netra-api")
+        dependencies = production_dependencies(repositories.engine, tracer, settings)
+    return compose(settings, repositories, dependencies or IntegrationDependencies(), tracer=tracer)

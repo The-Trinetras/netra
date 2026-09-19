@@ -23,6 +23,7 @@ from pydantic import BaseModel
 
 from netra_api.content.retrieval.evidence import Evidence, EvidenceResolver, EvidenceTrust
 from netra_api.platform.auth_context import AuthContext
+from netra_api.platform.awaitables import maybe_await
 from netra_api.platform.errors import NetraError
 
 
@@ -86,7 +87,7 @@ class UnauthorizedEvidenceReferenceError(NetraError):
         super().__init__(f"evidence_id {evidence_id} is not an authorized, derived reference")
 
 
-def resolve_and_authorize(
+async def resolve_and_authorize(
     auth: AuthContext, resolver: EvidenceResolver, reference: VisualEvidenceReference
 ) -> Evidence:
     """Resolve reference.evidence_id and enforce it is DERIVED trust for the right version.
@@ -108,10 +109,12 @@ def resolve_and_authorize(
     EvidenceRejectionReason stays internal to the resolver.
     """
 
-    resolutions = resolver.resolve(
-        auth,
-        [reference.evidence_id],
-        pinned_source_version_id=reference.source_version_id,
+    resolutions = await maybe_await(
+        resolver.resolve(
+            auth,
+            [reference.evidence_id],
+            pinned_source_version_id=reference.source_version_id,
+        )
     )
     if not resolutions:
         raise UnauthorizedEvidenceReferenceError(reference.evidence_id)

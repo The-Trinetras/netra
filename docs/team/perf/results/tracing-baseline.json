@@ -1,0 +1,438 @@
+{
+  "label": "baseline",
+  "captured_at": "2026-09-18T23:08:27.005382+00:00",
+  "python": "3.13.15",
+  "settings": {
+    "max_queue_size": 2048,
+    "max_batch_size": 128,
+    "schedule_delay_seconds": 0.05,
+    "export_timeout_seconds": 0.2,
+    "max_retries": 2,
+    "retry_backoff_seconds": 0.05,
+    "diagnostics_log_interval_seconds": 60.0
+  },
+  "results": [
+    {
+      "condition": "disabled#r0",
+      "spans": 5000,
+      "span_us": {
+        "median": 1.00000761449337,
+        "p99": 1.800013706088066,
+        "max": 9.000010322779417,
+        "mean": 1.0454598814249039
+      },
+      "shutdown_ms": 0.0,
+      "pool_backlog_before_shutdown": 0,
+      "diagnostics": {
+        "created": 0,
+        "ended": 0,
+        "enqueued": 0,
+        "exported": 0,
+        "export_attempts": 0,
+        "export_timeouts": 0,
+        "dropped_queue_full": 0,
+        "dropped_after_failure": 0,
+        "dropped_at_shutdown": 0,
+        "final_flush": null,
+        "last_error_code": null
+      }
+    },
+    {
+      "condition": "healthy-burst#r0",
+      "spans": 5000,
+      "span_us": {
+        "median": 10.999967344105244,
+        "p99": 34.39997090026736,
+        "max": 406.8000125698745,
+        "mean": 11.798479850403965
+      },
+      "shutdown_ms": 0.7,
+      "pool_backlog_before_shutdown": 0,
+      "diagnostics": {
+        "created": 5000,
+        "ended": 5000,
+        "enqueued": 2304,
+        "exported": 2304,
+        "export_attempts": 18,
+        "export_timeouts": 0,
+        "dropped_queue_full": 2696,
+        "dropped_after_failure": 0,
+        "dropped_at_shutdown": 0,
+        "final_flush": "complete",
+        "last_error_code": null
+      },
+      "collector": {
+        "export_calls": 18,
+        "distinct_spans_received": 2304,
+        "total_span_deliveries": 2304,
+        "duplicate_deliveries": 0,
+        "claimed_lost": 2696,
+        "delivered_but_counted_lost": 0
+      }
+    },
+    {
+      "condition": "disabled#r1",
+      "spans": 5000,
+      "span_us": {
+        "median": 1.00000761449337,
+        "p99": 5.299982149153948,
+        "max": 45.599997974932194,
+        "mean": 1.6050800448283553
+      },
+      "shutdown_ms": 0.0,
+      "pool_backlog_before_shutdown": 0,
+      "diagnostics": {
+        "created": 0,
+        "ended": 0,
+        "enqueued": 0,
+        "exported": 0,
+        "export_attempts": 0,
+        "export_timeouts": 0,
+        "dropped_queue_full": 0,
+        "dropped_after_failure": 0,
+        "dropped_at_shutdown": 0,
+        "final_flush": null,
+        "last_error_code": null
+      }
+    },
+    {
+      "condition": "healthy-burst#r1",
+      "spans": 5000,
+      "span_us": {
+        "median": 10.800024028867483,
+        "p99": 14.999997802078724,
+        "max": 730.4999744519591,
+        "mean": 11.328700021840632
+      },
+      "shutdown_ms": 0.2,
+      "pool_backlog_before_shutdown": 0,
+      "diagnostics": {
+        "created": 5000,
+        "ended": 5000,
+        "enqueued": 2432,
+        "exported": 2432,
+        "export_attempts": 19,
+        "export_timeouts": 0,
+        "dropped_queue_full": 2568,
+        "dropped_after_failure": 0,
+        "dropped_at_shutdown": 0,
+        "final_flush": "complete",
+        "last_error_code": null
+      },
+      "collector": {
+        "export_calls": 19,
+        "distinct_spans_received": 2432,
+        "total_span_deliveries": 2432,
+        "duplicate_deliveries": 0,
+        "claimed_lost": 2568,
+        "delivered_but_counted_lost": 0
+      }
+    },
+    {
+      "condition": "disabled#r2",
+      "spans": 5000,
+      "span_us": {
+        "median": 1.00000761449337,
+        "p99": 4.399975296109915,
+        "max": 378.7999739870429,
+        "mean": 1.634159975219518
+      },
+      "shutdown_ms": 0.0,
+      "pool_backlog_before_shutdown": 0,
+      "diagnostics": {
+        "created": 0,
+        "ended": 0,
+        "enqueued": 0,
+        "exported": 0,
+        "export_attempts": 0,
+        "export_timeouts": 0,
+        "dropped_queue_full": 0,
+        "dropped_after_failure": 0,
+        "dropped_at_shutdown": 0,
+        "final_flush": null,
+        "last_error_code": null
+      }
+    },
+    {
+      "condition": "healthy-burst#r2",
+      "spans": 5000,
+      "span_us": {
+        "median": 10.899966582655907,
+        "p99": 32.50001464039087,
+        "max": 505.9000104665756,
+        "mean": 11.86651982134208
+      },
+      "shutdown_ms": 0.6,
+      "pool_backlog_before_shutdown": 0,
+      "diagnostics": {
+        "created": 5000,
+        "ended": 5000,
+        "enqueued": 2432,
+        "exported": 2432,
+        "export_attempts": 19,
+        "export_timeouts": 0,
+        "dropped_queue_full": 2568,
+        "dropped_after_failure": 0,
+        "dropped_at_shutdown": 0,
+        "final_flush": "complete",
+        "last_error_code": null
+      },
+      "collector": {
+        "export_calls": 19,
+        "distinct_spans_received": 2432,
+        "total_span_deliveries": 2432,
+        "duplicate_deliveries": 0,
+        "claimed_lost": 2568,
+        "delivered_but_counted_lost": 0
+      }
+    },
+    {
+      "condition": "disabled#r3",
+      "spans": 5000,
+      "span_us": {
+        "median": 1.00000761449337,
+        "p99": 4.8999791033566,
+        "max": 45.900000259280205,
+        "mean": 1.5912800328806043
+      },
+      "shutdown_ms": 0.0,
+      "pool_backlog_before_shutdown": 0,
+      "diagnostics": {
+        "created": 0,
+        "ended": 0,
+        "enqueued": 0,
+        "exported": 0,
+        "export_attempts": 0,
+        "export_timeouts": 0,
+        "dropped_queue_full": 0,
+        "dropped_after_failure": 0,
+        "dropped_at_shutdown": 0,
+        "final_flush": null,
+        "last_error_code": null
+      }
+    },
+    {
+      "condition": "healthy-burst#r3",
+      "spans": 5000,
+      "span_us": {
+        "median": 10.899966582655907,
+        "p99": 35.39997851476073,
+        "max": 634.1999978758395,
+        "mean": 12.042660103179514
+      },
+      "shutdown_ms": 0.6,
+      "pool_backlog_before_shutdown": 0,
+      "diagnostics": {
+        "created": 5000,
+        "ended": 5000,
+        "enqueued": 2432,
+        "exported": 2432,
+        "export_attempts": 19,
+        "export_timeouts": 0,
+        "dropped_queue_full": 2568,
+        "dropped_after_failure": 0,
+        "dropped_at_shutdown": 0,
+        "final_flush": "complete",
+        "last_error_code": null
+      },
+      "collector": {
+        "export_calls": 19,
+        "distinct_spans_received": 2432,
+        "total_span_deliveries": 2432,
+        "duplicate_deliveries": 0,
+        "claimed_lost": 2568,
+        "delivered_but_counted_lost": 0
+      }
+    },
+    {
+      "condition": "disabled#r4",
+      "spans": 5000,
+      "span_us": {
+        "median": 1.00000761449337,
+        "p99": 3.4999684430658817,
+        "max": 30.399998649954796,
+        "mean": 1.617720047943294
+      },
+      "shutdown_ms": 0.0,
+      "pool_backlog_before_shutdown": 0,
+      "diagnostics": {
+        "created": 0,
+        "ended": 0,
+        "enqueued": 0,
+        "exported": 0,
+        "export_attempts": 0,
+        "export_timeouts": 0,
+        "dropped_queue_full": 0,
+        "dropped_after_failure": 0,
+        "dropped_at_shutdown": 0,
+        "final_flush": null,
+        "last_error_code": null
+      }
+    },
+    {
+      "condition": "healthy-burst#r4",
+      "spans": 5000,
+      "span_us": {
+        "median": 10.999967344105244,
+        "p99": 32.89995947852731,
+        "max": 490.3000080958009,
+        "mean": 12.09049979224801
+      },
+      "shutdown_ms": 0.2,
+      "pool_backlog_before_shutdown": 0,
+      "diagnostics": {
+        "created": 5000,
+        "ended": 5000,
+        "enqueued": 2688,
+        "exported": 2688,
+        "export_attempts": 21,
+        "export_timeouts": 0,
+        "dropped_queue_full": 2312,
+        "dropped_after_failure": 0,
+        "dropped_at_shutdown": 0,
+        "final_flush": "complete",
+        "last_error_code": null
+      },
+      "collector": {
+        "export_calls": 21,
+        "distinct_spans_received": 2688,
+        "total_span_deliveries": 2688,
+        "duplicate_deliveries": 0,
+        "claimed_lost": 2312,
+        "delivered_but_counted_lost": 0
+      }
+    },
+    {
+      "condition": "healthy-paced",
+      "spans": 2000,
+      "span_us": {
+        "median": 55.29998452402651,
+        "p99": 302.59997583925724,
+        "max": 518.2000459171832,
+        "mean": 68.29749944154173
+      },
+      "shutdown_ms": 0.7,
+      "pool_backlog_before_shutdown": 0,
+      "diagnostics": {
+        "created": 2000,
+        "ended": 2000,
+        "enqueued": 2000,
+        "exported": 2000,
+        "export_attempts": 27,
+        "export_timeouts": 0,
+        "dropped_queue_full": 0,
+        "dropped_after_failure": 0,
+        "dropped_at_shutdown": 0,
+        "final_flush": "complete",
+        "last_error_code": null
+      },
+      "collector": {
+        "export_calls": 27,
+        "distinct_spans_received": 2000,
+        "total_span_deliveries": 2000,
+        "duplicate_deliveries": 0,
+        "claimed_lost": 0,
+        "delivered_but_counted_lost": 0
+      }
+    },
+    {
+      "condition": "slow-exporter-0.3s",
+      "spans": 600,
+      "span_us": {
+        "median": 10.899995686486363,
+        "p99": 58.29997826367617,
+        "max": 219.9000446125865,
+        "mean": 18.174000336633373
+      },
+      "shutdown_ms": 727.7,
+      "pool_backlog_before_shutdown": 2,
+      "diagnostics": {
+        "created": 600,
+        "ended": 600,
+        "enqueued": 600,
+        "exported": 0,
+        "export_attempts": 15,
+        "export_timeouts": 15,
+        "dropped_queue_full": 0,
+        "dropped_after_failure": 600,
+        "dropped_at_shutdown": 0,
+        "final_flush": "incomplete",
+        "last_error_code": "export_timeout"
+      },
+      "collector": {
+        "export_calls": 13,
+        "distinct_spans_received": 600,
+        "total_span_deliveries": 1624,
+        "duplicate_deliveries": 1024,
+        "claimed_lost": 600,
+        "delivered_but_counted_lost": 600
+      }
+    },
+    {
+      "condition": "failing-exporter",
+      "spans": 5000,
+      "span_us": {
+        "median": 10.90002479031682,
+        "p99": 45.29999569058418,
+        "max": 256.20002998039126,
+        "mean": 14.311979757621884
+      },
+      "shutdown_ms": 0.7,
+      "pool_backlog_before_shutdown": 0,
+      "diagnostics": {
+        "created": 5000,
+        "ended": 5000,
+        "enqueued": 2176,
+        "exported": 0,
+        "export_attempts": 17,
+        "export_timeouts": 0,
+        "dropped_queue_full": 2824,
+        "dropped_after_failure": 2176,
+        "dropped_at_shutdown": 0,
+        "final_flush": "complete",
+        "last_error_code": "exporter_connectionerror"
+      },
+      "collector": {
+        "export_calls": 17,
+        "distinct_spans_received": 0,
+        "total_span_deliveries": 0,
+        "duplicate_deliveries": 0,
+        "claimed_lost": 5000,
+        "delivered_but_counted_lost": 0
+      }
+    },
+    {
+      "condition": "stalled-then-released",
+      "spans": 5000,
+      "span_us": {
+        "median": 10.90002479031682,
+        "p99": 31.200004741549492,
+        "max": 454.2999668046832,
+        "mean": 12.17286007013172
+      },
+      "shutdown_ms": 3.4,
+      "pool_backlog_before_shutdown": 7,
+      "diagnostics": {
+        "created": 5000,
+        "ended": 5000,
+        "enqueued": 2176,
+        "exported": 1920,
+        "export_attempts": 22,
+        "export_timeouts": 7,
+        "dropped_queue_full": 2824,
+        "dropped_after_failure": 256,
+        "dropped_at_shutdown": 0,
+        "final_flush": "complete",
+        "last_error_code": "export_timeout"
+      },
+      "collector": {
+        "export_calls": 22,
+        "distinct_spans_received": 2176,
+        "total_span_deliveries": 2816,
+        "duplicate_deliveries": 640,
+        "claimed_lost": 3080,
+        "delivered_but_counted_lost": 256
+      }
+    }
+  ]
+}

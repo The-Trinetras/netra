@@ -1,0 +1,596 @@
+{
+  "dataset": "netra-grounded-v1@2ad465bddd7e51a5",
+  "instructions": "Fill decision (approve/revise/reject), source_checked, reviewer and reviewed_on for each case you review; leave the rest null. approve needs source_checked=true and a reviewer who is not the reference author. revise needs corrected_reference; a second reviewer must later approve it.",
+  "entries": [
+    {
+      "case_id": "pack-01-full-evidence",
+      "decision": null,
+      "corrected_reference": null,
+      "source_checked": false,
+      "reviewer": null,
+      "reviewed_on": null,
+      "criteria_changes": null,
+      "notes": null
+    },
+    {
+      "case_id": "pack-02-transcript-only",
+      "decision": null,
+      "corrected_reference": null,
+      "source_checked": false,
+      "reviewer": null,
+      "reviewed_on": null,
+      "criteria_changes": null,
+      "notes": null
+    },
+    {
+      "case_id": "pack-07-which-object-gives-2-ohms",
+      "decision": null,
+      "corrected_reference": null,
+      "source_checked": false,
+      "reviewer": null,
+      "reviewed_on": null,
+      "criteria_changes": null,
+      "notes": null
+    },
+    {
+      "case_id": "pack-09-copied-current-value",
+      "decision": null,
+      "corrected_reference": null,
+      "source_checked": false,
+      "reviewer": null,
+      "reviewed_on": null,
+      "criteria_changes": null,
+      "notes": null
+    },
+    {
+      "case_id": "pack-10-hint-after-reasoning",
+      "decision": null,
+      "corrected_reference": null,
+      "source_checked": false,
+      "reviewer": null,
+      "reviewed_on": null,
+      "criteria_changes": null,
+      "notes": null
+    },
+    {
+      "case_id": "pack-11-assisted-correct-answer",
+      "decision": null,
+      "corrected_reference": null,
+      "source_checked": false,
+      "reviewer": null,
+      "reviewed_on": null,
+      "criteria_changes": null,
+      "notes": null
+    },
+    {
+      "case_id": "lamp-01-is-it-ohmic",
+      "decision": null,
+      "corrected_reference": null,
+      "source_checked": false,
+      "reviewer": null,
+      "reviewed_on": null,
+      "criteria_changes": null,
+      "notes": null
+    },
+    {
+      "case_id": "lamp-02-always-2-ohms",
+      "decision": null,
+      "corrected_reference": null,
+      "source_checked": false,
+      "reviewer": null,
+      "reviewed_on": null,
+      "criteria_changes": null,
+      "notes": null
+    },
+    {
+      "case_id": "m1-01-injection-in-retrieved-page",
+      "decision": null,
+      "corrected_reference": null,
+      "source_checked": false,
+      "reviewer": null,
+      "reviewed_on": null,
+      "criteria_changes": null,
+      "notes": null
+    },
+    {
+      "case_id": "pack-05-unreadable-axes",
+      "decision": null,
+      "corrected_reference": null,
+      "source_checked": false,
+      "reviewer": null,
+      "reviewed_on": null,
+      "criteria_changes": null,
+      "notes": null
+    },
+    {
+      "case_id": "pack-03-no-evidence-at-this-time",
+      "decision": null,
+      "corrected_reference": null,
+      "source_checked": false,
+      "reviewer": null,
+      "reviewed_on": null,
+      "criteria_changes": null,
+      "notes": null
+    },
+    {
+      "case_id": "pack-04-video-analysis-failed",
+      "decision": null,
+      "corrected_reference": null,
+      "source_checked": false,
+      "reviewer": null,
+      "reviewed_on": null,
+      "criteria_changes": null,
+      "notes": null
+    },
+    {
+      "case_id": "pack-06-equation-failed-check",
+      "decision": null,
+      "corrected_reference": null,
+      "source_checked": false,
+      "reviewer": null,
+      "reviewed_on": null,
+      "criteria_changes": null,
+      "notes": null
+    },
+    {
+      "case_id": "pack-08-offer-optional-check",
+      "decision": null,
+      "corrected_reference": null,
+      "source_checked": false,
+      "reviewer": null,
+      "reviewed_on": null,
+      "criteria_changes": null,
+      "notes": null
+    },
+    {
+      "case_id": "pack-12-declined-check",
+      "decision": null,
+      "corrected_reference": null,
+      "source_checked": false,
+      "reviewer": null,
+      "reviewed_on": null,
+      "criteria_changes": null,
+      "notes": null
+    },
+    {
+      "case_id": "m1-02-student-asks-about-page-4",
+      "decision": null,
+      "corrected_reference": null,
+      "source_checked": false,
+      "reviewer": null,
+      "reviewed_on": null,
+      "criteria_changes": null,
+      "notes": null
+    },
+    {
+      "case_id": "ch4-13-resistance-from-table",
+      "decision": null,
+      "corrected_reference": null,
+      "source_checked": false,
+      "reviewer": null,
+      "reviewed_on": null,
+      "criteria_changes": null,
+      "notes": null
+    },
+    {
+      "case_id": "ch4-20-other-students-note",
+      "decision": null,
+      "corrected_reference": null,
+      "source_checked": false,
+      "reviewer": null,
+      "reviewed_on": null,
+      "criteria_changes": null,
+      "notes": null
+    },
+    {
+      "case_id": "ch4-01-graph-explained",
+      "decision": null,
+      "corrected_reference": null,
+      "source_checked": false,
+      "reviewer": null,
+      "reviewed_on": null,
+      "criteria_changes": null,
+      "notes": null
+    },
+    {
+      "case_id": "ch4-02-axes-read",
+      "decision": null,
+      "corrected_reference": null,
+      "source_checked": false,
+      "reviewer": null,
+      "reviewed_on": null,
+      "criteria_changes": null,
+      "notes": null
+    },
+    {
+      "case_id": "ch4-03-no-4-ampere-row",
+      "decision": null,
+      "corrected_reference": null,
+      "source_checked": false,
+      "reviewer": null,
+      "reviewed_on": null,
+      "criteria_changes": null,
+      "notes": null
+    },
+    {
+      "case_id": "ch4-04-volts-for-ohms",
+      "decision": null,
+      "corrected_reference": null,
+      "source_checked": false,
+      "reviewer": null,
+      "reviewed_on": null,
+      "criteria_changes": null,
+      "notes": null
+    },
+    {
+      "case_id": "ch4-05-slope-reasoning",
+      "decision": null,
+      "corrected_reference": null,
+      "source_checked": false,
+      "reviewer": null,
+      "reviewed_on": null,
+      "criteria_changes": null,
+      "notes": null
+    },
+    {
+      "case_id": "ch4-06-largest-voltage",
+      "decision": null,
+      "corrected_reference": null,
+      "source_checked": false,
+      "reviewer": null,
+      "reviewed_on": null,
+      "criteria_changes": null,
+      "notes": null
+    },
+    {
+      "case_id": "ch4-07-hint-without-answer",
+      "decision": null,
+      "corrected_reference": null,
+      "source_checked": false,
+      "reviewer": null,
+      "reviewed_on": null,
+      "criteria_changes": null,
+      "notes": null
+    },
+    {
+      "case_id": "ch4-08-power-not-covered",
+      "decision": null,
+      "corrected_reference": null,
+      "source_checked": false,
+      "reviewer": null,
+      "reviewed_on": null,
+      "criteria_changes": null,
+      "notes": null
+    },
+    {
+      "case_id": "ch4-09-judge-injection-in-candidate",
+      "decision": null,
+      "corrected_reference": null,
+      "source_checked": false,
+      "reviewer": null,
+      "reviewed_on": null,
+      "criteria_changes": null,
+      "notes": null
+    },
+    {
+      "case_id": "ch4-10-no-mastery-label",
+      "decision": null,
+      "corrected_reference": null,
+      "source_checked": false,
+      "reviewer": null,
+      "reviewed_on": null,
+      "criteria_changes": null,
+      "notes": null
+    },
+    {
+      "case_id": "ch4-11-reference-pending",
+      "decision": null,
+      "corrected_reference": null,
+      "source_checked": false,
+      "reviewer": null,
+      "reviewed_on": null,
+      "criteria_changes": null,
+      "notes": null
+    },
+    {
+      "case_id": "ch4-12-resistance-unit",
+      "decision": null,
+      "corrected_reference": null,
+      "source_checked": false,
+      "reviewer": null,
+      "reviewed_on": null,
+      "criteria_changes": null,
+      "notes": null
+    },
+    {
+      "case_id": "ch4-14-power-formula-missing",
+      "decision": null,
+      "corrected_reference": null,
+      "source_checked": false,
+      "reviewer": null,
+      "reviewed_on": null,
+      "criteria_changes": null,
+      "notes": null
+    },
+    {
+      "case_id": "ch4-15-origin-citation",
+      "decision": null,
+      "corrected_reference": null,
+      "source_checked": false,
+      "reviewer": null,
+      "reviewed_on": null,
+      "criteria_changes": null,
+      "notes": null
+    },
+    {
+      "case_id": "ch4-16-stale-version-offered",
+      "decision": null,
+      "corrected_reference": null,
+      "source_checked": false,
+      "reviewer": null,
+      "reviewed_on": null,
+      "criteria_changes": null,
+      "notes": null
+    },
+    {
+      "case_id": "ch4-17-pinned-older-version",
+      "decision": null,
+      "corrected_reference": null,
+      "source_checked": false,
+      "reviewer": null,
+      "reviewed_on": null,
+      "criteria_changes": null,
+      "notes": null
+    },
+    {
+      "case_id": "ch4-18-failed-version-chunk",
+      "decision": null,
+      "corrected_reference": null,
+      "source_checked": false,
+      "reviewer": null,
+      "reviewed_on": null,
+      "criteria_changes": null,
+      "notes": null
+    },
+    {
+      "case_id": "ch4-19-deleted-note",
+      "decision": null,
+      "corrected_reference": null,
+      "source_checked": false,
+      "reviewer": null,
+      "reviewed_on": null,
+      "criteria_changes": null,
+      "notes": null
+    },
+    {
+      "case_id": "ch4-21-transistor-not-covered",
+      "decision": null,
+      "corrected_reference": null,
+      "source_checked": false,
+      "reviewer": null,
+      "reviewed_on": null,
+      "criteria_changes": null,
+      "notes": null
+    },
+    {
+      "case_id": "lab2-01-conflicting-resistor-value",
+      "decision": null,
+      "corrected_reference": null,
+      "source_checked": false,
+      "reviewer": null,
+      "reviewed_on": null,
+      "criteria_changes": null,
+      "notes": null
+    },
+    {
+      "case_id": "lab2-02-current-cannot-be-computed",
+      "decision": null,
+      "corrected_reference": null,
+      "source_checked": false,
+      "reviewer": null,
+      "reviewed_on": null,
+      "criteria_changes": null,
+      "notes": null
+    },
+    {
+      "case_id": "note-01-margin-instruction",
+      "decision": null,
+      "corrected_reference": null,
+      "source_checked": false,
+      "reviewer": null,
+      "reviewed_on": null,
+      "criteria_changes": null,
+      "notes": null
+    },
+    {
+      "case_id": "parallel-01-total-and-supply-current",
+      "decision": null,
+      "corrected_reference": null,
+      "source_checked": false,
+      "reviewer": null,
+      "reviewed_on": null,
+      "criteria_changes": null,
+      "notes": null
+    },
+    {
+      "case_id": "parallel-02-adds-like-series",
+      "decision": null,
+      "corrected_reference": null,
+      "source_checked": false,
+      "reviewer": null,
+      "reviewed_on": null,
+      "criteria_changes": null,
+      "notes": null
+    },
+    {
+      "case_id": "parallel-03-branch-current-reasoning",
+      "decision": null,
+      "corrected_reference": null,
+      "source_checked": false,
+      "reviewer": null,
+      "reviewed_on": null,
+      "criteria_changes": null,
+      "notes": null
+    },
+    {
+      "case_id": "parallel-04-which-paragraph",
+      "decision": null,
+      "corrected_reference": null,
+      "source_checked": false,
+      "reviewer": null,
+      "reviewed_on": null,
+      "criteria_changes": null,
+      "notes": null
+    },
+    {
+      "case_id": "power-01-lamp-a",
+      "decision": null,
+      "corrected_reference": null,
+      "source_checked": false,
+      "reviewer": null,
+      "reviewed_on": null,
+      "criteria_changes": null,
+      "notes": null
+    },
+    {
+      "case_id": "power-02-higher-voltage-more-power",
+      "decision": null,
+      "corrected_reference": null,
+      "source_checked": false,
+      "reviewer": null,
+      "reviewed_on": null,
+      "criteria_changes": null,
+      "notes": null
+    },
+    {
+      "case_id": "power-03-energy-needs-time",
+      "decision": null,
+      "corrected_reference": null,
+      "source_checked": false,
+      "reviewer": null,
+      "reviewed_on": null,
+      "criteria_changes": null,
+      "notes": null
+    },
+    {
+      "case_id": "series-01-total-and-current",
+      "decision": null,
+      "corrected_reference": null,
+      "source_checked": false,
+      "reviewer": null,
+      "reviewed_on": null,
+      "criteria_changes": null,
+      "notes": null
+    },
+    {
+      "case_id": "series-02-current-used-up",
+      "decision": null,
+      "corrected_reference": null,
+      "source_checked": false,
+      "reviewer": null,
+      "reviewed_on": null,
+      "criteria_changes": null,
+      "notes": null
+    },
+    {
+      "case_id": "series-03-colour-code-not-covered",
+      "decision": null,
+      "corrected_reference": null,
+      "source_checked": false,
+      "reviewer": null,
+      "reviewed_on": null,
+      "criteria_changes": null,
+      "notes": null
+    },
+    {
+      "case_id": "series-04-add-a-third-resistor",
+      "decision": null,
+      "corrected_reference": null,
+      "source_checked": false,
+      "reviewer": null,
+      "reviewed_on": null,
+      "criteria_changes": null,
+      "notes": null
+    },
+    {
+      "case_id": "series-05-offer-a-check",
+      "decision": null,
+      "corrected_reference": null,
+      "source_checked": false,
+      "reviewer": null,
+      "reviewed_on": null,
+      "criteria_changes": null,
+      "notes": null
+    },
+    {
+      "case_id": "series-06-check-answered",
+      "decision": null,
+      "corrected_reference": null,
+      "source_checked": false,
+      "reviewer": null,
+      "reviewed_on": null,
+      "criteria_changes": null,
+      "notes": null
+    },
+    {
+      "case_id": "series-07-which-resistor",
+      "decision": null,
+      "corrected_reference": null,
+      "source_checked": false,
+      "reviewer": null,
+      "reviewed_on": null,
+      "criteria_changes": null,
+      "notes": null
+    },
+    {
+      "case_id": "switch-01-diagram-from-transcript",
+      "decision": null,
+      "corrected_reference": null,
+      "source_checked": false,
+      "reviewer": null,
+      "reviewed_on": null,
+      "criteria_changes": null,
+      "notes": null
+    },
+    {
+      "case_id": "switch-02-what-the-lecturer-says",
+      "decision": null,
+      "corrected_reference": null,
+      "source_checked": false,
+      "reviewer": null,
+      "reviewed_on": null,
+      "criteria_changes": null,
+      "notes": null
+    },
+    {
+      "case_id": "switch-03-before-any-evidence",
+      "decision": null,
+      "corrected_reference": null,
+      "source_checked": false,
+      "reviewer": null,
+      "reviewed_on": null,
+      "criteria_changes": null,
+      "notes": null
+    },
+    {
+      "case_id": "worksheet-01-corrected-version",
+      "decision": null,
+      "corrected_reference": null,
+      "source_checked": false,
+      "reviewer": null,
+      "reviewed_on": null,
+      "criteria_changes": null,
+      "notes": null
+    },
+    {
+      "case_id": "worksheet-02-classmates-answer",
+      "decision": null,
+      "corrected_reference": null,
+      "source_checked": false,
+      "reviewer": null,
+      "reviewed_on": null,
+      "criteria_changes": null,
+      "notes": null
+    }
+  ]
+}

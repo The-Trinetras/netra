@@ -25,10 +25,12 @@ Invariants enforced here, not by prompts:
 - An identical action that already ran while requirements remain unresolved is
   refused and the turn ends with the stated gap (no-progress stop, not a cap).
 
-LangGraph (approved stack) is not installed in the verified environment, so
-the loop runs as plain asyncio. ``build_langgraph`` wires the same engine as a
-single bounded node when the pinned package is present; that wiring and
-PostgreSQL checkpointing are unverified here and recorded in the M1 handoff.
+Composed turns run through ``build_langgraph``: this same loop compiled as one
+bounded LangGraph node (langgraph 1.2.11, locked). Budget, cancellation and
+validation stay in ``run_direct``. No checkpointer is attached because turn
+state holds live runtime objects, so a turn does not survive a process
+restart. The pinned PostgreSQL saver is tested separately
+(test_langgraph_checkpoint_postgres.py); see docs/team/integration-status.md.
 """
 
 from __future__ import annotations
@@ -51,7 +53,7 @@ from netra_api.coordinator.providers.gemini import (
 from netra_api.coordinator.state import CoordinatorTurnState, TurnOutcome
 from netra_api.coordinator.tool_registry import ToolContext, ToolGateway, ToolRegistry
 from netra_api.coordinator.tutor_gateway import HandoffRejectedError, TutorGateway
-from netra_api.platform.errors import NetraError, TurnCancelledError
+from netra_api.platform.errors import NetraError, TurnBudgetExceededError, TurnCancelledError
 from netra_api.platform.observability import TurnTrace
 from netra_api.platform.tracing import DISABLED_TRACER, Tracer
 from netra_api.session.outputs import PlannedSegment
@@ -88,8 +90,28 @@ class CoordinatorEngine:
         self._tutor = tutor
         self._model_config = model_config
         self._instructions = instructions if instructions is not None else load_coordinator_instructions()
+        self._graph: Any = None
+
+    def orchestrate_with_langgraph(self) -> "CoordinatorEngine":
+        """Run every turn through the compiled one-node LangGraph graph.
+
+        The graph adds orchestration only: the budget, cancellation and
+        validation stay inside ``run_direct``, and the originating TurnBudget
+        instance travels in graph state. No checkpointer is attached: turn
+        state holds live runtime objects (budget, trace), which are not
+        checkpoint-serializable (see docs/team/integration-status.md).
+        """
+
+        self._graph = build_langgraph(self)
+        return self
 
     async def run(self, turn: CoordinatorTurnState, trace: TurnTrace) -> TurnOutcome:
+        if self._graph is not None:
+            state = await self._graph.ainvoke({"turn": turn, "trace": trace})
+            return state["outcome"]
+        return await self.run_direct(turn, trace)
+
+    async def run_direct(self, turn: CoordinatorTurnState, trace: TurnTrace) -> TurnOutcome:
         with self._tracer.span("netra.coordinator.turn", netra_request_id=str(turn.request_id), netra_operation="coordinator_turn") as span:
             outcome = await self._run(turn, trace)
             budget = turn.budget
@@ -232,9 +254,13 @@ class CoordinatorEngine:
             )
         finally:
             cancel_waiter.cancel()
+            if not call.done():
+                # Deadline, STOP, or this turn task itself being cancelled (a
+                # disconnect cancels it directly): the provider call must not
+                # outlive its turn.
+                call.cancel()
+                await asyncio.gather(call, return_exceptions=True)
         if call not in done:
-            call.cancel()
-            await asyncio.gather(call, return_exceptions=True)
             if budget.cancelled:
                 raise TurnCancelledError("cancelled during model decision")
             raise _ModelCallFailed("deadline_reached")
@@ -319,6 +345,13 @@ class CoordinatorEngine:
             )
         except TurnCancelledError:
             return self._cancelled(trace)
+        except TurnBudgetExceededError:
+            # The Tutor spends the same budget: running out there is this turn's
+            # limit, reported like any other (supported findings + stated gaps).
+            budget = turn.budget
+            if budget.is_expired():
+                return self._limited(ledger, trace, "deadline")
+            return self._limited(ledger, trace, "model_decisions" if budget.remaining_model_decisions == 0 else "tool_calls")
         except HandoffRejectedError as rejected:
             trace.record("handoff_rejected", check=rejected.check)
             if rejected.check in ("evidence_version_unavailable", "handoff_evidence_not_validated"):
@@ -426,10 +459,10 @@ class CoordinatorEngine:
 def build_langgraph(engine: CoordinatorEngine) -> Any:
     """Compile the engine as a one-node LangGraph graph (langgraph==1.2.11).
 
-    Unverified in this environment (package not installed). The budget,
-    cancellation and validation stay inside the engine, so graph retries or
-    checkpoint resumes cannot reset counters: the TurnBudget instance travels
-    in state, and a resumed graph must be handed the ORIGINAL instance.
+    Executed by api/tests/transport/test_langgraph_execution.py and, through
+    ``CoordinatorEngine.orchestrate_with_langgraph``, by every composed turn.
+    The budget, cancellation and validation stay inside the engine, so graph
+    retries cannot reset counters: the TurnBudget instance travels in state.
     """
 
     from typing import TypedDict
@@ -442,7 +475,7 @@ def build_langgraph(engine: CoordinatorEngine) -> Any:
         outcome: TurnOutcome
 
     async def run_node(state: _GraphState) -> dict:
-        return {"outcome": await engine.run(state["turn"], state["trace"])}
+        return {"outcome": await engine.run_direct(state["turn"], state["trace"])}
 
     graph = StateGraph(_GraphState)
     graph.add_node("coordinator_turn", run_node)

@@ -19,12 +19,21 @@ Guarantees, each covered by tests:
    appends an immutable record to a bounded in-memory queue (``put_nowait``).
    A single background thread batches and exports with a per-call timeout
    and bounded retries. A full queue drops the span and counts it.
-4. **Visible loss.** ``TracingDiagnostics`` counts created/ended/enqueued/
-   exported/failed/dropped spans, attributes dropped, retries, configuration
-   errors and the final flush outcome. Diagnostics logging is rate-limited.
-5. **Bounded shutdown.** ``shutdown(timeout)`` drains until a deadline and
+4. **At most one export call in flight; no duplicate delivery.** A call that
+   exceeds its timeout may still deliver, so it is never resubmitted; its
+   eventual outcome settles the batch once. While it is still running no
+   other call is made: spans wait in the bounded queue, where a full queue
+   drops and counts new spans.
+5. **Visible, exact loss.** ``TracingDiagnostics`` counts created/ended/
+   enqueued/exported/failed/dropped spans, attributes dropped, retries,
+   configuration errors and the final flush outcome, and every enqueued span
+   is settled exactly once (``exported + lost == ended``). Diagnostics
+   logging is rate-limited.
+6. **Bounded shutdown.** ``shutdown(timeout)`` drains until a deadline and
    counts everything left as ``dropped_at_shutdown``; it never blocks
-   indefinitely and is never called per turn.
+   indefinitely and is never called per turn. Totals are frozen at the final
+   flush: a stuck call that delivers afterwards is reported separately as
+   ``delivered_after_final_flush``.
 
 Identity: ``trace_id``/``span_id`` are diagnostic identities generated here.
 The logical ``request_id`` is recorded as an attribute; a retransmission is a
@@ -44,7 +53,7 @@ import re
 import secrets
 import threading
 import time
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
+from concurrent.futures import Future, ThreadPoolExecutor, TimeoutError as FutureTimeout, wait as wait_futures
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Callable, Iterator, Literal, Optional, Protocol
@@ -221,6 +230,12 @@ class TracingDiagnostics:
     export_retries: int = 0
     export_timeouts: int = 0
     configuration_errors: int = 0
+    exported_late: int = 0
+    """Spans whose export call exceeded its timeout but then succeeded (included in ``exported``)."""
+    export_skipped_stalled: int = 0
+    """Batches not sent because an earlier call was still in flight (their spans count as lost)."""
+    delivered_after_final_flush: int = 0
+    """Spans a stuck call delivered after shutdown had already counted them lost."""
     last_error_code: Optional[str] = None
     final_flush: Optional[str] = None
     queue_high_water: int = 0
@@ -311,6 +326,9 @@ class BatchSpanProcessor:
         self._stop = threading.Event()
         self._wake = threading.Event()
         self._call_pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="netra-trace-export-call")
+        self._inflight: Optional[Future] = None
+        self._settle_lock = threading.Lock()
+        self._finalized = False
         self._worker = threading.Thread(target=self._run, name="netra-trace-export", daemon=True)
         self._last_log = 0.0
         self._worker.start()
@@ -348,43 +366,94 @@ class BatchSpanProcessor:
             self._wake.wait(self._settings.schedule_delay_seconds)
             self._wake.clear()
             while not self._stop.is_set():
+                if not self._wait_for_inflight(self._settings.schedule_delay_seconds):
+                    # The collector still holds an earlier call: leave spans in
+                    # the bounded queue (a full queue drops and counts new ones).
+                    break
                 batch = self._drain(self._settings.max_batch_size)
                 if not batch:
                     break
                 self._export_with_retries(batch, deadline=None)
 
-    def _export_with_retries(self, batch: list[SpanRecord], deadline: Optional[float]) -> bool:
+    def _export_with_retries(self, batch: list[SpanRecord], deadline: Optional[float]) -> Optional[bool]:
+        """Export one batch with at most one call in flight.
+
+        Returns True when exported, False when counted lost, and None when a
+        call timed out and is still running: that call may still deliver, so it
+        is never resubmitted, and ``_settle_late`` records its outcome.
+        """
+
+        count = len(batch)
         for attempt in range(self._settings.max_retries + 1):
             if deadline is not None and time.monotonic() >= deadline:
                 break
-            self._diagnostics.add(export_attempts=1, export_retries=1 if attempt else 0)
             timeout = self._settings.export_timeout_seconds
             if deadline is not None:
                 timeout = max(0.0, min(timeout, deadline - time.monotonic()))
-            future = self._call_pool.submit(self._exporter.export, batch)
+            if not self._wait_for_inflight(timeout):
+                # An earlier call is still holding the collector: another call
+                # would only queue behind it.
+                self._diagnostics.add(export_skipped_stalled=1)
+                self._diagnostics.last_error_code = "export_stalled"
+                break
+            self._diagnostics.add(export_attempts=1, export_retries=1 if attempt else 0)
             try:
+                future = self._call_pool.submit(self._exporter.export, batch)
                 outcome = future.result(timeout=timeout)
             except FutureTimeout:
                 self._diagnostics.add(export_timeouts=1)
                 self._diagnostics.last_error_code = "export_timeout"
-                outcome = "retryable_failure"
-                # A stalled exporter call keeps its single worker; further
-                # submissions queue behind it and time out too. The request
-                # path never sees any of this.
-            except Exception as exc:  # exporter bug: record kind, never message
+                self._inflight = future
+                future.add_done_callback(lambda done, count=count: self._settle_late(done, count))
+                # The request path never sees any of this.
+                return None
+            except Exception as exc:  # exporter bug or pool shut down: record kind, never message
                 self._diagnostics.last_error_code = f"exporter_{type(exc).__name__.lower()}"[:60]
                 outcome = "permanent_failure"
             if outcome == "success":
-                self._diagnostics.add(exported=len(batch))
+                self._settle(True, count)
                 return True
             self._diagnostics.add(export_failures=1)
             if outcome == "permanent_failure":
                 break
             if attempt < self._settings.max_retries:
                 self._stop.wait(self._settings.retry_backoff_seconds * (2**attempt))
-        self._diagnostics.add(dropped_after_failure=len(batch))
+        self._settle(False, count)
         self._log_rate_limited("span export failed; spans dropped")
         return False
+
+    def _wait_for_inflight(self, timeout: float) -> bool:
+        inflight = self._inflight
+        if inflight is None:
+            return True
+        wait_futures([inflight], timeout=timeout)
+        if not inflight.done():
+            return False
+        self._inflight = None
+        return True
+
+    def _settle_late(self, future: Future, count: int) -> None:
+        try:
+            delivered = future.result() == "success"
+        except Exception:  # the exporter raised, or the call was cancelled at shutdown
+            delivered = False
+        if not delivered:
+            self._diagnostics.add(export_failures=1)
+        self._settle(delivered, count, late=True)
+
+    def _settle(self, delivered: bool, count: int, *, late: bool = False) -> None:
+        """Record a batch's outcome exactly once. After the final flush the totals
+        are frozen; a late delivery is then reported, not re-counted."""
+
+        with self._settle_lock:
+            if self._finalized:
+                if delivered:
+                    self._diagnostics.add(delivered_after_final_flush=count)
+                return
+            if delivered:
+                self._diagnostics.add(exported=count, exported_late=count if late else 0)
+            else:
+                self._diagnostics.add(dropped_after_failure=count)
 
     def shutdown(self, timeout_seconds: float) -> None:
         """Bounded final flush. Everything not exported by the deadline is counted lost."""
@@ -394,25 +463,33 @@ class BatchSpanProcessor:
         self._wake.set()
         self._worker.join(timeout=max(0.0, deadline - time.monotonic()))
         flushed_all = True
-        while time.monotonic() < deadline:
-            batch = self._drain(self._settings.max_batch_size)
-            if not batch:
-                break
-            if not self._export_with_retries(batch, deadline=deadline):
+        if self._worker.is_alive():
+            # The export thread is still inside a call; anything sent now would
+            # only queue behind it.
+            flushed_all = False
+        else:
+            while time.monotonic() < deadline:
+                if not self._wait_for_inflight(max(0.0, deadline - time.monotonic())):
+                    break  # the collector still holds an earlier call
+                batch = self._drain(self._settings.max_batch_size)
+                if not batch:
+                    break
+                if self._export_with_retries(batch, deadline=deadline) is False:
+                    flushed_all = False
+        leftover = self._drain(self._settings.max_queue_size)
+        if leftover:
+            self._diagnostics.add(dropped_at_shutdown=len(leftover))
+            flushed_all = False
+        with self._settle_lock:
+            # A batch still inside an export call is neither exported nor queued:
+            # count it lost now, and freeze the totals so a late outcome cannot
+            # count it twice.
+            d = self._diagnostics
+            unaccounted = d.enqueued - (d.exported + d.dropped_after_failure + d.dropped_at_shutdown)
+            if unaccounted > 0:
+                d.add(dropped_at_shutdown=unaccounted)
                 flushed_all = False
-        remaining = self._queue.qsize()
-        if remaining:
-            self._drain(remaining)
-            self._diagnostics.add(dropped_at_shutdown=remaining)
-            flushed_all = False
-        # A batch still inside a stalled export call at the deadline is neither
-        # exported nor in the queue; count it as lost rather than let the
-        # totals silently disagree.
-        d = self._diagnostics
-        unaccounted = d.enqueued - (d.exported + d.dropped_after_failure + d.dropped_at_shutdown)
-        if unaccounted > 0:
-            d.add(dropped_at_shutdown=unaccounted)
-            flushed_all = False
+            self._finalized = True
         self._diagnostics.final_flush = "complete" if flushed_all else "incomplete"
         self._call_pool.shutdown(wait=False, cancel_futures=True)
         try:

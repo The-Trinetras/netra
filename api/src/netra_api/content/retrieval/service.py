@@ -33,6 +33,24 @@ class RetrievalProviderUnavailableError(RuntimeError):
     """An explicitly classified provider-availability failure."""
 
 
+def _semantic_failure_types() -> tuple[type[BaseException], ...]:
+    """Failures of the rebuildable semantic projection path.
+
+    Gemini query embedding and the Pinecone index are derived, optional
+    infrastructure (overview.md "Pinecone failure permits the specified
+    authorized PostgreSQL text-search reduced mode"). Their configuration and
+    provider failures therefore mean "semantic unavailable", not "search
+    failed"; the lexical PostgreSQL path still answers. Imported lazily to
+    keep this interface module free of provider adapters.
+    """
+
+    from netra_api.content.providers.pinecone import VectorIndexError
+    from netra_api.content.retrieval.embeddings import EmbeddingError
+    from netra_api.content.retrieval.semantic_search import IncompatibleEmbeddingError
+
+    return (EmbeddingError, VectorIndexError, IncompatibleEmbeddingError)
+
+
 class RetrievalQuery(BaseModel):
     query_text: str
     source_version_ids: Optional[List[UUID]] = None
@@ -96,6 +114,8 @@ class HybridRetrievalService:
                 increment("netra_provider_failures_total", provider=name, operation="search")
                 log_event(logging.getLogger(__name__), "retrieval_provider_failed", component="retrieval",
                           provider=name, error_type=type(exc).__name__, level=logging.ERROR)
+                if name == "pinecone" and isinstance(exc, _semantic_failure_types()):
+                    raise RetrievalProviderUnavailableError(type(exc).__name__) from None
                 raise
             finally:
                 observe("netra_retrieval_provider_duration_seconds", time.perf_counter() - stage, provider=name)

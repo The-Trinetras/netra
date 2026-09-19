@@ -1,0 +1,480 @@
+{
+  "label": "t1-candidate",
+  "captured_at": "2026-09-18T23:29:18.201345+00:00",
+  "python": "3.13.15",
+  "settings": {
+    "max_queue_size": 2048,
+    "max_batch_size": 128,
+    "schedule_delay_seconds": 0.05,
+    "export_timeout_seconds": 0.2,
+    "max_retries": 2,
+    "retry_backoff_seconds": 0.05,
+    "diagnostics_log_interval_seconds": 60.0
+  },
+  "results": [
+    {
+      "condition": "disabled#r0",
+      "spans": 5000,
+      "span_us": {
+        "median": 1.00000761449337,
+        "p99": 1.500011421740055,
+        "max": 153.4000039100647,
+        "mean": 1.0649999720044434
+      },
+      "shutdown_ms": 0.0,
+      "pool_backlog_before_shutdown": 0,
+      "diagnostics": {
+        "created": 0,
+        "ended": 0,
+        "enqueued": 0,
+        "exported": 0,
+        "export_attempts": 0,
+        "export_timeouts": 0,
+        "dropped_queue_full": 0,
+        "dropped_after_failure": 0,
+        "dropped_at_shutdown": 0,
+        "final_flush": null,
+        "last_error_code": null,
+        "exported_late": 0,
+        "export_skipped_stalled": 0,
+        "delivered_after_final_flush": 0
+      }
+    },
+    {
+      "condition": "healthy-burst#r0",
+      "spans": 5000,
+      "span_us": {
+        "median": 10.79996582120657,
+        "p99": 29.19998951256275,
+        "max": 740.0999893434346,
+        "mean": 11.969859909731895
+      },
+      "shutdown_ms": 1.1,
+      "pool_backlog_before_shutdown": 0,
+      "diagnostics": {
+        "created": 5000,
+        "ended": 5000,
+        "enqueued": 2176,
+        "exported": 2176,
+        "export_attempts": 17,
+        "export_timeouts": 0,
+        "dropped_queue_full": 2824,
+        "dropped_after_failure": 0,
+        "dropped_at_shutdown": 0,
+        "final_flush": "complete",
+        "last_error_code": null,
+        "exported_late": 0,
+        "export_skipped_stalled": 0,
+        "delivered_after_final_flush": 0
+      },
+      "collector": {
+        "export_calls": 17,
+        "distinct_spans_received": 2176,
+        "total_span_deliveries": 2176,
+        "duplicate_deliveries": 0,
+        "claimed_lost": 2824,
+        "delivered_but_counted_lost": 0
+      }
+    },
+    {
+      "condition": "disabled#r1",
+      "spans": 5000,
+      "span_us": {
+        "median": 1.00000761449337,
+        "p99": 4.300032742321491,
+        "max": 42.29997284710407,
+        "mean": 1.4687599265016615
+      },
+      "shutdown_ms": 0.0,
+      "pool_backlog_before_shutdown": 0,
+      "diagnostics": {
+        "created": 0,
+        "ended": 0,
+        "enqueued": 0,
+        "exported": 0,
+        "export_attempts": 0,
+        "export_timeouts": 0,
+        "dropped_queue_full": 0,
+        "dropped_after_failure": 0,
+        "dropped_at_shutdown": 0,
+        "final_flush": null,
+        "last_error_code": null,
+        "exported_late": 0,
+        "export_skipped_stalled": 0,
+        "delivered_after_final_flush": 0
+      }
+    },
+    {
+      "condition": "healthy-burst#r1",
+      "spans": 5000,
+      "span_us": {
+        "median": 10.79996582120657,
+        "p99": 29.89999484270811,
+        "max": 790.800026152283,
+        "mean": 11.781040043570101
+      },
+      "shutdown_ms": 0.6,
+      "pool_backlog_before_shutdown": 0,
+      "diagnostics": {
+        "created": 5000,
+        "ended": 5000,
+        "enqueued": 2304,
+        "exported": 2304,
+        "export_attempts": 18,
+        "export_timeouts": 0,
+        "dropped_queue_full": 2696,
+        "dropped_after_failure": 0,
+        "dropped_at_shutdown": 0,
+        "final_flush": "complete",
+        "last_error_code": null,
+        "exported_late": 0,
+        "export_skipped_stalled": 0,
+        "delivered_after_final_flush": 0
+      },
+      "collector": {
+        "export_calls": 18,
+        "distinct_spans_received": 2304,
+        "total_span_deliveries": 2304,
+        "duplicate_deliveries": 0,
+        "claimed_lost": 2696,
+        "delivered_but_counted_lost": 0
+      }
+    },
+    {
+      "condition": "disabled#r2",
+      "spans": 5000,
+      "span_us": {
+        "median": 1.100008375942707,
+        "p99": 3.600027412176132,
+        "max": 29.699993319809437,
+        "mean": 1.6081200679764152
+      },
+      "shutdown_ms": 0.0,
+      "pool_backlog_before_shutdown": 0,
+      "diagnostics": {
+        "created": 0,
+        "ended": 0,
+        "enqueued": 0,
+        "exported": 0,
+        "export_attempts": 0,
+        "export_timeouts": 0,
+        "dropped_queue_full": 0,
+        "dropped_after_failure": 0,
+        "dropped_at_shutdown": 0,
+        "final_flush": null,
+        "last_error_code": null,
+        "exported_late": 0,
+        "export_skipped_stalled": 0,
+        "delivered_after_final_flush": 0
+      }
+    },
+    {
+      "condition": "healthy-burst#r2",
+      "spans": 5000,
+      "span_us": {
+        "median": 10.800024028867483,
+        "p99": 28.999987989664078,
+        "max": 580.3999956697226,
+        "mean": 12.049399910029024
+      },
+      "shutdown_ms": 0.5,
+      "pool_backlog_before_shutdown": 0,
+      "diagnostics": {
+        "created": 5000,
+        "ended": 5000,
+        "enqueued": 2304,
+        "exported": 2304,
+        "export_attempts": 18,
+        "export_timeouts": 0,
+        "dropped_queue_full": 2696,
+        "dropped_after_failure": 0,
+        "dropped_at_shutdown": 0,
+        "final_flush": "complete",
+        "last_error_code": null,
+        "exported_late": 0,
+        "export_skipped_stalled": 0,
+        "delivered_after_final_flush": 0
+      },
+      "collector": {
+        "export_calls": 18,
+        "distinct_spans_received": 2304,
+        "total_span_deliveries": 2304,
+        "duplicate_deliveries": 0,
+        "claimed_lost": 2696,
+        "delivered_but_counted_lost": 0
+      }
+    },
+    {
+      "condition": "disabled#r3",
+      "spans": 5000,
+      "span_us": {
+        "median": 1.400010660290718,
+        "p99": 4.200031980872154,
+        "max": 188.9999839477241,
+        "mean": 1.7694400157779455
+      },
+      "shutdown_ms": 0.0,
+      "pool_backlog_before_shutdown": 0,
+      "diagnostics": {
+        "created": 0,
+        "ended": 0,
+        "enqueued": 0,
+        "exported": 0,
+        "export_attempts": 0,
+        "export_timeouts": 0,
+        "dropped_queue_full": 0,
+        "dropped_after_failure": 0,
+        "dropped_at_shutdown": 0,
+        "final_flush": null,
+        "last_error_code": null,
+        "exported_late": 0,
+        "export_skipped_stalled": 0,
+        "delivered_after_final_flush": 0
+      }
+    },
+    {
+      "condition": "healthy-burst#r3",
+      "spans": 5000,
+      "span_us": {
+        "median": 10.79996582120657,
+        "p99": 40.09995609521866,
+        "max": 503.0999891459942,
+        "mean": 12.125599943101406
+      },
+      "shutdown_ms": 0.5,
+      "pool_backlog_before_shutdown": 0,
+      "diagnostics": {
+        "created": 5000,
+        "ended": 5000,
+        "enqueued": 2304,
+        "exported": 2304,
+        "export_attempts": 18,
+        "export_timeouts": 0,
+        "dropped_queue_full": 2696,
+        "dropped_after_failure": 0,
+        "dropped_at_shutdown": 0,
+        "final_flush": "complete",
+        "last_error_code": null,
+        "exported_late": 0,
+        "export_skipped_stalled": 0,
+        "delivered_after_final_flush": 0
+      },
+      "collector": {
+        "export_calls": 18,
+        "distinct_spans_received": 2304,
+        "total_span_deliveries": 2304,
+        "duplicate_deliveries": 0,
+        "claimed_lost": 2696,
+        "delivered_but_counted_lost": 0
+      }
+    },
+    {
+      "condition": "disabled#r4",
+      "spans": 5000,
+      "span_us": {
+        "median": 1.00000761449337,
+        "p99": 4.799978341907263,
+        "max": 211.39997988939285,
+        "mean": 1.5599399455823004
+      },
+      "shutdown_ms": 0.0,
+      "pool_backlog_before_shutdown": 0,
+      "diagnostics": {
+        "created": 0,
+        "ended": 0,
+        "enqueued": 0,
+        "exported": 0,
+        "export_attempts": 0,
+        "export_timeouts": 0,
+        "dropped_queue_full": 0,
+        "dropped_after_failure": 0,
+        "dropped_at_shutdown": 0,
+        "final_flush": null,
+        "last_error_code": null,
+        "exported_late": 0,
+        "export_skipped_stalled": 0,
+        "delivered_after_final_flush": 0
+      }
+    },
+    {
+      "condition": "healthy-burst#r4",
+      "spans": 5000,
+      "span_us": {
+        "median": 10.999967344105244,
+        "p99": 44.09998655319214,
+        "max": 541.499990504235,
+        "mean": 12.621420144569129
+      },
+      "shutdown_ms": 0.5,
+      "pool_backlog_before_shutdown": 0,
+      "diagnostics": {
+        "created": 5000,
+        "ended": 5000,
+        "enqueued": 2176,
+        "exported": 2176,
+        "export_attempts": 17,
+        "export_timeouts": 0,
+        "dropped_queue_full": 2824,
+        "dropped_after_failure": 0,
+        "dropped_at_shutdown": 0,
+        "final_flush": "complete",
+        "last_error_code": null,
+        "exported_late": 0,
+        "export_skipped_stalled": 0,
+        "delivered_after_final_flush": 0
+      },
+      "collector": {
+        "export_calls": 17,
+        "distinct_spans_received": 2176,
+        "total_span_deliveries": 2176,
+        "duplicate_deliveries": 0,
+        "claimed_lost": 2824,
+        "delivered_but_counted_lost": 0
+      }
+    },
+    {
+      "condition": "healthy-paced",
+      "spans": 2000,
+      "span_us": {
+        "median": 52.19999002292752,
+        "p99": 320.49999572336674,
+        "max": 904.3000172823668,
+        "mean": 66.68345030630007
+      },
+      "shutdown_ms": 0.8,
+      "pool_backlog_before_shutdown": 0,
+      "diagnostics": {
+        "created": 2000,
+        "ended": 2000,
+        "enqueued": 2000,
+        "exported": 2000,
+        "export_attempts": 23,
+        "export_timeouts": 0,
+        "dropped_queue_full": 0,
+        "dropped_after_failure": 0,
+        "dropped_at_shutdown": 0,
+        "final_flush": "complete",
+        "last_error_code": null,
+        "exported_late": 0,
+        "export_skipped_stalled": 0,
+        "delivered_after_final_flush": 0
+      },
+      "collector": {
+        "export_calls": 23,
+        "distinct_spans_received": 2000,
+        "total_span_deliveries": 2000,
+        "duplicate_deliveries": 0,
+        "claimed_lost": 0,
+        "delivered_but_counted_lost": 0
+      }
+    },
+    {
+      "condition": "slow-exporter-0.3s",
+      "spans": 600,
+      "span_us": {
+        "median": 11.699972674250603,
+        "p99": 43.39998122304678,
+        "max": 343.39999547228217,
+        "mean": 16.78566710324958
+      },
+      "shutdown_ms": 0.8,
+      "pool_backlog_before_shutdown": 0,
+      "diagnostics": {
+        "created": 600,
+        "ended": 600,
+        "enqueued": 600,
+        "exported": 600,
+        "export_attempts": 5,
+        "export_timeouts": 5,
+        "dropped_queue_full": 0,
+        "dropped_after_failure": 0,
+        "dropped_at_shutdown": 0,
+        "final_flush": "complete",
+        "last_error_code": "export_timeout",
+        "exported_late": 600,
+        "export_skipped_stalled": 0,
+        "delivered_after_final_flush": 0
+      },
+      "collector": {
+        "export_calls": 5,
+        "distinct_spans_received": 600,
+        "total_span_deliveries": 600,
+        "duplicate_deliveries": 0,
+        "claimed_lost": 0,
+        "delivered_but_counted_lost": 0
+      }
+    },
+    {
+      "condition": "failing-exporter",
+      "spans": 5000,
+      "span_us": {
+        "median": 10.800024028867483,
+        "p99": 44.599990360438824,
+        "max": 649.6999994851649,
+        "mean": 12.387619982473552
+      },
+      "shutdown_ms": 0.5,
+      "pool_backlog_before_shutdown": 0,
+      "diagnostics": {
+        "created": 5000,
+        "ended": 5000,
+        "enqueued": 2304,
+        "exported": 0,
+        "export_attempts": 18,
+        "export_timeouts": 0,
+        "dropped_queue_full": 2696,
+        "dropped_after_failure": 2304,
+        "dropped_at_shutdown": 0,
+        "final_flush": "complete",
+        "last_error_code": "exporter_connectionerror",
+        "exported_late": 0,
+        "export_skipped_stalled": 0,
+        "delivered_after_final_flush": 0
+      },
+      "collector": {
+        "export_calls": 18,
+        "distinct_spans_received": 0,
+        "total_span_deliveries": 0,
+        "duplicate_deliveries": 0,
+        "claimed_lost": 5000,
+        "delivered_but_counted_lost": 0
+      }
+    },
+    {
+      "condition": "stalled-then-released",
+      "spans": 5000,
+      "span_us": {
+        "median": 10.79996582120657,
+        "p99": 40.10001430287957,
+        "max": 523.5000280663371,
+        "mean": 11.863980034831911
+      },
+      "shutdown_ms": 7.3,
+      "pool_backlog_before_shutdown": 0,
+      "diagnostics": {
+        "created": 5000,
+        "ended": 5000,
+        "enqueued": 2176,
+        "exported": 2176,
+        "export_attempts": 17,
+        "export_timeouts": 1,
+        "dropped_queue_full": 2824,
+        "dropped_after_failure": 0,
+        "dropped_at_shutdown": 0,
+        "final_flush": "complete",
+        "last_error_code": "export_timeout",
+        "exported_late": 128,
+        "export_skipped_stalled": 0,
+        "delivered_after_final_flush": 0
+      },
+      "collector": {
+        "export_calls": 17,
+        "distinct_spans_received": 2176,
+        "total_span_deliveries": 2176,
+        "duplicate_deliveries": 0,
+        "claimed_lost": 2824,
+        "delivered_but_counted_lost": 0
+      }
+    }
+  ]
+}

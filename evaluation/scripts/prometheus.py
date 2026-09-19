@@ -119,6 +119,15 @@ class AnchoredRubric(BaseModel):
     applies_to_modes: list[str] = Field(default_factory=list)
     """Case kinds this criterion applies to; empty means all. Applicability
     is data, never the judge's decision."""
+    scope: Optional[str] = None
+    """What this criterion deliberately does not judge (another criterion does)."""
+    anchor_examples: dict[Literal["score1", "score2", "score3", "score4", "score5"], str] = Field(default_factory=dict)
+    """Concrete example responses per anchor, for human reviewers and
+    calibration. Not inserted into the judge prompt (the prompt uses only the
+    documented criteria/score fields); part of the rubric hash, so editing an
+    example is a new rubric identity."""
+    supersedes: Optional[str] = None
+    """The evaluation_id this version replaces, if any (the old file is kept)."""
     unit: Literal["ordinal_1_5"] = "ordinal_1_5"
     author: str = Field(min_length=1)
     reviewer: Optional[str] = None

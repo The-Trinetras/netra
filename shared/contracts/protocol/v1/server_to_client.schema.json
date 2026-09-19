@@ -111,7 +111,8 @@
         },
         "active_source_version_id": {
           "type": ["string", "null"],
-          "$comment": "Null for a session that has never opened a source yet (interaction_mode idle). Present and non-null from the point a source is opened onward."
+          "format": "uuid",
+          "$comment": "Null for a session that has never opened a source yet (interaction_mode idle). Present and non-null from the point a source is opened onward. When present it is the canonical lowercase hyphenated UUID of the pinned immutable source version (the same identity as agent/v1 EvidenceRef.source_version_id); clients treat it as an opaque reference. Clarified 2026-09-18 (INT-03)."
         },
         "current_block_id": {
           "type": ["string", "null"]

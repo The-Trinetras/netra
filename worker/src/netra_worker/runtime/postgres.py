@@ -10,6 +10,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from netra_api.db.models import JobRow, OutboxRow
+from netra_api.db.transactions import close_read_only_transaction
 from netra_worker.runtime.errors import LeaseLostError
 from netra_worker.runtime.job_repository import Job, JobPayload, JobStatus
 from netra_worker.runtime.leases import Lease
@@ -28,38 +29,40 @@ class AsyncJobRepository:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
+    async def _existing(self, idempotency_key: str) -> Job | None:
+        row = (await self.session.execute(select(JobRow).where(
+            JobRow.operation_key == idempotency_key))).scalar_one_or_none()
+        return _job(row) if row else None
+
     async def enqueue(self, job_type: str, payload: JobPayload, idempotency_key: str, max_attempts: int = 5) -> Job:
-        existing = (await self.session.execute(select(JobRow).where(JobRow.operation_key == idempotency_key))).scalar_one_or_none()
-        if existing:
-            if existing.job_type != job_type:
-                await self.session.rollback()
-                raise ValueError("idempotency key is already used by a different job type")
-            # The lookup autobegins a read transaction. Close it before a
-            # caller starts another explicit transaction, such as the
-            # outbox acknowledgement immediately after idempotent enqueue.
-            await self.session.commit()
-            return _job(existing)
-        now = datetime.now(timezone.utc)
-        row = JobRow(job_id=uuid4(), job_type=job_type, status=JobStatus.PENDING.value, attempts=0,
-                     max_attempts=max_attempts, next_run_at=now, operation_key=idempotency_key,
-                     payload=payload.model_dump(mode="json"), completed_stages=[], remote_operation_ids={},
-                     created_at=now, updated_at=now)
-        self.session.add(row)
+        # This repository owns exactly its own short transaction. It never
+        # commits or rolls back writes a caller left on the shared session
+        # (ForeignTransactionError instead), and it leaves no read open for
+        # the caller's next explicit transaction, such as an outbox ack.
+        await close_read_only_transaction(self.session)
         try:
-            await self.session.commit()
+            async with self.session.begin():
+                job = await self._existing(idempotency_key)
+                if job is None:
+                    now = datetime.now(timezone.utc)
+                    row = JobRow(job_id=uuid4(), job_type=job_type, status=JobStatus.PENDING.value, attempts=0,
+                                 max_attempts=max_attempts, next_run_at=now, operation_key=idempotency_key,
+                                 payload=payload.model_dump(mode="json"), completed_stages=[],
+                                 remote_operation_ids={}, created_at=now, updated_at=now)
+                    self.session.add(row)
+                    await self.session.flush()
+                    job = _job(row)
         except IntegrityError:
-            # Another worker/request won the unique operation_key race.
-            # Rollback is required here to clear this failed transaction;
-            # unlike the old pre-transaction rollbacks, it cannot discard
-            # caller work because this repository owns the failed insert.
-            await self.session.rollback()
-            existing = (await self.session.execute(select(JobRow).where(
-                JobRow.operation_key == idempotency_key))).scalar_one()
-            await self.session.commit()
-            if existing.job_type != job_type:
-                raise ValueError("idempotency key is already used by a different job type")
-            return _job(existing)
-        return _job(row)
+            # Another worker/request won the unique operation_key race. The
+            # failed insert was this repository's own transaction, already
+            # rolled back by the context manager.
+            async with self.session.begin():
+                job = await self._existing(idempotency_key)
+            if job is None:
+                raise
+        if job.job_type != job_type:
+            raise ValueError("idempotency key is already used by a different job type")
+        return job
 
     async def claim_next(self, job_types: list[str], worker_id: str, lease_duration_seconds: int) -> Job | None:
         now = datetime.now(timezone.utc)
@@ -97,6 +100,11 @@ class AsyncJobRepository:
 
     async def complete(self, job_id: UUID, lease: Lease) -> None:
         async with self.session.begin(): await self._owned(job_id, lease, {"status": JobStatus.COMPLETED.value, "lease_until": None})
+
+    async def cancel(self, job_id: UUID, lease: Lease) -> None:
+        async with self.session.begin():
+            await self._owned(job_id, lease, {"status": JobStatus.CANCELLED.value, "lease_until": None,
+                                              "last_error": "job cancelled"})
 
     async def fail(self, job_id: UUID, lease: Lease, next_run_at: datetime, retryable: bool = True) -> None:
         async with self.session.begin():

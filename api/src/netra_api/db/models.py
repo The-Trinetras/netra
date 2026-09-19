@@ -10,7 +10,8 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import Boolean, CheckConstraint, text, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import (Boolean, CheckConstraint, text, DateTime, ForeignKey, ForeignKeyConstraint, Index, Integer,
+                        String, Text, UniqueConstraint)
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -38,6 +39,12 @@ class SourceVersionRow(Base):
     __table_args__ = (
         UniqueConstraint("source_id", "version_number", name="uq_source_version_number"),
         Index("ix_source_versions_source_active", "source_id", "is_active"),
+        # Created by migrations 0001/0002; declared here so autogenerate never
+        # proposes dropping the one-active-version and content-hash guarantees.
+        Index("uq_source_versions_one_active", "source_id", unique=True,
+              postgresql_where=text("is_active = true")),
+        Index("uq_source_versions_content_hash", "source_id", "content_hash", unique=True,
+              postgresql_where=text("content_hash IS NOT NULL")),
     )
 
     source_version_id: Mapped[UUID] = uuid_column()
@@ -77,7 +84,11 @@ class ReadingBlockRow(Base):
 
 class SearchChunkRow(Base):
     __tablename__ = "search_chunks"
-    __table_args__ = (Index("ix_search_chunks_version", "source_version_id"),)
+    __table_args__ = (
+        Index("ix_search_chunks_version", "source_version_id"),
+        # Full-text index from migration 0001 (PostgreSQL reduced-mode search).
+        Index("ix_search_chunks_fts", text("to_tsvector('simple', text)"), postgresql_using="gin"),
+    )
 
     chunk_id: Mapped[UUID] = uuid_column()
     source_version_id: Mapped[UUID] = mapped_column(ForeignKey("source_versions.source_version_id", ondelete="CASCADE"), nullable=False)
@@ -204,4 +215,67 @@ class VideoProviderBindingRow(Base):
     provider_video_id: Mapped[str] = mapped_column(String(200), nullable=False)
     model_name: Mapped[str] = mapped_column(String(200), nullable=False)
     model_version: Mapped[str] = mapped_column(String(100), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class PendingQuestionRow(Base):
+    """One persisted Tutor question (M4 semantics, M2 storage; migration 0008).
+
+    Persisted before delivery. ``answer_key`` holds the private answer and
+    rubric: it is never serialized to the client, TTS, traces or logs.
+    A question id/version is immutable once stored; ``answered_at`` closes it
+    and ``answered_attempt_id`` names the attempt that did so (NULL when a
+    fixture-style mark_answered closed it without an attempt).
+    """
+
+    __tablename__ = "learning_pending_questions"
+    __table_args__ = (
+        Index("ix_learning_pending_questions_account", "account_id", "question_id"),
+        CheckConstraint("question_version >= 1", name="ck_learning_pending_questions_version"),
+    )
+
+    question_id: Mapped[str] = mapped_column(String(200), primary_key=True)
+    question_version: Mapped[int] = mapped_column(Integer, primary_key=True)
+    account_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    concept_id: Mapped[str] = mapped_column(String(200), nullable=False)
+    kind: Mapped[str] = mapped_column(String(32), nullable=False)
+    prompt: Mapped[str] = mapped_column(Text, nullable=False)
+    options: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, nullable=False, default=list)
+    answer_key: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    evidence_refs: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, nullable=False, default=list)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    answered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    answered_attempt_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True))
+
+
+class AssessmentAttemptRow(Base):
+    """One append-only answer attempt (M4 semantics, M2 storage; migration 0008).
+
+    Exactly one attempt may finalize a question version (unique constraint),
+    so concurrent submissions cannot both be graded. ``answer`` keeps the
+    original transcript, any correction and the final text as recorded facts.
+    """
+
+    __tablename__ = "learning_assessment_attempts"
+    __table_args__ = (
+        UniqueConstraint("question_id", "question_version", name="uq_learning_attempts_question_version"),
+        Index("ix_learning_attempts_account_concept", "account_id", "concept_id", "created_at"),
+        CheckConstraint("outcome IN ('correct', 'incorrect', 'partial')", name="ck_learning_attempts_outcome"),
+        CheckConstraint("evaluated_by IN ('tutor', 'grader')", name="ck_learning_attempts_evaluated_by"),
+        CheckConstraint("hints_used >= 0", name="ck_learning_attempts_hints_used"),
+        ForeignKeyConstraint(["question_id", "question_version"],
+                             ["learning_pending_questions.question_id",
+                              "learning_pending_questions.question_version"],
+                             name="fk_learning_attempts_question", ondelete="RESTRICT"),
+    )
+
+    attempt_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True)
+    account_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    concept_id: Mapped[str] = mapped_column(String(200), nullable=False)
+    question_id: Mapped[str] = mapped_column(String(200), nullable=False)
+    question_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    answer: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    outcome: Mapped[str] = mapped_column(String(16), nullable=False)
+    hints_used: Mapped[int] = mapped_column(Integer, nullable=False)
+    evaluated_by: Mapped[str] = mapped_column(String(16), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

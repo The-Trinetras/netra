@@ -9,6 +9,8 @@ from pydantic import BaseModel, Field
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from netra_api.db.transactions import close_read_only_transaction
+
 from netra_api.db.models import ReadingBlockRow, SearchChunkRow, SourceRow, SourceVersionRow
 from netra_api.content.retrieval.embeddings import EmbeddingSpec
 
@@ -36,8 +38,7 @@ class AsyncSearchChunkRepository:
         self.session = session
 
     async def _close_read_transaction(self) -> None:
-        if self.session.in_transaction():
-            await self.session.commit()
+        await close_read_only_transaction(self.session)
 
     async def replace_chunks(self, source_version_id: UUID, chunks: list[SearchChunk]) -> None:
         if any(chunk.source_version_id != source_version_id for chunk in chunks):

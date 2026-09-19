@@ -1,4 +1,5 @@
 using System.IO;
+using System.Net;
 using System.Net.WebSockets;
 using System.Text;
 using System.Threading;
@@ -28,6 +29,14 @@ public interface INetraWebSocketClient : IAsyncDisposable
 public sealed class NetraWebSocketClient : INetraWebSocketClient
 {
     private readonly ICredentialSource? _credentials;
+
+    // WebSocket's documented contract is one outstanding send at a time.
+    // Sends come from independent paths (navigation/turns, STOP's
+    // response.cancel, timer-driven playback acks, session.resume). The
+    // current managed ClientWebSocket happens to serialize sends internally,
+    // so no failure was observed; this keeps the client within the contract
+    // instead of relying on that implementation detail.
+    private readonly SemaphoreSlim _sendLock = new(1, 1);
     private ClientWebSocket? _socket;
     private CancellationTokenSource? _receiveLoopCts;
     private Task? _receiveLoop;
@@ -59,9 +68,17 @@ public sealed class NetraWebSocketClient : INetraWebSocketClient
         var socket = new ClientWebSocket();
         // Header only (M1/M5-reviewed presentation); never the URL.
         socket.Options.SetRequestHeader("Authorization", "Bearer " + token);
+        // Keeps the upgrade's status code so a refused credential can be told
+        // apart from an unreachable server (headers are not read or logged).
+        socket.Options.CollectHttpResponseDetails = true;
         try
         {
             await socket.ConnectAsync(endpoint, cancellationToken).ConfigureAwait(false);
+        }
+        catch (WebSocketException) when (socket.HttpStatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
+        {
+            socket.Dispose();
+            throw new CredentialRejectedException();
         }
         catch
         {
@@ -69,7 +86,14 @@ public sealed class NetraWebSocketClient : INetraWebSocketClient
             throw;
         }
 
+        // A reconnect replaces a dead socket: stop its receive loop and
+        // release it rather than leaking one socket per reconnect.
+        var previousSocket = _socket;
+        var previousLoopCts = _receiveLoopCts;
         _socket = socket;
+        previousLoopCts?.Cancel();
+        previousSocket?.Dispose();
+        previousLoopCts?.Dispose();
 
         _receiveLoopCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         _receiveLoop = ReceiveLoopAsync(socket, _receiveLoopCts.Token);
@@ -83,8 +107,16 @@ public sealed class NetraWebSocketClient : INetraWebSocketClient
         }
 
         var bytes = Encoding.UTF8.GetBytes(message);
-        await socket.SendAsync(bytes, WebSocketMessageType.Text, endOfMessage: true, cancellationToken)
-            .ConfigureAwait(false);
+        await _sendLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await socket.SendAsync(bytes, WebSocketMessageType.Text, endOfMessage: true, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        finally
+        {
+            _sendLock.Release();
+        }
     }
 
     public async Task CloseAsync(CancellationToken cancellationToken)
@@ -93,8 +125,16 @@ public sealed class NetraWebSocketClient : INetraWebSocketClient
 
         if (_socket is { State: WebSocketState.Open } socket)
         {
-            await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "client_shutdown", cancellationToken)
-                .ConfigureAwait(false);
+            await _sendLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "client_shutdown", cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            finally
+            {
+                _sendLock.Release();
+            }
         }
 
         Disconnected?.Invoke(this, EventArgs.Empty);

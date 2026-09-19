@@ -161,3 +161,27 @@ async def test_empty_version_scope_searches_nothing():
     index = Index()
     assert await PineconeSemanticSearch(Embedder(), index, spec=SPEC_1).search(_auth(), "query", [], 5) == []
     assert index.args is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failure", ["embedding_config", "embedding_provider", "index_config", "index_provider", "incompatible"])
+async def test_semantic_projection_failures_degrade_to_postgres_reduced_mode(failure):
+    from netra_api.content.providers.pinecone import VectorIndexConfigurationError, VectorIndexProviderError
+    from netra_api.content.retrieval.embeddings import EmbeddingConfigurationError, EmbeddingProviderError
+    from netra_api.content.retrieval.semantic_search import IncompatibleEmbeddingError
+
+    error = {"embedding_config": EmbeddingConfigurationError(), "embedding_provider": EmbeddingProviderError(),
+             "index_config": VectorIndexConfigurationError(), "index_provider": VectorIndexProviderError(),
+             "incompatible": IncompatibleEmbeddingError()}[failure]
+    lexical = Search([SearchCandidate(evidence_id="lexical", score=1)])
+    service = HybridRetrievalService(lexical, FailingSearch(error), Resolver())
+    assert [hit.evidence_id for hit in await service.search(_auth(), RetrievalQuery(query_text="query"))] == ["lexical"]
+
+
+@pytest.mark.asyncio
+async def test_a_lexical_postgres_failure_is_not_disguised_as_reduced_mode():
+    from netra_api.content.retrieval.embeddings import EmbeddingProviderError
+
+    service = HybridRetrievalService(FailingSearch(EmbeddingProviderError()), Search([]), Resolver())
+    with pytest.raises(EmbeddingProviderError):
+        await service.search(_auth(), RetrievalQuery(query_text="query"))

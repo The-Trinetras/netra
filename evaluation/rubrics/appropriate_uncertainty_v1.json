@@ -1,0 +1,24 @@
+{
+  "evaluation_id": "appropriate_uncertainty_v1",
+  "status": "draft_uncalibrated",
+  "criteria": "Is the response's confidence appropriate to the evidence? It should be definite where the excerpts establish the answer; explicit and specific about what they do not establish (missing, unreadable, contradictory, withheld, transcript-only or unverified evidence); ask for clarification or offer clearly labelled alternatives when the request is ambiguous; and never refuse or bury an answer the evidence clearly supports.",
+  "score1": "States a confident answer the evidence cannot support (a guess about an unreadable axis, a value from an inactive version, a visual detail taken from a transcript, a pick between contradictory sources), or refuses a question the evidence clearly answers.",
+  "score2": "Mentions a limitation but still presents the unsupported answer as settled, or hedges so heavily that a supported answer is lost.",
+  "score3": "Separates supported from unsupported parts correctly, but the limitation is vague ('I'm not sure') or buried.",
+  "score4": "Clear about what is and is not established; minor over- or under-hedging.",
+  "score5": "Confidence matches the evidence: supported parts stated plainly; each gap named specifically (what is missing and why) with a useful next step; an ambiguous request answered with a clarifying question or clearly labelled alternatives.",
+  "requires_reference": true,
+  "applies_to_modes": [],
+  "unit": "ordinal_1_5",
+  "scope": "Calibration of confidence only. Whether the stated facts are true is factual_correctness_v2 and whether they come from the excerpts is source_support_v2.",
+  "anchor_examples": {
+    "score1": "No excerpt covers transistors. Response: a detailed account of how a transistor amplifies a signal, presented as if from the student's material.",
+    "score2": "Response: 'The chapter doesn't give a power formula, but the power at 3 amperes is 18 watts.'",
+    "score3": "Response: 'I'm not completely sure about the power, but table 4.1 gives 6 V at 3 A.' The actual gap (no formula in these excerpts) is never named.",
+    "score4": "Response names the missing formula clearly but adds 'I might be wrong about the table values' about values the table states exactly.",
+    "score5": "Response: 'None of the chapter excerpts cover transistors, so I can't answer from your material. I can look for another source if you would like.'"
+  },
+  "author": "Claude (overnight evaluation-preparation session, 2026-09-19); unreviewed draft",
+  "reviewer": null,
+  "notes": "DRAFT, uncalibrated, unreviewed. New criterion separating appropriate uncertainty from correctness and support. Anchor examples use only development-family material (intro-circuits-ch4) and are not sent to the judge."
+}

@@ -11,7 +11,7 @@ the assessment_attempts migration, not here.
 
 from __future__ import annotations
 
-from typing import Optional, Protocol
+from typing import Optional, Protocol, runtime_checkable
 from uuid import UUID
 
 from netra_api.learning.assessment.models import AssessmentAttempt
@@ -52,4 +52,22 @@ class AssessmentHistoryRepository(Protocol):
         which relies on exactly that distinction to make a retransmitted
         submission replay instead of fail.
         """
+        ...
+
+
+@runtime_checkable
+class AtomicAnswerCommitter(Protocol):
+    """Durable stores commit an answer as ONE transaction (INT-08).
+
+    ``commit_answer`` must, atomically: close the still-pending question at
+    exactly ``attempt.question_version`` for ``auth``'s account (raising
+    QuestionNotPendingError when it is absent, another account's, already
+    answered or at another version), append the attempt, and write the
+    projection outbox event. Replaying an already-committed ``attempt_id``
+    returns the stored attempt and writes nothing. A failure leaves none of
+    the three effects. LearningService uses this whenever its repository
+    provides it; repositories without it are non-durable fixtures.
+    """
+
+    async def commit_answer(self, auth: AuthContext, attempt: AssessmentAttempt) -> AssessmentAttempt:
         ...

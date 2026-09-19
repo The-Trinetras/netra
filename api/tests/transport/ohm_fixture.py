@@ -183,7 +183,8 @@ INJECTION_TEXT = (
 
 
 def _evidence(evidence_id: str, source: UUID, text: str, trust: EvidenceTrust, locator: str) -> Evidence:
-    return Evidence(evidence_id=evidence_id, source_version_id=source, locator=locator, text=text, provenance="fixture", trust=trust)
+    # evidence_version=1: what M2's resolver reports (the owning source version's version_number).
+    return Evidence(evidence_id=evidence_id, source_version_id=source, evidence_version=1, locator=locator, text=text, provenance="fixture", trust=trust)
 
 
 EVIDENCE: dict[str, tuple[UUID, Evidence]] = {
@@ -347,25 +348,6 @@ class FixtureTutor:
             pending_question_id="q01",
             evidence_ids=[ref.evidence_id for ref in handoff.evidence_refs],
             proposed_learning_events=[],
-        )
-
-
-class VersionedEvidenceTool:
-    """LABELLED FIXTURE wrapper: adds evidence_version=1 to a real adapter's results.
-
-    M2's Evidence model does not yet expose an evidence version, which the
-    typed Tutor handoff requires. Real adapters therefore cannot delegate;
-    this wrapper lets the journey exercise delegation until M2 supplies it.
-    """
-
-    def __init__(self, inner: Any) -> None:
-        self.inner = inner
-
-    async def __call__(self, context: Any, arguments: Any) -> ToolResult:
-        result = await self.inner(context, arguments)
-        return ToolResult(
-            evidence=tuple(item.model_copy(update={"evidence_version": 1}) for item in result.evidence),
-            rejected_count=result.rejected_count,
         )
 
 
@@ -539,7 +521,6 @@ async def build_journey(
     figures_readable: bool = True,
     retrieval_hits: Optional[dict[str, list[str]]] = None,
     state: Optional[SessionState] = None,
-    versioned_tools: bool = True,
     tutor_kwargs: Optional[dict] = None,
     span_exporter: Any = None,
     export_settings: Any = None,
@@ -607,11 +588,6 @@ async def build_journey(
     composition.verifier = StoredCredentialVerifier(identity)
     if speech:
         composition.services.speech = SpeechOutput(synthesizer, quota, cache, composition.services.generations)
-
-    if versioned_tools and model is not None:
-        registry = composition.services.coordinator._registry
-        for name in list(registry._invokers):
-            registry._invokers[name] = VersionedEvidenceTool(registry._invokers[name])
 
     return Journey(
         composition=composition,

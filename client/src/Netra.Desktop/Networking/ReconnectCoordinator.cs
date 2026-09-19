@@ -18,8 +18,8 @@ namespace Netra.Desktop.Networking;
 //
 // Retry timing is client-local policy (no wire field): exponential backoff
 // with jitter, capped, and a bounded attempt count after which the client
-// stays Disconnected and says so. Missing credentials or an invalid endpoint
-// are not retried.
+// stays Disconnected and says so. Missing or rejected (e.g. expired)
+// credentials and an invalid endpoint are not retried: they cannot succeed.
 public sealed class ReconnectCoordinator : IAsyncDisposable
 {
     public static readonly TimeSpan[] DefaultBackoff =
@@ -131,6 +131,11 @@ public sealed class ReconnectCoordinator : IAsyncDisposable
             catch (Exception ex) when (ex is CredentialUnavailableException or InvalidServerEndpointException)
             {
                 SetState(ConnectionState.Disconnected, "Cannot reconnect: this computer is not signed in to Netra.");
+                return;
+            }
+            catch (CredentialRejectedException)
+            {
+                SetState(ConnectionState.Disconnected, "Cannot reconnect: Netra did not accept this computer's sign-in. It may have expired.");
                 return;
             }
             catch (Exception)

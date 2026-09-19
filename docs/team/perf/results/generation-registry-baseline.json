@@ -1,0 +1,36 @@
+{
+  "label": "baseline",
+  "captured_at": "2026-09-18T23:36:32.952969+00:00",
+  "python": "3.13.15",
+  "memory": [
+    {
+      "sessions": 3000,
+      "generations_per_session": 40,
+      "sentences_per_generation": 6,
+      "sessions_retained": 3000,
+      "bytes_held": 419341000,
+      "bytes_per_session_created": 139780,
+      "start_us": {
+        "median": 42.4,
+        "p99": 91.6
+      }
+    },
+    {
+      "sessions": 3000,
+      "generations_per_session": 40,
+      "sentences_per_generation": 1,
+      "sessions_retained": 3000,
+      "bytes_held": 208729048,
+      "bytes_per_session_created": 69576,
+      "start_us": {
+        "median": 41.1,
+        "p99": 96.2
+      }
+    }
+  ],
+  "start_us_median_untraced": [
+    4.8,
+    4.6,
+    4.6
+  ]
+}

@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from typing import Literal, Optional
 
-from pydantic import Field
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -41,3 +41,16 @@ class Settings(BaseSettings):
 
     tracing_shutdown_timeout_seconds: float = Field(default=5.0, gt=0, le=30)
     """Bound on the final flush at orderly shutdown; implementation bound."""
+
+    gemini_api_key: Optional[SecretStr] = None
+    """Coordinator model adapter (google-genai). Unset -> no Coordinator is
+    registered and turns fail with PROVIDER_UNAVAILABLE; navigation still works."""
+
+    groq_api_key: Optional[SecretStr] = None
+    """Tutor model adapter (groq). Unset -> no Tutor is registered and
+    delegation fails closed."""
+
+    model_request_timeout_seconds: float = Field(default=20.0, gt=0, le=20)
+    """Transport timeout for one model request. The Coordinator additionally
+    bounds every call by the turn's remaining time; this never exceeds the
+    approved 20-second answer deadline."""

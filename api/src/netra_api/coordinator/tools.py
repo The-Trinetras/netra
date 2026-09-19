@@ -112,6 +112,7 @@ class SearchSourcesTool:
                 ToolEvidence(
                     evidence_id=item.evidence_id,
                     source_version_id=str(item.source_version_id),
+                    evidence_version=item.evidence_version,
                     locator=item.locator[:500],
                     text=item.text[:MAX_EVIDENCE_TEXT_CHARS],
                     provenance=item.provenance[:200],
@@ -139,7 +140,7 @@ class DescribeFigureTool:
         pinned = _pinned_uuid(context)
         figure = await maybe_await(self._figures.get_figure(context.auth, pinned, arguments.figure_index))
         try:
-            authorized = authorize_figure_evidence(context.auth, self._resolver, figure.reference)
+            authorized = await authorize_figure_evidence(context.auth, self._resolver, figure.reference)
         except NetraError:
             return ToolResult(rejected_count=1)
         if str(authorized.source_version_id) != str(pinned):
@@ -158,6 +159,7 @@ class DescribeFigureTool:
                 ToolEvidence(
                     evidence_id=authorized.evidence_id,
                     source_version_id=str(authorized.source_version_id),
+                    evidence_version=authorized.evidence_version,
                     locator=authorized.locator[:500],
                     text=text,
                     provenance=authorized.provenance[:200],
@@ -200,7 +202,7 @@ class SearchLectureTool:
             if arguments.end_ms is not None and reference.start_ms > arguments.end_ms:
                 continue
             try:
-                authorized = resolve_and_authorize(context.auth, self._resolver, reference)
+                authorized = await resolve_and_authorize(context.auth, self._resolver, reference)
             except NetraError:
                 rejected += 1
                 continue
@@ -218,6 +220,7 @@ class SearchLectureTool:
                 ToolEvidence(
                     evidence_id=authorized.evidence_id,
                     source_version_id=str(authorized.source_version_id),
+                    evidence_version=authorized.evidence_version,
                     locator=f"{reference.locator} {format_timestamp(reference.start_ms)}-{format_timestamp(reference.end_ms)}"[:500],
                     text=item.description[:MAX_EVIDENCE_TEXT_CHARS],
                     provenance=authorized.provenance[:200],

@@ -27,6 +27,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import traceback
 from collections import OrderedDict
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable, Optional
@@ -74,6 +75,19 @@ from netra_api.transport.websocket.serializer import (
 from netra_api.transport.websocket.snapshots import build_session_snapshot
 
 logger = logging.getLogger(__name__)
+
+
+def _log_unexpected(event: str, exc: BaseException) -> None:
+    """Log an unexpected error by exception type and stack frames only.
+
+    Messages and notes can carry student text, provider output or private
+    answer data (a pydantic ValidationError prints its input values), and
+    private answers stay out of ordinary logs.
+    """
+
+    frames = "".join(traceback.format_tb(exc.__traceback__)).rstrip()
+    logger.error("%s: %s\n%s", event, type(exc).__name__, frames)
+
 
 SendText = Callable[[str], Awaitable[None]]
 SendBytes = Callable[[bytes], Awaitable[None]]
@@ -354,8 +368,8 @@ class Connection:
             from netra_api.platform.errors import error_code_for
 
             return error_code_for(exc).lower()
-        except Exception:
-            logger.exception("unhandled error while dispatching %s", envelope.type)
+        except Exception as exc:
+            _log_unexpected(f"unhandled error while dispatching {envelope.type}", exc)
             await self._send_error(envelope.session_id, envelope.request_id, NetraError("internal"))
             return "internal_error"
 
@@ -491,8 +505,8 @@ class Connection:
             await self._send_error(auth.session_id, auth.request_id, exc, current_version=exc.actual_version)
         except NetraError as exc:
             await self._send_error(auth.session_id, auth.request_id, exc)
-        except Exception:
-            logger.exception("unhandled error in Coordinator turn")
+        except Exception as exc:
+            _log_unexpected("unhandled error in Coordinator turn", exc)
             await self._send_error(auth.session_id, auth.request_id, NetraError("internal"))
 
     async def _commit_and_deliver_turn(
@@ -580,11 +594,18 @@ class Connection:
 
     async def _resume(self, auth: AuthContext) -> None:
         state = await self.services.sessions.get_state(auth)
+        question = None
+        if state.pending_question is not None:
+            try:
+                question = await self.services.navigator.load_pending_question(auth, state)
+            except StaleRequestError:
+                # Answered (e.g. committed just before a crash) or withdrawn:
+                # reconcile the reference rather than failing every resume.
+                state = await self.services.sessions.clear_stale_pending_question(auth, state.pending_question)
         await self._send_message(
             auth.session_id, auth.request_id, "session.snapshot", build_session_snapshot(state).model_dump(mode="json")
         )
-        if state.pending_question is not None:
-            question = await self.services.navigator.load_pending_question(auth, state)
+        if question is not None:
             rendered = render_response(state, ResponsePlan(question=question), None)
             await self._send_message(auth.session_id, auth.request_id, "quiz.question", rendered["messages"][-1]["payload"])
 

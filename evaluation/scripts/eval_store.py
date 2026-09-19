@@ -77,6 +77,11 @@ class ProducerConfig(BaseModel):
     notes: Optional[str] = None
     intended_changes: list[str] = Field(default_factory=list)
     confounding_changes: list[str] = Field(default_factory=list)
+    coordinator_model: Optional[str] = None
+    retrieval_config: Optional[str] = None
+    """e.g. the retrieval manifest experiment id (E0..E5) or 'fixture-evidence'."""
+    working_tree_patch_sha256: Optional[str] = None
+    """Hash of uncommitted changes when the producer ran from a dirty tree."""
 
 
 class RunManifest(BaseModel):
@@ -107,6 +112,16 @@ class FrozenOutput(BaseModel):
     trace_id: Optional[str] = None
     """The producer turn's trace id, for trace-to-case reconciliation."""
     generated_at: datetime
+    cited_evidence_ids: Optional[list[str]] = None
+    """Evidence ids the producer's result cited. None = not recorded, so
+    citation assertions are not evaluable (never assumed to pass)."""
+    structured: Optional[dict[str, Any]] = None
+    """Structured result facts from the producer, e.g. {"status": ...,
+    "pending_question_id": ..., "proposed_learning_event_count": ...}.
+    None = not recorded (structured assertions become not_evaluable)."""
+    origin: Literal["netra", "fixture"] = "netra"
+    """Whether this text came from a Netra producer run or is labelled fixture
+    text. Fixture outputs can only be imported into fixture_replay runs."""
 
 
 class ResultRecord(BaseModel):
@@ -224,11 +239,26 @@ class RunStore:
             found.setdefault((output.case_id, output.repetition), output)
         return found
 
-    def append_output(self, case_id: str, repetition: int, response: str, trace_id: Optional[str] = None) -> FrozenOutput:
+    def append_output(
+        self,
+        case_id: str,
+        repetition: int,
+        response: str,
+        trace_id: Optional[str] = None,
+        cited_evidence_ids: Optional[list[str]] = None,
+        structured: Optional[dict[str, Any]] = None,
+    ) -> FrozenOutput:
+        manifest = self.manifest()
+        if case_id not in manifest.case_ids or not 0 <= repetition < manifest.repetitions:
+            raise ArtifactConflictError(f"{case_id} r{repetition} is not a unit of run {self.run_id}")
+        # The run's producer decides the label; a caller cannot relabel
+        # fixture text as Netra output or the reverse.
+        origin = "fixture" if manifest.producer.source == "fixture_replay" else "netra"
         existing = self.outputs().get((case_id, repetition))
         response_hash = sha256_hex(response)
         if existing is not None:
-            if existing.response_hash != response_hash:
+            if (existing.response_hash != response_hash or existing.cited_evidence_ids != cited_evidence_ids
+                    or existing.structured != structured):
                 raise ArtifactConflictError(f"output for {case_id} r{repetition} is already frozen")
             return existing
         output = FrozenOutput(
@@ -239,6 +269,9 @@ class RunStore:
             response_hash=response_hash,
             trace_id=trace_id,
             generated_at=_now(),
+            cited_evidence_ids=cited_evidence_ids,
+            structured=structured,
+            origin=origin,
         )
         self._append("outputs.jsonl", output)
         return output

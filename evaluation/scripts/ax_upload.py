@@ -90,23 +90,75 @@ def experiment_name(run_id: str) -> str:
 
 
 def dataset_rows(snapshot: DatasetSnapshot, case_ids: list[str]) -> list[dict[str, Any]]:
+    """One flat row per case. Nested values are JSON strings so the row maps
+    onto a plain AX dataset table; stable keys come from the case id."""
+
     rows = []
     for case_id in case_ids:
         case = snapshot.case(case_id)
-        rows.append(
-            {
-                "row_key": case.case_id,
-                "case_id": case.case_id,
-                "split": case.split,
-                "kind": case.kind,
-                "failure_modes": ",".join(case.failure_modes),
-                "instruction": case.instruction,
-                "reference": case.reference.text if case.reference else None,
-                "reference_status": case.reference.status.value if case.reference else "missing",
-                "dataset_hash": snapshot.content_hash,
-            }
-        )
+        if case.review_status == "rejected":
+            raise ValueError(f"{case_id} was rejected in review and must not be uploaded")
+        row: dict[str, Any] = {
+            "row_key": case.case_id,
+            "case_id": case.case_id,
+            "split": case.split,
+            "kind": case.kind,
+            "failure_modes": ",".join(case.failure_modes),
+            "instruction": case.instruction,
+            "reference": case.reference.text if case.reference else None,
+            "reference_status": case.reference.status.value if case.reference else "missing",
+            "dataset_hash": snapshot.content_hash,
+            "permission": case.permission,
+            "criteria": ",".join(case.criteria),
+            "evidence_ids": ",".join(item.evidence_id for item in case.source_excerpts),
+            "source_version_ids": ",".join(sorted({item.source_version_id for item in case.source_excerpts})),
+            "evidence": _json([{"evidence_id": item.evidence_id, "source_version_id": item.source_version_id,
+                                "locator": item.locator, "trust": item.trust, "text": item.text}
+                               for item in case.source_excerpts]),
+        }
+        if case.problem_family is not None:
+            row.update({
+                "category": case.category,
+                "problem_family": case.problem_family,
+                "expected_behavior": case.expected_behavior,
+                "student_input": case.student_input,
+                "conversation": _json([turn.model_dump(mode="json") for turn in case.conversation]),
+                # Ids and reasons only: withheld text never leaves the repository.
+                "withheld_evidence": _json([{"evidence_id": h.evidence_id, "reason": h.reason}
+                                            for h in case.withheld_evidence]),
+                "reference_author": case.reference.author if case.reference else None,
+                "reference_reviewer": case.reference.reviewer if case.reference else None,
+                "reference_rationale": case.reference.rationale if case.reference else None,
+                "acceptable_alternatives": _json(case.reference.acceptable_alternatives if case.reference else []),
+                "assertions": _json([a.model_dump(mode="json") for a in case.assertions]),
+                "provenance_origin": case.provenance.origin if case.provenance else None,
+                "prior_exposure": bool(case.prior_exposure),
+                "review_status": case.review_status,
+            })
+        rows.append(row)
     return rows
+
+
+def _json(value: Any) -> str:
+    import json
+
+    return json.dumps(value, ensure_ascii=False, sort_keys=True)
+
+
+def export_dataset_rows(snapshot: DatasetSnapshot, split: str, path) -> dict[str, Any]:
+    """Write exactly the rows an upload would send, locally, without any network call."""
+
+    import json
+    from pathlib import Path
+
+    case_ids = [case.case_id for case in snapshot.by_split(split)]  # type: ignore[arg-type]
+    rows = dataset_rows(snapshot, case_ids)
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text("".join(json.dumps(row, ensure_ascii=False, sort_keys=True) + "\n" for row in rows),
+                      encoding="utf-8")
+    return {"ax_dataset_name": dataset_name(snapshot), "split": split, "rows": len(rows), "path": str(target),
+            "columns": sorted({key for row in rows for key in row})}
 
 
 def experiment_rows(store: RunStore) -> list[dict[str, Any]]:

@@ -70,11 +70,17 @@ ExportOutcome = Literal["success", "retryable_failure", "permanent_failure"]
 
 _ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:\-]{0,127}$")
 _CODE = re.compile(r"^[a-z0-9][a-z0-9_.:\-]{0,63}$")
+_MODEL = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:/\-]{0,127}$")
+"""Model ids, which may carry a provider prefix: "google/gemini-3.8-flash"."""
 _MAX_LIST = 16
 
 
 def _is_id(value: Any) -> bool:
     return isinstance(value, str) and bool(_ID.match(value))
+
+
+def _is_model(value: Any) -> bool:
+    return isinstance(value, str) and bool(_MODEL.match(value))
 
 
 def _is_code(value: Any) -> bool:
@@ -133,7 +139,7 @@ ALLOWED_ATTRIBUTES: dict[str, Validator] = {
     "netra.budget.remaining_ms": _is_int,
     # provider attempt (usage absent means unknown, never zero)
     "llm.provider": _is_code,
-    "llm.model_name": _is_id,
+    "llm.model_name": _is_model,
     "netra.attempt": _is_int,
     "llm.token_count.prompt": _is_int,
     "llm.token_count.completion": _is_int,

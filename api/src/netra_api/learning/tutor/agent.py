@@ -87,6 +87,7 @@ from netra_api.learning.tutor.state import TutorTurnState
 from netra_api.platform.auth_context import AuthContext
 from netra_api.platform.awaitables import maybe_await
 from netra_api.platform.errors import AuthorizationError, NetraError, TurnBudgetExceededError
+from netra_api.platform.tracing import DISABLED_TRACER, Tracer
 
 MAX_EVIDENCE_EXCERPT_CHARS = 2000
 """How much of one resolved Evidence body is placed in a prompt.
@@ -159,6 +160,9 @@ class TutorServices:
     from the prompt, and nothing downstream would report that the Tutor
     was running unguided. Tests override it with a short literal.
     """
+    tracer: Tracer = DISABLED_TRACER
+    """M1's process tracer (compose() sets it): one span per Tutor model
+    decision and per learning commit (OPT-12). Allowlisted facts only."""
     grounding_validator: GroundingValidator = validate_question_for_approval
     """Injection seam for the OPEN evidence-grounding decision (D2).
 
@@ -428,14 +432,15 @@ async def _run_check_understanding(
     _ensure_can_continue(state)
     state.budget.register_model_decision()
     try:
-        draft: QuestionDraft = await services.quiz_generator.generate(
-            QuizGenerationRequest(
-                concept_id=concept_id,
-                explanation_level=state.handoff.explanation_level,
-                evidence_refs=list(state.handoff.evidence_refs),
-                evidence=list(evidence),
+        with _model_span(state, services, "quiz_generation"):
+            draft: QuestionDraft = await services.quiz_generator.generate(
+                QuizGenerationRequest(
+                    concept_id=concept_id,
+                    explanation_level=state.handoff.explanation_level,
+                    evidence_refs=list(state.handoff.evidence_refs),
+                    evidence=list(evidence),
+                )
             )
-        )
 
         # The draft's concept is model output. It must be the concept that was
         # requested, or the question — and every attempt and projection that
@@ -621,27 +626,29 @@ async def _run_evaluate_answer(
 
     _ensure_can_continue(state)
     state.budget.register_tool_call()
-    attempt = await maybe_await(services.learning_service.propose_event(
-        state.auth,
-        LearningEventProposal(
-            # auth.account_id, never a model- or handoff-supplied account
-            # (CLAUDE.md: "An account ID ... supplied by a model/client is
-            # not authority").
-            account_id=state.auth.account_id,
-            concept_id=question.concept_id,
-            event_type="answer_evaluated",
-            question_id=question.question_id,
-            question_version=question.question_version,
-            # Only final_text is set: the handoff carries no ASR or
-            # correction metadata, so claiming original_transcript or
-            # corrected_text here would assert provenance nothing
-            # established. See docs/team/handoffs/M4.md.
-            answer=AnswerSubmission(final_text=answer_text),
-            outcome=outcome,
-            evaluated_by=evaluated_by,
-            hints_used=pending_ref.hints_used,
-        ),
-    ))
+    with services.tracer.span("netra.learning.commit", netra_operation="learning_commit") as commit_span:
+        attempt = await maybe_await(services.learning_service.propose_event(
+            state.auth,
+            LearningEventProposal(
+                # auth.account_id, never a model- or handoff-supplied account
+                # (CLAUDE.md: "An account ID ... supplied by a model/client is
+                # not authority").
+                account_id=state.auth.account_id,
+                concept_id=question.concept_id,
+                event_type="answer_evaluated",
+                question_id=question.question_id,
+                question_version=question.question_version,
+                # Only final_text is set: the handoff carries no ASR or
+                # correction metadata, so claiming original_transcript or
+                # corrected_text here would assert provenance nothing
+                # established. See docs/team/handoffs/M4.md.
+                answer=AnswerSubmission(final_text=answer_text),
+                outcome=outcome,
+                evaluated_by=evaluated_by,
+                hints_used=pending_ref.hints_used,
+            ),
+        ))
+        commit_span.set(netra_outcome="committed")
 
     return _result(
         state,
@@ -831,8 +838,21 @@ async def _decide(state: TutorTurnState, services: TutorServices, prompt: str) -
 
     _ensure_can_continue(state)
     state.budget.register_model_decision()
-    decision = await services.provider.decide(services.model_config, prompt)
+    with _model_span(state, services, "tutor_model_decision"):
+        decision = await services.provider.decide(services.model_config, prompt)
     return decision.raw_text.strip()
+
+
+def _model_span(state: TutorTurnState, services: TutorServices, operation: str):
+    """OPT-12: one span per Tutor provider attempt, counted like the Coordinator's."""
+
+    return services.tracer.span(
+        "netra.tutor.model",
+        netra_operation=operation,
+        llm_provider=getattr(services.provider, "provider_name", "groq"),
+        llm_model_name=getattr(services.provider, "model_name", services.model_config.model_id),
+        netra_attempt=state.budget.model_decisions_used,
+    )
 
 
 def _grade_deterministically(

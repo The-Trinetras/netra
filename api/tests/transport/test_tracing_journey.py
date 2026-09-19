@@ -136,3 +136,21 @@ async def test_stalled_exporter_cannot_delay_responses_stop_or_liveness():
     diagnostics = journey.composition.telemetry_diagnostics()
     assert diagnostics["final_flush"] == "incomplete" and diagnostics["export_timeouts"] >= 1
     exporter.release.set()
+
+
+async def test_model_spans_name_the_adapters_provider_and_model():
+    """D-AGENT: the Coordinator runs through OpenRouter, and its spans say so."""
+
+    model = ScriptedModel(_repair_script())
+    model.provider_name, model.model_name = "openrouter", "google/gemini-3.8-flash"
+    exporter = InMemorySpanExporter()
+    journey = await build_journey(model=model, span_exporter=exporter, export_settings=FAST)
+    socket, task = await _open(journey)
+    socket.push(_turn())
+    await wait_for(lambda: socket.of_type("quiz.question"))
+    socket.disconnect()
+    await task
+    journey.composition.shutdown()
+
+    decisions = [dict(s.attributes) for s in exporter.spans if s.name == "netra.model.decision"]
+    assert decisions and {(d["llm.provider"], d["llm.model_name"]) for d in decisions} == {("openrouter", "google/gemini-3.8-flash")}

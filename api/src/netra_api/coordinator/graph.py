@@ -160,8 +160,8 @@ class CoordinatorEngine:
             with self._tracer.span(
                 "netra.model.decision",
                 netra_operation="model_decision",
-                llm_provider="google",
-                llm_model_name=self._model_config.model_id,
+                llm_provider=getattr(self._model, "provider_name", "google"),
+                llm_model_name=getattr(self._model, "model_name", self._model_config.model_id),
                 netra_attempt=budget.model_decisions_used,
             ) as model_span:
                 try:
@@ -368,6 +368,14 @@ class CoordinatorEngine:
             return self._cancelled(trace)
 
         result = delegation.result
+        self._tracer.current().set(  # OPT-12: allowlisted facts only, never text
+            netra_handoff_id=str(delegation.handoff.handoff_id),
+            netra_tutor_status=result.status,
+            netra_evidence_ids=list(result.evidence_ids)[:16],
+            netra_evidence_count=len(result.evidence_ids),
+            netra_budget_model_decisions_used=turn.budget.model_decisions_used,
+            netra_budget_tool_calls_used=turn.budget.tool_calls_used,
+        )
         if result.status == "needs_more_evidence":
             feedback.append("tutor needs more evidence for this goal")
             return None

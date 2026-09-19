@@ -24,10 +24,12 @@ from netra_api.platform.openrouter import build_client, chat_completion
 
 
 class OpenRouterCoordinatorAdapter:
+    provider_name = "openrouter"
     """GeminiCoordinatorProvider backed by OpenRouter."""
 
     def __init__(self, client: httpx.AsyncClient, api_key: str, model_id: str) -> None:
         self._client, self._api_key, self._model_id = client, api_key, model_id
+        self.model_name = model_id
 
     @classmethod
     def from_api_key(cls, api_key: str, *, model_id: str, timeout_seconds: float,

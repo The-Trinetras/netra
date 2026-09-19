@@ -86,3 +86,18 @@ def test_production_registers_the_generator_with_the_tutor_provider():
     services = production_dependencies(engine, None, Settings(openrouter_api_key="sk-or-test")).tutor_services
     assert isinstance(services.quiz_generator, ModelQuizGenerator)
     assert services.quiz_generator._provider is services.provider
+
+
+def test_production_composition_binds_the_process_tracer_to_the_tutor():
+    """compose() must not try to mutate the frozen TutorServices (OPT-12)."""
+
+    from netra_api.bootstrap import Repositories, UnavailableRepository, compose, production_dependencies
+    from netra_api.config import Settings
+    from netra_api.platform.database import create_engine
+
+    engine = create_engine("postgresql+asyncpg://nobody:nothing@127.0.0.1:9/none")
+    dependencies = production_dependencies(engine, None, Settings(openrouter_api_key="sk-or-test"))
+    composition = compose(Settings(tracing_mode="local"), Repositories(identity=UnavailableRepository(), sessions=UnavailableRepository()), dependencies, environ={})
+    assert dependencies.tutor_services.tracer is composition.tracer and composition.tracer.enabled
+    assert composition.registered["tutor"] is True
+    composition.shutdown()

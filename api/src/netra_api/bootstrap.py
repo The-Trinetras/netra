@@ -16,6 +16,7 @@ Registration instructions for each boundary are in docs/team/handoffs/M1.md.
 
 from __future__ import annotations
 
+import dataclasses
 from dataclasses import dataclass, field
 from datetime import timedelta
 from typing import Any, Optional
@@ -284,6 +285,8 @@ def compose(
     )
 
     if dependencies.tutor_services is not None:
+        # TutorServices is frozen: bind the process tracer on a copy (OPT-12).
+        dependencies.tutor_services = dataclasses.replace(dependencies.tutor_services, tracer=tracer)
         if dependencies.tutor_runner is None:
             dependencies.tutor_runner = LearningTutorRunner(dependencies.tutor_services)
         if dependencies.pending_questions is None:

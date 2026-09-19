@@ -29,7 +29,26 @@ macOS (29 existing CS0067 warnings). No Windows/live-server/provider/person run.
 Default locked restore mutation: test SDK 17.12.0 → 17.11.0 fails with NU1004;
 original restored and locked restore passes again. Exact commands/environment
 are in [M5 handoff](handoffs/M5.md#f1--m5-lock--arun-20-september-2026).
-C7 draft is on its separate branch at `6ebb512`, pending Arshad and Ashlin review.
+C7 commit `6ebb512` is now included in the current F6 branch, pending Arshad and
+Ashlin review.
+
+### C7 / M5-DISCOVERY completion push — 20 September 2026
+
+The C7 work was originally produced from `main` and `origin/main` at
+`ab92908143b0a8998c74ee067423f9eb610be69a`; it is now included in the current
+F6 branch alongside the checkpoint work above.
+
+| Item | State | Evidence / next owner |
+|---|---|---|
+| C7 / M5-DISCOVERY | Draft implemented, pending Arshad + Ashlin review; not mounted | Commit `6ebb512`, originally on `arun/C7-youtube-contract` and now included in the current F6 branch; `shared/contracts/discovery/v1/README.md`, four schemas/examples, strict executable mirror and 27 new tests. No provider calls. |
+
+C7 checks (CPython 3.13.15; exact `uv.lock`, 102 applicable packages, no lock edits):
+
+- `PYTHON_DOTENV_DISABLED=1 /private/tmp/netra-app-venv/bin/python -m pytest -p no:cacheprovider api/tests/multimedia/test_discovery_wire.py api/tests/multimedia/test_tavily_discovery.py -q` → **48 passed**, including after restoration of all mutations.
+- `PYTHON_DOTENV_DISABLED=1 /private/tmp/netra-app-venv/bin/python -m pytest -p no:cacheprovider --ignore=tests/test_integration.py -q` → **8 collection errors**, missing `sqlite_vec` in notes tests. `requirements.txt` includes `sqlite-vec`/`fastembed`; `uv.lock` does not. Ashlin owns lock reconciliation; no additional unpinned installation performed.
+- `PYTHON_DOTENV_DISABLED=1 /private/tmp/netra-app-venv/bin/python -m pytest -p no:cacheprovider api/tests worker/tests evaluation/scripts -q` → **1166 passed, 1 skipped, 47 deselected**; 5 PyMuPDF deprecation warnings.
+- Eight deliberate defects were each caught by a behavioral test: remove order check, remove duplicate-ID check, accept unknown fields, coerce types, trim the query, replace video identity, raise request limit to 30, accept timezone-less timestamps. Original code restored; focused tests rerun green.
+- `git diff --check` → clean. All C7 execution used synthetic data. No local server, live provider, Windows, microphone, NVDA or participant run. HTTP auth/replay and durable result storage remain unimplemented pending owner review.
 
 - **Done:** slice A (runtime + baseline), slice B (database, migrations,
   transactions, learning persistence, worker projection/cancellation), slice C

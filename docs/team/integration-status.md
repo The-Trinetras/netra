@@ -441,3 +441,9 @@ Gaps found while reading the Terraform (20 September):
 ## Independent work that can proceed
 
 Slices C–E need no live provider or new product policy for their local parts.
+
+## Completion push — Ashlin (M2, AWS, M3 media pipeline)
+
+| Item | State | Branch | Evidence | Reviews / blockers |
+|---|---|---|---|---|
+| C5 job contract (INT-10c) | drafted, awaiting review | `ashlin/c5-job-contract` | `shared/contracts/jobs/v1/job.schema.json` + `examples/jobs/*`; Python mirror and derivation `content/job_status.py`; `api/tests/protocol/test_job_contract.py` (28, mocks only) | Arshad (mounts `POST /v1/sessions/{id}/uploads`, `GET /v1/sessions/{id}/jobs[/{job_id}]`), Arun (screens). Open decision **D-UPLOAD-SIZE**: maximum upload size; uploads answer 503 until it is configured. Failure reasons need a stored reason column (I2). |

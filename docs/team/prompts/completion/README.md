@@ -34,7 +34,7 @@ own clone, with the prompt from this folder.
 | Budget | Turn budget saved per request so a restart cannot reset it (D-BUDGET) | Arshad, Ashlin |
 | Learning | Optional checks (`validate_draft_is_grounded` raises today), factual history records (D3), concept catalog, real Neo4j run | Arshad, Ashlin |
 | Data | OpenTelemetry pins, migrations applied on RDS, upload and job-status routes, live Gemini embeddings and Pinecone | Ashlin |
-| Video | TwelveLabs index on Marengo 3.5 + Pegasus 1.5, Tunelio → S3 → TwelveLabs pipeline, worker media jobs, Coordinator video/figure tools, WebView2 player, YouTube search | Ashlin, Arshad, Arun |
+| Video | TwelveLabs index on Marengo 3.0 + Pegasus 1.5, Tunelio → S3 → TwelveLabs pipeline, worker media jobs, Coordinator video/figure tools, WebView2 player, YouTube search | Ashlin, Arshad, Arun |
 | Client | Sign-in screen, voice capture, real audio, upload and status, figure/table/equation exploration, MathML, hotkeys | Arun |
 | Tracing and evaluation | AX exporter, Tutor spans, trace reconciliation; Modal judge deployed; labelled dataset; AX paired comparison | Arshad (Ashlin reviews Modal pins) |
 | Deployment | API and worker images, Compose, an application host, PgBouncer reachable from it, RDS backups, shared Terraform state, TLS | Ashlin |
@@ -146,7 +146,8 @@ Done when: every checklist box is ticked with evidence in integration status.
   provider calls (the session states the expected cost), AWS or RDS changes
   (Terraform plans are reviewed before apply), the Modal deploy, database
   migrations on RDS.
-- Recreate the TwelveLabs index on Marengo 3.5 + Pegasus 1.5 in the dashboard.
+- Recreate the TwelveLabs index on Marengo 3.0 + Pegasus 1.5 in the dashboard (if
+  it is still on 2.7 / 1.2).
 - Set the Modal spend limit; choose the domain for TLS.
 - Push, review and merge pull requests.
 - Recruit testers (blind or low-vision students with NVDA) and label evaluation

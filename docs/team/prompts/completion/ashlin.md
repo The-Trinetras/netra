@@ -103,9 +103,9 @@ Work top to bottom. Skip an item that is blocked, say by whom, and take the next
 ### Step 4 — video pipeline
 
 - **M1** TwelveLabs settings from `NETRA_TWELVE_LABS_*` into the existing
-  `TwelveLabsSettings`. The index must be recreated on Marengo 3.5 + Pegasus 1.5
-  (M3-PIN-1; the current one is on 2.7 / 1.2): ask Ashlin to do it in the
-  dashboard, then record the exact model names.
+  `TwelveLabsSettings`. The index must be on Marengo 3.0 + Pegasus 1.5
+  (M3-PIN-1; `marengo3.0`, `pegasus1.5`): if it is still on 2.7 / 1.2, ask Ashlin
+  to recreate it in the dashboard and update the index id in `.env`.
 - **M2** Private media links for TwelveLabs (M3-MEDIA-URL) via presigned S3 URLs.
 - **M3** YouTube through Tunelio (M3-YT-ANALYSIS): a job that calls `/info` and
   `/create`, streams the video into the private bucket, then indexes it from a

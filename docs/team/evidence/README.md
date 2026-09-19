@@ -10,6 +10,7 @@ commit, and what was live versus fixture.
 | [student-session-script.md](student-session-script.md) | P1: 20-minute session with a blind or low-vision student using NVDA, keyboard and voice, with the consent line | Ready; **no session run yet** |
 | [observation-sheet.md](observation-sheet.md) | P1: one sheet per participant, filled in during the session | Blank template |
 | [session-log.md](session-log.md) | P2: what happened in each real session, what was changed, before and after | **No sessions recorded** |
+| [media-label-review.md](media-label-review.md) | P3 (M3-LBL-1): compare each synthetic media label with the permitted original PDF and lecture | **Not reviewed** |
 
 Rules that hold for all of them:
 

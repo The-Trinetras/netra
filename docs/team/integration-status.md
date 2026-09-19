@@ -441,3 +441,9 @@ Gaps found while reading the Terraform (20 September):
 ## Independent work that can proceed
 
 Slices C–E need no live provider or new product policy for their local parts.
+
+## Completion push — Ashlin (M2, AWS, M3 media pipeline)
+
+| Item | State | Branch | Evidence | Reviews / blockers |
+|---|---|---|---|---|
+| C6 client evidence payload (M5-EVIDENCE) | drafted, awaiting review | `ashlin/c6-evidence-payload` | `shared/contracts/protocol/v1/evidence_view.schema.json`; examples `examples/server/evidence_view_{table,chart,equation}.json` generated from M3's real Ohm's-law fixtures; mirror/builder `multimedia/evidence_view.py`; `api/tests/multimedia/test_evidence_view.py` (19, fixtures only) | Arshad (transport; recommended deterministic `GET /v1/sessions/{id}/evidence/{evidence_id}/view?layer=…`), Arun (exploration screens; MathML fills `equation.mathml`, absent until then) |

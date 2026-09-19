@@ -1,0 +1,170 @@
+{
+  "view": {
+    "evidence_id": "ev-ohm-table",
+    "source_version_id": "00000000-0000-4000-8000-00000000ff02",
+    "evidence_version": 2,
+    "object_kind": "table",
+    "locator": "chapter 4, table 4.1",
+    "layer": "parts",
+    "parts": [
+      {
+        "part_id": "tbl01.h0",
+        "label": "Current",
+        "label_source": "observed"
+      },
+      {
+        "part_id": "tbl01.h1",
+        "label": "Voltage",
+        "label_source": "observed"
+      },
+      {
+        "part_id": "tbl01.r1.c0",
+        "label": "1",
+        "label_source": "observed"
+      },
+      {
+        "part_id": "tbl01.r1.c1",
+        "label": "2",
+        "label_source": "observed"
+      },
+      {
+        "part_id": "tbl01.r2.c0",
+        "label": "2",
+        "label_source": "observed"
+      },
+      {
+        "part_id": "tbl01.r2.c1",
+        "label": "4",
+        "label_source": "observed"
+      },
+      {
+        "part_id": "tbl01.r3.c0",
+        "label": "3",
+        "label_source": "observed"
+      },
+      {
+        "part_id": "tbl01.r3.c1",
+        "label": "6",
+        "label_source": "observed"
+      }
+    ],
+    "relationships": [],
+    "unreadable_part_ids": [],
+    "table": {
+      "caption": {
+        "text": "Measured current and voltage",
+        "source": "observed"
+      },
+      "row_count": 4,
+      "column_count": 2,
+      "headers": [
+        {
+          "header_id": "tbl01.h0",
+          "orientation": "column",
+          "index": 0,
+          "span": 1,
+          "text": "Current",
+          "text_source": "observed",
+          "unit": "A",
+          "unit_source": "observed"
+        },
+        {
+          "header_id": "tbl01.h1",
+          "orientation": "column",
+          "index": 1,
+          "span": 1,
+          "text": "Voltage",
+          "text_source": "observed",
+          "unit": "V",
+          "unit_source": "observed"
+        }
+      ],
+      "cells": [
+        {
+          "cell_id": "tbl01.r1.c0",
+          "row_index": 1,
+          "column_index": 0,
+          "row_span": 1,
+          "column_span": 1,
+          "text": "1",
+          "text_source": "observed",
+          "unit": "A",
+          "header_ids": [
+            "tbl01.h0"
+          ]
+        },
+        {
+          "cell_id": "tbl01.r1.c1",
+          "row_index": 1,
+          "column_index": 1,
+          "row_span": 1,
+          "column_span": 1,
+          "text": "2",
+          "text_source": "observed",
+          "unit": "V",
+          "header_ids": [
+            "tbl01.h1"
+          ]
+        },
+        {
+          "cell_id": "tbl01.r2.c0",
+          "row_index": 2,
+          "column_index": 0,
+          "row_span": 1,
+          "column_span": 1,
+          "text": "2",
+          "text_source": "observed",
+          "unit": "A",
+          "header_ids": [
+            "tbl01.h0"
+          ]
+        },
+        {
+          "cell_id": "tbl01.r2.c1",
+          "row_index": 2,
+          "column_index": 1,
+          "row_span": 1,
+          "column_span": 1,
+          "text": "4",
+          "text_source": "observed",
+          "unit": "V",
+          "header_ids": [
+            "tbl01.h1"
+          ]
+        },
+        {
+          "cell_id": "tbl01.r3.c0",
+          "row_index": 3,
+          "column_index": 0,
+          "row_span": 1,
+          "column_span": 1,
+          "text": "3",
+          "text_source": "observed",
+          "unit": "A",
+          "header_ids": [
+            "tbl01.h0"
+          ]
+        },
+        {
+          "cell_id": "tbl01.r3.c1",
+          "row_index": 3,
+          "column_index": 1,
+          "row_span": 1,
+          "column_span": 1,
+          "text": "6",
+          "text_source": "observed",
+          "unit": "V",
+          "header_ids": [
+            "tbl01.h1"
+          ]
+        }
+      ]
+    },
+    "source_check": "verified",
+    "ai_description": false,
+    "provenance": {
+      "origin": "extraction",
+      "provider": "fixture-extractor"
+    }
+  }
+}

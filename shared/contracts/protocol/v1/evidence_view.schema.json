@@ -1,0 +1,226 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://netra.local/contracts/protocol/v1/evidence_view.schema.json",
+  "title": "Netra Evidence View",
+  "$comment": "C6 / M5-EVIDENCE. DRAFT by M2/M3 (Ashlin); reviews: Arshad (M1 transport and Coordinator tools), Arun (M5 exploration screens, MathML). The public, accessible shape of ONE layer of ONE figure, chart, diagram, table or equation: overview, parts, relationships or detail, exactly as the deterministic exploration service (api/src/netra_api/multimedia/exploration.py) produces it. No model is called to build a view; labels come from the stored, validated extraction, so the same request returns the same part ids every time. Transport is M1's decision; recommended: GET /v1/sessions/{session_id}/evidence/{evidence_id}/view?layer=<layer>[&part_id=<id>] returning {\"view\": EvidenceView}, Bearer auth, the session's pinned source version enforced (evidence of another version is 409 STALE_REQUEST, another account's or unknown evidence 403). Every text field is untrusted document or model text: display or speak it, never execute or interpret it as instructions. Provenance rules (decision M1-M3-V): a label whose source is `generated` was produced by a model and must be presented as an AI description, never as the document's own words; `estimated` must be presented as approximate; `unreadable` means present in the document but not legible and must be said so, never guessed. `ai_description` is true when any text in the view is generated, so the client can announce it once.",
+
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "evidence_id",
+    "source_version_id",
+    "evidence_version",
+    "object_kind",
+    "locator",
+    "layer",
+    "source_check",
+    "ai_description",
+    "provenance",
+    "parts",
+    "relationships",
+    "unreadable_part_ids"
+  ],
+  "properties": {
+    "evidence_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "$comment": "Canonical evidence reference, the same id the Coordinator/Tutor cite. Opaque to the client."
+    },
+    "source_version_id": {
+      "type": "string",
+      "format": "uuid",
+      "$comment": "The immutable source version this object belongs to (must equal the session's pin)."
+    },
+    "evidence_version": {
+      "type": "integer",
+      "minimum": 1,
+      "$comment": "Immutable version of this evidence content (INT-03)."
+    },
+    "object_kind": {
+      "enum": ["figure", "chart", "diagram", "table", "equation"]
+    },
+    "locator": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500,
+      "$comment": "Where the object is in the source, for example \"chapter 4, table 4.1\". Read from the document's structure, never invented."
+    },
+    "layer": {
+      "enum": ["overview", "parts", "relationships", "detail"],
+      "$comment": "overview: one orienting statement. parts: the addressable parts in a stable reading order. relationships: how parts connect (an empty list is a real answer). detail: one named part in full (part_id required)."
+    },
+    "part_id": {
+      "type": "string",
+      "$comment": "The part shown in full; present if and only if layer is detail."
+    },
+    "summary": {
+      "$ref": "#/$defs/SourcedText",
+      "$comment": "The orienting statement for this layer, with its provenance. Absent when the structure offers none."
+    },
+    "parts": {
+      "type": "array",
+      "maxItems": 500,
+      "items": { "$ref": "#/$defs/Part" }
+    },
+    "relationships": {
+      "type": "array",
+      "maxItems": 1000,
+      "items": { "$ref": "#/$defs/Relationship" }
+    },
+    "unreadable_part_ids": {
+      "type": "array",
+      "items": { "type": "string" },
+      "$comment": "Parts that exist in the source but could not be read. The client says so rather than skipping them."
+    },
+    "table": {
+      "$ref": "#/$defs/TableGrid",
+      "$comment": "Present for object_kind table at the parts and detail layers: the grid a student navigates cell by cell with its governing headers."
+    },
+    "equation": {
+      "$ref": "#/$defs/EquationForms",
+      "$comment": "Present for object_kind equation."
+    },
+    "source_check": {
+      "enum": ["verified", "not_checked", "mismatch", "partly_unreadable"],
+      "$comment": "Outcome of comparing the extraction with the original media. verified: every checked detail matched and at least one was checked. not_checked: nobody compared it (never an implicit pass). mismatch: at least one detail contradicts the source. partly_unreadable: some details could not be read in the source either. Only `verified` objects may be presented as the document's content; the others are presented with that limitation stated."
+    },
+    "ai_description": {
+      "type": "boolean",
+      "$comment": "True when any text in this view (summary, labels, details, relationship labels) has source `generated`. The client announces 'AI description' before presenting it."
+    },
+    "provenance": { "$ref": "#/$defs/Provenance" }
+  },
+
+  "allOf": [
+    {
+      "if": { "properties": { "layer": { "const": "detail" } } },
+      "then": { "required": ["part_id"] },
+      "else": { "not": { "required": ["part_id"] } }
+    },
+    {
+      "if": { "properties": { "object_kind": { "const": "equation" } } },
+      "then": { "required": ["equation"] },
+      "else": { "not": { "required": ["equation"] } }
+    },
+    {
+      "if": { "properties": { "object_kind": { "not": { "const": "table" } } } },
+      "then": { "not": { "required": ["table"] } }
+    }
+  ],
+
+  "$defs": {
+    "LabelSource": {
+      "enum": ["observed", "generated", "estimated", "unreadable"],
+      "$comment": "observed: read directly from the source. generated: produced by a model (an AI description). estimated: inferred from the source but not stated by it (approximate). unreadable: present but not legible."
+    },
+    "SourcedText": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["text", "source"],
+      "properties": {
+        "text": { "type": "string", "maxLength": 2000 },
+        "source": { "$ref": "#/$defs/LabelSource" }
+      }
+    },
+    "Part": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["part_id", "label_source"],
+      "properties": {
+        "part_id": { "type": "string", "minLength": 1, "maxLength": 200, "$comment": "Stable across requests; comes from the stored structure." },
+        "label": { "type": "string", "maxLength": 500 },
+        "label_source": { "$ref": "#/$defs/LabelSource" },
+        "detail": { "type": "string", "maxLength": 2000, "$comment": "Only at the detail layer." },
+        "detail_source": { "$ref": "#/$defs/LabelSource" }
+      }
+    },
+    "Relationship": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_part_id", "target_part_id", "label_source", "observation_source", "directed"],
+      "properties": {
+        "source_part_id": { "type": "string" },
+        "target_part_id": { "type": "string" },
+        "label": { "type": "string", "maxLength": 500 },
+        "label_source": { "$ref": "#/$defs/LabelSource" },
+        "observation_source": {
+          "$ref": "#/$defs/LabelSource",
+          "$comment": "Whether the connection itself was drawn/printed (observed) or inferred. Proximity alone is never a connection."
+        },
+        "directed": { "type": "boolean" }
+      }
+    },
+    "TableHeader": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["header_id", "orientation", "index", "span", "text_source"],
+      "properties": {
+        "header_id": { "type": "string" },
+        "orientation": { "enum": ["column", "row"], "$comment": "column: above the cells it governs; row: beside them." },
+        "index": { "type": "integer", "minimum": 0, "$comment": "First column (orientation column) or row (orientation row) it governs." },
+        "span": { "type": "integer", "minimum": 1 },
+        "text": { "type": "string", "maxLength": 500 },
+        "text_source": { "$ref": "#/$defs/LabelSource" },
+        "unit": { "type": "string", "maxLength": 50 },
+        "unit_source": { "$ref": "#/$defs/LabelSource" }
+      }
+    },
+    "TableCell": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["cell_id", "row_index", "column_index", "row_span", "column_span", "text_source", "header_ids"],
+      "properties": {
+        "cell_id": { "type": "string" },
+        "row_index": { "type": "integer", "minimum": 0 },
+        "column_index": { "type": "integer", "minimum": 0 },
+        "row_span": { "type": "integer", "minimum": 1 },
+        "column_span": { "type": "integer", "minimum": 1 },
+        "text": { "type": "string", "maxLength": 1000 },
+        "text_source": { "$ref": "#/$defs/LabelSource" },
+        "unit": { "type": "string", "maxLength": 50, "$comment": "The cell's own unit, or the unit inherited from its header." },
+        "header_ids": {
+          "type": "array",
+          "items": { "type": "string" },
+          "$comment": "Every header governing this cell (row and column), so the client can announce 'Voltage, 2 A: 4 V' without guessing."
+        }
+      }
+    },
+    "TableGrid": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["row_count", "column_count", "headers", "cells"],
+      "properties": {
+        "caption": { "$ref": "#/$defs/SourcedText" },
+        "row_count": { "type": "integer", "minimum": 0 },
+        "column_count": { "type": "integer", "minimum": 0 },
+        "headers": { "type": "array", "items": { "$ref": "#/$defs/TableHeader" } },
+        "cells": { "type": "array", "maxItems": 5000, "items": { "$ref": "#/$defs/TableCell" } }
+      }
+    },
+    "EquationForms": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["spoken_form", "extraction_source"],
+      "properties": {
+        "spoken_form": { "type": "string", "maxLength": 2000, "$comment": "Whole-equation reading built from the navigable tree." },
+        "mathml": { "type": "string", "maxLength": 20000, "$comment": "Presentation MathML when the renderer is enabled (M3 MathML fidelity decision); absent otherwise, never a guessed rendering." },
+        "extraction_source": { "$ref": "#/$defs/LabelSource", "$comment": "generated until a passing source check verifies the tree." }
+      }
+    },
+    "Provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["origin"],
+      "properties": {
+        "origin": {
+          "enum": ["document_structure", "extraction", "model_description"],
+          "$comment": "document_structure: read from the document's own text layer. extraction: an extraction adapter produced the structure (then validated or not, see source_check). model_description: a generative model described the object."
+        },
+        "provider": { "type": "string", "maxLength": 100, "$comment": "Adapter name, for example \"tesseract\" or \"twelvelabs\". Never a credential or endpoint." },
+        "model_name": { "type": "string", "maxLength": 200 },
+        "model_version": { "type": "string", "maxLength": 100 }
+      }
+    }
+  }
+}

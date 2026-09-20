@@ -61,6 +61,7 @@ class JudgeReply:
     prompt_tokens: Optional[int] = None
     completion_tokens: Optional[int] = None
     gpu_seconds: Optional[float] = None
+    cold_start_seconds: float = 0.0
 
 
 class JudgeCallError(Exception):
@@ -135,6 +136,7 @@ def reply_from_json(body: Any, expected_request_id: str) -> JudgeReply:
             prompt_tokens=body.get("prompt_tokens"),
             completion_tokens=body.get("completion_tokens"),
             gpu_seconds=body.get("gpu_seconds"),
+            cold_start_seconds=float(body.get("cold_start_seconds") or 0.0),
         )
     except KeyError as missing:
         raise JudgeCallError(ErrorCode.PROTOCOL_ERROR) from missing
@@ -233,13 +235,42 @@ class RunAllowance:
     per_call_estimate_seconds: float
     spent_seconds: float = 0.0
     calls: int = 0
+    cold_start_seconds: float = 0.0
+    cold_starts: int = 0
+    per_cold_start_estimate_seconds: float = 0.0
 
     def can_dispatch(self) -> bool:
-        return self.spent_seconds + self.per_call_estimate_seconds + self.margin_seconds <= self.max_gpu_seconds
+        """Reserve a possible cold start as well as the call itself.
 
-    def record(self, reply_seconds: Optional[float], wall_seconds: float) -> None:
+        OPT-8: with ``min_containers=0`` and a 60 s scaledown window, any gap
+        between judgements can drop the container, and reloading 7B weights
+        onto the A100 is billed. Dispatching on a budget that assumed a warm
+        container is how a run overruns its cap.
+        """
+
+        needed = self.per_call_estimate_seconds + self.per_cold_start_estimate_seconds + self.margin_seconds
+        return self.spent_seconds + needed <= self.max_gpu_seconds
+
+    def record(
+        self,
+        reply_seconds: Optional[float],
+        wall_seconds: float,
+        cold_start_seconds: float = 0.0,
+    ) -> None:
+        """Record one call's spend, including any cold start it paid for.
+
+        ``gpu_seconds`` is measured inside the request handler, so it excludes
+        the container load that preceded it; that load is billed and is added
+        here. A failed call reports no cold start, and wall-clock time already
+        covers whatever it spent.
+        """
+
         self.calls += 1
         self.spent_seconds += reply_seconds if reply_seconds is not None else wall_seconds
+        if cold_start_seconds:
+            self.cold_starts += 1
+            self.cold_start_seconds += cold_start_seconds
+            self.spent_seconds += cold_start_seconds
 
     def estimated_cost_usd(self, rate_per_second: float = 0.000583) -> float:
         """A100-40GB GPU-only rate from the plan; excludes CPU/RAM/idle/storage."""

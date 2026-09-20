@@ -22,6 +22,14 @@ Controls implemented here (check against the pinned Modal SDK version):
 - Every request_id's state is written to a Modal Dict ("running", then the
   reply), so a client that timed out can reconcile via GET /result/{id}
   instead of re-sending (and paying for) the same judgement.
+- The HTTP surface is a CPU function, not the A100 class (OPT-7). GET
+  /result only reads that Dict, so reconciling never allocates a GPU; only
+  POST /score calls the GPU class, and that call is what wakes it. Both
+  routes keep one URL, so NETRA_EVAL_JUDGE_URL is unchanged.
+- Each reply reports cold_start_seconds alongside gpu_seconds (OPT-8).
+  gpu_seconds is measured inside the handler and so excludes the container
+  load before it; that load is billed, and the runner's allowance charges
+  and reserves for it rather than discovering it on the invoice.
 - CUDA OOM returns 503 ``out_of_memory``; nothing else from the exception
   leaves the container.
 
@@ -120,9 +128,12 @@ results = modal.Dict.from_name(RESULTS_DICT, create_if_missing=True)
 class PrometheusJudge:
     @modal.enter()
     def load(self) -> None:
+        import time
+
         import torch
         from transformers import AutoModelForCausalLM, AutoTokenizer
 
+        started = time.monotonic()
         self.torch = torch
         self.tokenizer = AutoTokenizer.from_pretrained(
             MODEL_ID, revision=PINS["tokenizer_revision"], cache_dir="/weights"
@@ -133,12 +144,36 @@ class PrometheusJudge:
         )
         self.model.eval()
         weights.commit()
+        # OPT-8: pulling 7B weights onto the A100 is billed GPU time, but it
+        # happens before any handler starts timing, so gpu_seconds alone
+        # under-reports every cold start. Charge it to the first call that
+        # uses this container; later calls on the same container add nothing.
+        self._cold_start_seconds = round(time.monotonic() - started, 3)
 
-    def score_prompt(self, prompt: str, max_new_tokens: int, max_total_tokens: int, temperature: float, seed):
+    def _take_cold_start(self) -> float:
+        charged = getattr(self, "_cold_start_seconds", 0.0)
+        self._cold_start_seconds = 0.0
+        return charged
+
+    @modal.method()
+    def score_prompt(self, prompt: str, max_new_tokens: int, max_total_tokens: int, temperature: float, seed) -> dict:
+        """Score one prompt on the GPU and return a tagged result.
+
+        Returns rather than raises, because the caller is now a separate CPU
+        function (OPT-7): a torch exception type cannot cross that boundary.
+        """
+
+        try:
+            return {**self._score(prompt, max_new_tokens, max_total_tokens, temperature, seed),
+                    "cold_start_seconds": self._take_cold_start()}
+        except self.torch.cuda.OutOfMemoryError:
+            return {"status": "out_of_memory", "cold_start_seconds": self._take_cold_start()}
+
+    def _score(self, prompt: str, max_new_tokens: int, max_total_tokens: int, temperature: float, seed) -> dict:
         encoded = self.tokenizer(prompt, return_tensors="pt", truncation=False)
         prompt_tokens = int(encoded["input_ids"].shape[1])
         if not check_budget(prompt_tokens, max_new_tokens, max_total_tokens):
-            return None, prompt_tokens
+            return {"status": "oversized_input", "prompt_tokens": prompt_tokens}
         if seed is not None:
             self.torch.manual_seed(int(seed))
         with self.torch.inference_mode():
@@ -154,53 +189,70 @@ class PrometheusJudge:
         finished = bool(len(new_tokens)) and int(new_tokens[-1]) == self.tokenizer.eos_token_id
         text = self.tokenizer.decode(new_tokens, skip_special_tokens=True)
         return {
+            "status": "ok",
             "output": text,
             "finish_reason": "stop" if finished else "length",
             "prompt_tokens": prompt_tokens,
             "completion_tokens": int(len(new_tokens)),
-        }, prompt_tokens
+        }
 
-    @modal.asgi_app(requires_proxy_auth=True)
-    def web(self):
-        import time
 
-        from fastapi import FastAPI
-        from fastapi.responses import JSONResponse
+# OPT-7: the HTTP surface runs on a CPU container, not on the A100 class.
+# GET /result only reads the results Dict, so a client reconciling a timed-out
+# judgement never allocates a GPU; only POST /score calls the GPU class, and
+# that call is what wakes it.
+@app.function(cpu=1.0, timeout=PER_CALL_TIMEOUT_SECONDS + 60)
+@modal.asgi_app(requires_proxy_auth=True)
+def web():
+    import time
 
-        api = FastAPI()
+    from fastapi import FastAPI
+    from fastapi.responses import JSONResponse
 
-        @api.post("/score")
-        def score(body: dict):
-            request_id = str(body["request_id"])
-            previous = results.get(request_id)
-            if previous is not None and previous.get("state") == "done":
-                return previous["reply"]
-            if previous is not None and not is_abandoned(previous, time.time()):
-                return JSONResponse({"error": "in_progress"}, status_code=409)
-            results[request_id] = {"state": "running", "started_at": time.time()}
-            started = time.monotonic()
-            try:
-                reply, prompt_tokens = self.score_prompt(
-                    body["prompt"], int(body["max_new_tokens"]), int(body["max_total_tokens"]),
-                    float(body["temperature"]), body.get("seed"),
-                )
-            except self.torch.cuda.OutOfMemoryError:
-                results.pop(request_id, None)
-                return JSONResponse({"error": "out_of_memory"}, status_code=503)
-            if reply is None:
-                results.pop(request_id, None)
-                return JSONResponse({"error": "oversized_input", "prompt_tokens": prompt_tokens}, status_code=413)
-            reply = {"request_id": request_id, **reply, "gpu_seconds": round(time.monotonic() - started, 3)}
-            results[request_id] = {"state": "done", "reply": reply}
-            return reply
+    api = FastAPI()
 
-        @api.get("/result/{request_id}")
-        def result(request_id: str):
-            entry = results.get(request_id)
-            if entry is None or is_abandoned(entry, time.time()):
-                return JSONResponse({"error": "unknown"}, status_code=404)
-            if entry.get("state") != "done":
-                return JSONResponse({"error": "in_progress"}, status_code=409)
-            return entry["reply"]
+    @api.post("/score")
+    def score(body: dict):
+        request_id = str(body["request_id"])
+        previous = results.get(request_id)
+        if previous is not None and previous.get("state") == "done":
+            return previous["reply"]
+        if previous is not None and not is_abandoned(previous, time.time()):
+            return JSONResponse({"error": "in_progress"}, status_code=409)
+        results[request_id] = {"state": "running", "started_at": time.time()}
+        started = time.monotonic()
+        outcome = PrometheusJudge().score_prompt.remote(
+            body["prompt"], int(body["max_new_tokens"]), int(body["max_total_tokens"]),
+            float(body["temperature"]), body.get("seed"),
+        )
+        status = outcome.get("status")
+        if status == "out_of_memory":
+            results.pop(request_id, None)
+            return JSONResponse({"error": "out_of_memory"}, status_code=503)
+        if status == "oversized_input":
+            results.pop(request_id, None)
+            return JSONResponse(
+                {"error": "oversized_input", "prompt_tokens": outcome["prompt_tokens"]}, status_code=413
+            )
+        reply = {k: v for k, v in outcome.items() if k not in ("status", "cold_start_seconds")}
+        reply = {
+            "request_id": request_id,
+            **reply,
+            "gpu_seconds": round(time.monotonic() - started, 3),
+            # OPT-8: billed separately from gpu_seconds so the runner's
+            # allowance can count the container load it just paid for.
+            "cold_start_seconds": outcome.get("cold_start_seconds", 0.0),
+        }
+        results[request_id] = {"state": "done", "reply": reply}
+        return reply
 
-        return api
+    @api.get("/result/{request_id}")
+    def result(request_id: str):
+        entry = results.get(request_id)
+        if entry is None or is_abandoned(entry, time.time()):
+            return JSONResponse({"error": "unknown"}, status_code=404)
+        if entry.get("state") != "done":
+            return JSONResponse({"error": "in_progress"}, status_code=409)
+        return entry["reply"]
+
+    return api

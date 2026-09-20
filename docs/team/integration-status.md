@@ -77,6 +77,48 @@ OpenRouter, Pinecone, TwelveLabs, Tunelio, Modal or AX. Nothing touched AWS.
    regenerated (purely additive, no existing pin moved), and the guard now runs
    both ways. `uv.lock` is M2's artifact, so **Ashlin reviews this** (I1).
 
+### U1 uploads — 20 September 2026
+
+`POST /v1/sessions/{id}/uploads`, `GET .../jobs` and `GET .../jobs/{job_id}`
+are mounted on Ashlin's C5 contract, so a source can finally be added. Before
+this the API had six routes and none accepted a file, and there was no
+ingestion command either, so no document could reach Netra at all.
+
+**No migration.** `SourceIngestionService` already derives source and version
+ids from an `operation_key` with uuid5, so a retransmitted upload rebuilds the
+same identity; the job id derives from the source the same way, and the title
+and `created_at` stay in `sources`. I2's failure-reason column is still
+Ashlin's: until it lands a failed version reports the contract's
+`processing_failed`.
+
+**Verified live**, not only on fixtures: against a real PostgreSQL and a real
+PDF on Windows, through the full path — operator-issued access code, exchange
+for a device credential, session, upload.
+
+| Behaviour | Result |
+|---|---|
+| First upload | 202 with a contract-shaped Job |
+| Retransmission, same bytes | 200, same `job_id`, one source |
+| Same `request_id`, different bytes | 409 `REQUEST_ID_CONFLICT` |
+| Not a PDF | 422 `INVALID_REQUEST`, `details.field = "file"` |
+| Unknown or another account's job | 403 `AUTHORIZATION_DENIED` (never an existence oracle) |
+| `NETRA_UPLOAD_MAX_BODY` unset | 503, no invented default (D-UPLOAD-SIZE) |
+
+24 fixture tests; 9 mutations applied and all 9 caught. Full suite 1,884
+passed, 3 skipped, 0 failed.
+
+Two things worth review. The object key now includes the content hash,
+because the `request_id` conflict is only detectable **after** the bytes are
+stored — without it a reused `request_id` would overwrite the original
+upload's object. And `error.schema.json` already permitted `details`, which
+nothing populated; `INVALID_REQUEST` now carries the field name it was about,
+which C5 needs and every other route gains.
+
+Open: **D-UPLOAD-SIZE answered as 16 MiB** by Arshad (20 September); nginx
+must use the same number when I4 deploys. Reviews: Ashlin (C5 fit, and
+whether the derived job id is acceptable in place of I2's job table), Arun
+(the upload and status screens, F5).
+
 ### F1 / M5-LOCK — 20 September 2026
 
 | Item | Branch | Result | Remaining owner/gate |

@@ -30,7 +30,23 @@ public sealed class WebView2PlayerSurface : IPlayerSurface
             // The per-user folder, not next to the program, which may not be writable.
             var userData = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Netra", "WebView2");
-            var environment = await CoreWebView2Environment.CreateAsync(browserExecutableFolder: null, userDataFolder: userData);
+            // Chromium's default autoplay policy requires a user gesture inside
+            // the document. The student's key press happens in WPF, so
+            // playVideo() from the player page counts as programmatic autoplay
+            // and is refused: the video stays on its poster and "Play (K)" does
+            // nothing. Keyboard control of the lecture is required
+            // (.claude/rules/client.md), and the player sets disablekb so
+            // focusing the frame is not an alternative, so the gesture
+            // requirement is lifted for this WebView only. It applies to
+            // Netra's own browser environment, never to the system browser,
+            // and the page can still only reach the YouTube embed the CSP
+            // allows.
+            var options = new CoreWebView2EnvironmentOptions
+            {
+                AdditionalBrowserArguments = "--autoplay-policy=no-user-gesture-required",
+            };
+            var environment = await CoreWebView2Environment.CreateAsync(
+                browserExecutableFolder: null, userDataFolder: userData, options: options);
             await _view.EnsureCoreWebView2Async(environment);
             core = _view.CoreWebView2;
         }

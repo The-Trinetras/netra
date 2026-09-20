@@ -40,7 +40,7 @@ Check: `docker ps` shows `compose-postgres-test-1` on `127.0.0.1:55432`.
     $env:PYTHONPATH="api/src"
     .venv\Scripts\python.exe -m alembic -c api/alembic.ini upgrade head
 
-Check: `... current` prints `0011_m1_speech_quota (head)`.
+Check: `... current` prints `0012_m3_video_assets (head)`.
 
 ## 3. API
 
@@ -107,7 +107,8 @@ not a failure.
 
     .venv\Scripts\python.exe -m pytest -p no:cacheprovider --ignore=tests/test_integration.py -q -m "integration or not integration"
 
-1884 passed, 3 skipped, ~81 s.
+1906 passed, 62 skipped, ~125 s (20 September 2026, after the AX exporter and the
+Ragas-style metrics added 32 tests).
 
 ---
 
@@ -147,8 +148,9 @@ are read by **no code in this repository**:
 
 - `NETRA_TWELVE_LABS_*`, `NETRA_TAVILY_*`, `NETRA_TUNELIO_API_KEY` — no settings class
   reads them yet (M3's media pipeline is not wired to configuration).
-- `NETRA_AX_*` — the AX exporter (T1) is unimplemented, which is why
-  `NETRA_TRACING_MODE` must stay `off`.
+- `NETRA_AX_*` — still unread. The exporter uses the names AX documents,
+  `ARIZE_SPACE_ID` / `ARIZE_API_KEY` / `ARIZE_PROJECT_NAME`, which your `.env`
+  already carries. `NETRA_TRACING_MODE=ax` now works (see the tracing section).
 - `NETRA_EVAL_*`, `MODAL_TOKEN_*` — read only by `evaluation/scripts`, not the API.
 - `NETRA_API_ENDPOINT` — read by the WPF client, from its own process environment.
 
@@ -160,7 +162,8 @@ Setting them changes nothing today. They are not broken; they are ahead of the c
 - The WPF app actually running, NVDA, keyboard navigation.
 - Tesseract OCR against a scanned PDF (v5.5.3 is installed; the text-layer path does
   not use it).
-- Neo4j, Modal judge, AX export, S3, RDS.
+- Modal judge, S3, RDS. (Neo4j and AX export were verified on 20 September
+  2026 — see the tracing section below.)
 
 ---
 
@@ -199,3 +202,72 @@ matched.
 So the read side and the composition are complete and tested; the producing
 side and the two contracts are not. Video evidence that exists in the database
 is served, authorized and cited correctly — but nothing puts it there yet.
+
+
+---
+
+# Tracing, Neo4j and evaluation (added 20 September 2026)
+
+## 10. Neo4j (the learning projection)
+
+    docker run -d --name netra-neo4j -p 127.0.0.1:7687:7687 -p 127.0.0.1:7474:7474 `
+      -e NEO4J_AUTH=neo4j/netra_local_only neo4j:5.26.30
+
+It is a **rebuildable projection**: PostgreSQL stays authoritative, so losing this
+container loses nothing. The worker only uses it when these are in the environment,
+and they are **not in `.env` yet** — add them, or the worker silently runs without it:
+
+    NETRA_NEO4J_URI=bolt://127.0.0.1:7687
+    NETRA_NEO4J_USER=neo4j
+    NETRA_NEO4J_PASSWORD=netra_local_only
+
+Check: `LearningProjectionSettings().configured` is `True`. Verified 20 September
+2026 — connected, wrote a node, read it back, deleted it.
+
+## 11. Arize AX tracing
+
+Add one line to `.env` (the `ARIZE_*` credentials are already there):
+
+    NETRA_TRACING_MODE=ax
+
+Then restart the API and worker. Check:
+
+    curl http://127.0.0.1:8000/health/telemetry
+
+`tracing_enabled` is `true` and `configuration_errors` is `0`. After a turn,
+`exported` should equal `ended`, with `export_failures` and the `dropped_*`
+counters at 0.
+
+Verified on 20 September 2026 through a real turn: **41 spans created, 41
+exported, 0 failed, 0 dropped**, every batch HTTP 200. Two caveats:
+
+- HTTP 200 is the exporter's acknowledgement, **not proof AX ingested anything**.
+  Confirm in the AX UI. Spans land in the project named by `ARIZE_PROJECT_NAME`,
+  which is currently `netra-notes` — change it if you want the app separate from
+  the demo slice.
+- Export is background only. A slow or dead AX cannot delay a turn or STOP; it
+  shows up as `export_failures` and dropped spans, never as a student-visible error.
+
+No OpenTelemetry package is installed and none is needed: the exporter sends
+OTLP/HTTP JSON with the `httpx` already in the runtime.
+
+## 12. Ragas-style evaluation
+
+    .venv\Scripts\python.exe evaluation\scripts\run_ragas_style.py
+
+Needs `PYTHONPATH=evaluation/scripts`. On `netra_p3_answer_golden_v1` this prints
+faithfulness 1.000 (n=6/6) and answer_relevancy 0.675 (n=6/6); the two context
+metrics report `no_relevance_labels` because that file carries none.
+
+**The Ragas package is not installed and must not be** (runtime-baseline.md): every
+release pulls the full LangChain stack plus `openai`, and 0.2.3–0.4.3 carry an
+unfixed SSRF advisory. These are the repository's own deterministic metrics. They
+are lexical proxies — they cannot see paraphrase, and they are not comparable with
+a real Ragas run or with Prometheus ordinal scores.
+
+The real-lecture retrieval benchmark still **cannot run here**:
+
+    RuntimeError: locked dataset references missing canonical source/version rows
+
+That is the fail-closed check working. The locked dataset points at source rows
+that this tmpfs database no longer holds; re-ingest those lectures to run it.

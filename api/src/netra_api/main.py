@@ -43,6 +43,7 @@ from netra_api.transport.http.auth import authenticate
 from netra_api.transport.http.device_credentials import exchange_device_credential
 from netra_api.transport.http.health import liveness
 from netra_api.transport.http.sessions import create_session, error_response, list_sources, select_source
+from netra_api.transport.http.uploads import create_upload, get_job, list_jobs
 from netra_api.transport.websocket.endpoint import serve
 
 WEBSOCKET_PATH = "/v1/ws"
@@ -112,6 +113,44 @@ def create_app(
 
             return _error(InvalidRequestError("body is not JSON"))
         status, payload = await select_source(composition.services, principal, session_id, body)
+        return JSONResponse(payload, status_code=status)
+
+    @app.post("/v1/sessions/{session_id}/uploads")
+    async def post_upload(session_id: UUID, request: Request) -> JSONResponse:
+        # C5 multipart: request_id, title and the file itself. Read once, with
+        # the approved maximum enforced on the bytes actually received.
+        try:
+            principal = await _principal(request)
+            form = await request.form()
+        except NetraError as exc:
+            return _error(exc)
+        upload = form.get("file")
+        file_bytes = await upload.read() if hasattr(upload, "read") else b""
+        fields = {"request_id": form.get("request_id"), "title": form.get("title")}
+        status, payload = await create_upload(
+            composition.services, composition.sources, composition.ingestion, composition.storage,
+            composition.session_factory, composition.upload_max_body, principal, session_id,
+            fields, file_bytes)
+        return JSONResponse(payload, status_code=status)
+
+    @app.get("/v1/sessions/{session_id}/jobs")
+    async def get_jobs(session_id: UUID, request: Request) -> JSONResponse:
+        try:
+            principal = await _principal(request)
+        except NetraError as exc:
+            return _error(exc)
+        status, payload = await list_jobs(composition.services, composition.sources,
+                                          composition.session_factory, principal, session_id)
+        return JSONResponse(payload, status_code=status)
+
+    @app.get("/v1/sessions/{session_id}/jobs/{job_id}")
+    async def get_job_status(session_id: UUID, job_id: UUID, request: Request) -> JSONResponse:
+        try:
+            principal = await _principal(request)
+        except NetraError as exc:
+            return _error(exc)
+        status, payload = await get_job(composition.services, composition.sources,
+                                        composition.session_factory, principal, session_id, job_id)
         return JSONResponse(payload, status_code=status)
 
     @app.post("/v1/device-credentials")

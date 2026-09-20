@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import ntpath
 from pathlib import Path, PurePosixPath
-from typing import Protocol
+from typing import Any, Optional, Protocol
 
 import asyncio
 
@@ -110,3 +110,29 @@ class LocalFixtureObjectStorage:
         self._path_for_key(key)
         normalized = key.replace("\\", "/")
         return f"local://{normalized}"
+
+
+def build_object_storage(settings: Any) -> Optional[ObjectStorageProvider]:
+    """The configured private object store, or None when it cannot be built.
+
+    Mirrors the worker's selection (netra_worker.main) so both processes read
+    the same bytes from the same place. Returns None instead of raising when
+    storage is unusable: the API must still start and serve reading, and the
+    routes that need storage report themselves unregistered rather than
+    failing at import.
+    """
+
+    provider = getattr(settings, "storage_provider", None)
+    try:
+        if provider == "local_fixture":
+            root = getattr(settings, "local_fixture_root", None)
+            if not root:
+                return None
+            return LocalFixtureObjectStorage(root)
+        if provider == "s3":
+            if not getattr(settings, "s3_bucket", None):
+                return None
+            return Boto3ObjectStorage(settings)
+    except Exception:  # noqa: BLE001 - an unusable store stays unregistered
+        return None
+    return None

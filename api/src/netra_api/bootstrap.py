@@ -69,6 +69,11 @@ class IntegrationDependencies:
     sources: Any = None
     retrieval: Any = None
     evidence_resolver: Any = None
+    # U1 uploads (C5)
+    ingestion: Any = None
+    storage: Any = None
+    session_factory: Any = None
+    upload_max_body: Optional[int] = None
     # M3 multimedia
     figures: Any = None
     video_evidence: Any = None
@@ -120,6 +125,14 @@ class Composition:
     shutdown_timeout_seconds: float = 5.0
     sources: Any = None
     """M2 SourceRepository (account-scoped) for the source-listing route."""
+    ingestion: Any = None
+    """U1: SourceIngestionService, the atomic create-source-and-schedule-parse boundary."""
+    storage: Any = None
+    """U1: private object storage for uploaded source bytes (S3, or local_fixture in development)."""
+    session_factory: Any = None
+    """U1: read-only pipeline-job lookups for the optional progress stage."""
+    upload_max_body: Optional[int] = None
+    """U1/D-UPLOAD-SIZE: unset means uploads answer 503 rather than invent a limit."""
 
     def telemetry_diagnostics(self) -> dict[str, Any]:
         """Safe counters only: no identifiers, messages or configuration values."""
@@ -184,6 +197,8 @@ def production_dependencies(engine: Any, tracer: Optional[Tracer] = None,
     from netra_api.content.retrieval.factory import build_postgres_retrieval_service
     from netra_api.content.retrieval.postgres_evidence import AsyncPostgresEvidenceResolver
     from netra_api.content.settings import ContentSettings
+    from netra_api.content.providers.s3 import build_object_storage
+    from netra_api.content.sources.ingestion import SourceIngestionService
     from netra_api.content.sources.postgres import AsyncSourceRepository
     from netra_api.db.scoped import SessionScoped
     from netra_api.learning.postgres import PostgresLearningStore
@@ -199,6 +214,12 @@ def production_dependencies(engine: Any, tracer: Optional[Tracer] = None,
         evidence_resolver=SessionScoped(sessions, AsyncPostgresEvidenceResolver),
         retrieval=SessionScoped(sessions, lambda session: build_postgres_retrieval_service(session, content, tracer)),
         pending_questions=learning,
+        # U1: uploads need the ingestion boundary, private object storage and a
+        # read-only session factory for the progress stage.
+        ingestion=SessionScoped(sessions, SourceIngestionService),
+        storage=build_object_storage(content),
+        session_factory=sessions,
+        upload_max_body=content.upload_max_body,
     )
     settings = settings or Settings()
     timeout = settings.model_request_timeout_seconds
@@ -369,6 +390,9 @@ def compose(
         "voice_input": dependencies.recognizer is not None,
         "result_sets": ttl is not None and repositories.result_sets is not None,
         "persisted_turn_budget": repositories.budgets is not None,
+        # U1: all three parts plus the approved size, or uploads answer 503.
+        "uploads": (dependencies.ingestion is not None and dependencies.storage is not None
+                    and dependencies.sources is not None and dependencies.upload_max_body is not None),
         **{f"tool:{name}": True for name in tools},
     }
     return Composition(
@@ -379,6 +403,10 @@ def compose(
         langsmith_flags_overridden=langsmith_flags,
         shutdown_timeout_seconds=settings.tracing_shutdown_timeout_seconds,
         sources=dependencies.sources,
+        ingestion=dependencies.ingestion,
+        storage=dependencies.storage,
+        session_factory=dependencies.session_factory,
+        upload_max_body=dependencies.upload_max_body,
     )
 
 

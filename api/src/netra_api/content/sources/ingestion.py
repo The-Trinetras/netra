@@ -21,6 +21,16 @@ from netra_api.platform.errors import AuthorizationError
 from netra_api.db.outbox import SOURCE_VERSION_INGESTION_REQUESTED  # noqa: E402  (single definition)
 
 
+def source_id_for(operation_key: str) -> UUID:
+    """The source id one operation key resolves to.
+
+    Exposed so a caller can tell a first create from a replay without
+    duplicating the derivation string.
+    """
+
+    return uuid5(NAMESPACE_URL, f"netra:source:{operation_key}")
+
+
 class SourceIngestionCreation(BaseModel):
     source_id: UUID
     source_version_id: UUID
@@ -56,7 +66,7 @@ class SourceIngestionService:
         operation_key: str,
     ) -> SourceIngestionCreation:
         self._validate(title, object_key, content_type, content_hash, operation_key)
-        source_id = uuid5(NAMESPACE_URL, f"netra:source:{operation_key}")
+        source_id = source_id_for(operation_key)
         version_id = uuid5(source_id, "version:1")
         parse_key = f"parse_document:{version_id}"
         parsed_key = f"_netra/parsed/{version_id}.json"

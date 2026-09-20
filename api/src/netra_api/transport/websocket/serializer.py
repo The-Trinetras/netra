@@ -236,6 +236,10 @@ class ErrorPayload(_StrictModel):
     message: str = Field(max_length=500)
     retryable: bool
     current_session_version: Optional[int] = Field(default=None, ge=0)
+    details: Optional[dict[str, str]] = None
+    """Narrow, already-known safe facts only (error.schema.json). Today the
+    single key is "field", naming which field an INVALID_REQUEST was about,
+    so a client can say it accessibly instead of guessing."""
     correlation_id: Optional[str] = None
     details: Optional[dict] = None
 
@@ -337,11 +341,15 @@ def error_payload_for(exc: NetraError, *, current_session_version: Optional[int]
     """
 
     code = error_code_for(exc)
+    # Only the vetted field name, never validator internals (C5 asks for
+    # details.field = "file" on a rejected upload).
+    field = getattr(exc, "field", None)
     return ErrorPayload(
         code=code,  # type: ignore[arg-type]
         message=_SAFE_MESSAGE_BY_CODE.get(code, "Something went wrong. Please try again."),
         retryable=is_retryable(code),
         current_session_version=current_session_version,
+        details={"field": field} if isinstance(field, str) and field else None,
     )
 
 

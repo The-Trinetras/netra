@@ -52,6 +52,11 @@ class ContentSettings(BaseSettings):
     worker_poll_interval_seconds: float = Field(default=1.0, gt=0)
     outbox_lease_duration_seconds: int = Field(default=60, ge=5)
 
+    # Uploads (C5). No default: the maximum upload size is an approved
+    # operational decision (D-UPLOAD-SIZE), so uploads answer 503 until it is
+    # configured rather than the server inventing a limit.
+    upload_max_body: Optional[int] = Field(default=None, ge=1)
+
     # Private source storage
     s3_bucket: Optional[str] = None
     aws_region: Optional[str] = None

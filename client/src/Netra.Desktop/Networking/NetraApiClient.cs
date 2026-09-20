@@ -1,3 +1,4 @@
+using System.IO;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -36,10 +37,32 @@ public sealed class ApiErrorException : Exception
     public ErrorPayload? Error { get; }
 }
 
+// One upload's server-side progress (C5 job.schema.json). State is
+// "processing", "ready" or "failed"; a failure carries a closed reason code,
+// never a free-text server message.
+public sealed record ApiJob(
+    Guid JobId, string State, string? Stage = null, string? SourceId = null, string? SourceVersionId = null,
+    int? PollAfterMs = null, ApiJobFailure? Failure = null)
+{
+    public bool IsProcessing => string.Equals(State, "processing", StringComparison.Ordinal);
+
+    public bool IsReady => string.Equals(State, "ready", StringComparison.Ordinal);
+}
+
+public sealed record ApiJobFailure(string Reason);
+
 public interface INetraApi
 {
     Task<ApiSessionCreated> CreateSessionAsync(CancellationToken cancellationToken);
     Task<IReadOnlyList<ApiSource>> ListSourcesAsync(Guid sessionId, CancellationToken cancellationToken);
+
+    // Multipart upload of one document (C5: request_id, title, file). The
+    // request id is the replay identity: resending it rebuilds the same source
+    // and the same job instead of ingesting the file a second time.
+    Task<ApiJob> UploadAsync(
+        Guid sessionId, Guid requestId, string title, string fileName, Stream content, CancellationToken cancellationToken);
+
+    Task<ApiJob> GetJobAsync(Guid sessionId, Guid jobId, CancellationToken cancellationToken);
 
     // requestId is minted once per logical selection and reused verbatim on a
     // retransmission, exactly like a navigation command.
@@ -106,6 +129,30 @@ public sealed class NetraApiClient : INetraApi, IDisposable
         return new ApiSourceSelected(selected.Snapshot, selected.Replayed);
     }
 
+    public async Task<ApiJob> UploadAsync(
+        Guid sessionId, Guid requestId, string title, string fileName, Stream content, CancellationToken cancellationToken)
+    {
+        using var form = new MultipartFormDataContent
+        {
+            { new StringContent(requestId.ToString()), "request_id" },
+            { new StringContent(title), "title" },
+        };
+        var file = new StreamContent(content);
+        file.Headers.ContentType = new MediaTypeHeaderValue("application/pdf");
+        form.Add(file, "file", fileName);
+
+        using var response = await SendAsync(HttpMethod.Post, $"v1/sessions/{sessionId}/uploads", form, cancellationToken)
+            .ConfigureAwait(false);
+        return (await ReadAsync<JobBody>(response, cancellationToken).ConfigureAwait(false)).Job;
+    }
+
+    public async Task<ApiJob> GetJobAsync(Guid sessionId, Guid jobId, CancellationToken cancellationToken)
+    {
+        using var response = await SendAsync(HttpMethod.Get, $"v1/sessions/{sessionId}/jobs/{jobId}", body: null, cancellationToken)
+            .ConfigureAwait(false);
+        return (await ReadAsync<JobBody>(response, cancellationToken).ConfigureAwait(false)).Job;
+    }
+
     private async Task<HttpResponseMessage> SendAsync(
         HttpMethod method, string path, object? body, CancellationToken cancellationToken)
     {
@@ -117,7 +164,13 @@ public sealed class NetraApiClient : INetraApi, IDisposable
 
         using var request = new HttpRequestMessage(method, path);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-        if (body is not null)
+        if (body is HttpContent content)
+        {
+            // Already-built content (the multipart upload) is sent as-is:
+            // serializing it as JSON would post the object graph, not the file.
+            request.Content = content;
+        }
+        else if (body is not null)
         {
             request.Content = JsonContent.Create(body, body.GetType(), options: NetraJsonSerialization.Options);
         }
@@ -163,6 +216,8 @@ public sealed class NetraApiClient : INetraApi, IDisposable
     private sealed record SelectBody(Guid RequestId, string SourceVersionId, long ExpectedSessionVersion);
 
     private sealed record SelectedBody(SessionSnapshotPayload Snapshot, bool Replayed);
+
+    private sealed record JobBody(ApiJob Job);
 
     private sealed record ErrorBody(ErrorPayload? Error);
 }

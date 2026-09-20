@@ -128,10 +128,16 @@ public partial class App : Application
             serverAccess = new LibraryServerAccess(new ApiSourceCatalog(_apiClient, sessionState), sessionState, liveSession);
         }
 
-        // Upload and YouTube discovery stay fixture services: the upload/job
-        // contract is still empty and discovery has no server route yet.
+        // Upload goes to the server whenever there is one to talk to (C5
+        // uploads/job routes). Without a live endpoint or credentials there is
+        // nothing to upload to, so the fixture stands in and marks every entry
+        // it touches IsFixtureSourced. YouTube discovery stays a fixture: it
+        // still has no server route.
+        ISourcePreparationService preparation = _apiClient is null
+            ? new FixtureSourcePreparationService()
+            : new HttpSourcePreparationService(_apiClient, sessionState);
         var libraryViewModel = new LibraryViewModel(
-            new FixtureSourcePreparationService(),
+            preparation,
             new FixtureVideoDiscoveryService(),
             serverAccess);
         _libraryViewModel = libraryViewModel;

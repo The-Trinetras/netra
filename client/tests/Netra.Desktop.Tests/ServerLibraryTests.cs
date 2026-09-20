@@ -1,5 +1,6 @@
 using System.Net.Http;
 using System.Threading;
+using System.IO;
 using Netra.Desktop.Library;
 using Netra.Desktop.Networking;
 using Netra.Desktop.Protocol.Dto;
@@ -343,6 +344,13 @@ public sealed class ServerLibraryTests
         public List<(Guid RequestId, string SourceVersionId, long ExpectedVersion)> Selects { get; } = new();
         public SessionSnapshotPayload NextSnapshot { get; set; } = Snapshot(1, "v-1");
 
+
+        public Task<ApiJob> UploadAsync(
+            Guid sessionId, Guid requestId, string title, string fileName, Stream content, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<ApiJob> GetJobAsync(Guid sessionId, Guid jobId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
         public Task<ApiSessionCreated> CreateSessionAsync(CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 

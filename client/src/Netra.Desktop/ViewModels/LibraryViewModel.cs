@@ -128,9 +128,16 @@ public sealed class LibraryViewModel : ViewModelBase
         var resultStatus = await _sourcePreparationService.PrepareAsync(entry, cancellationToken);
         entry.Status = resultStatus;
 
-        StatusMessage = resultStatus == LibrarySourceStatus.Ready
-            ? $"{entry.FileName} ready to study{(entry.IsFixtureSourced ? " (fixture data)" : string.Empty)}."
-            : $"{entry.FileName} could not be prepared.";
+        // Still processing is its own outcome: the server accepted the upload
+        // and is working on it, which must not be announced as a failure.
+        StatusMessage = resultStatus switch
+        {
+            LibrarySourceStatus.Ready =>
+                $"{entry.FileName} ready to study{(entry.IsFixtureSourced ? " (fixture data)" : string.Empty)}.",
+            LibrarySourceStatus.Processing =>
+                $"{entry.FileName} is still being prepared. It appears under Your sources when it is ready.",
+            _ => $"{entry.FileName} could not be prepared.",
+        };
     }
 
     // Public so tests can await the actual search instead of racing the

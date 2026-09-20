@@ -1,5 +1,6 @@
 using System.Net.Http;
 using System.Threading;
+using System.IO;
 using Netra.Desktop.Networking;
 using Netra.Desktop.Protocol.Dto;
 using Netra.Desktop.State;
@@ -139,6 +140,14 @@ public sealed class LiveSessionTests
     private sealed class FakeApi : INetraApi
     {
         public Guid SessionId { get; } = Guid.NewGuid();
+
+        public Task<ApiJob> UploadAsync(
+            Guid sessionId, Guid requestId, string title, string fileName, Stream content, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<ApiJob> GetJobAsync(Guid sessionId, Guid jobId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
         public Queue<Exception> CreateFailures { get; } = new();
         public Task CreateGate { get; set; } = Task.CompletedTask;
         public int Creates { get; private set; }

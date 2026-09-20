@@ -21,7 +21,7 @@ public sealed class AccessCodeSignInTests
     public async Task TheExchangeSendsTheCodeOnlyInTheBodyWithNoCredentialHeader()
     {
         var handler = new ScriptedHandler();
-        handler.Respond(HttpStatusCode.OK, $$"""{"device_credential":"{{Token}}","expires_at":null}""");
+        handler.Respond(HttpStatusCode.OK, $$"""{"credential":"{{Token}}","expires_at":null}""");
         using var exchange = new HttpAccessCodeExchange(Base, handler);
         var requestId = Guid.NewGuid();
 
@@ -31,7 +31,7 @@ public sealed class AccessCodeSignInTests
         Assert.Null(credential.ExpiresAt);
         var request = Assert.Single(handler.Requests);
         Assert.Equal(HttpMethod.Post, request.Method);
-        Assert.Equal("https://netra.test/v1/access-codes/exchange", request.Uri.ToString());
+        Assert.Equal("https://netra.test/v1/device-credentials", request.Uri.ToString());
         Assert.Null(request.Authorization);
         Assert.DoesNotContain(Code, request.Uri.ToString());
         using var body = JsonDocument.Parse(request.Body!);
@@ -45,7 +45,7 @@ public sealed class AccessCodeSignInTests
     {
         var handler = new ScriptedHandler();
         handler.Fail(new HttpRequestException("connection reset"));
-        handler.Respond(HttpStatusCode.OK, $$"""{"device_credential":"{{Token}}"}""");
+        handler.Respond(HttpStatusCode.OK, $$"""{"credential":"{{Token}}"}""");
         using var exchange = new HttpAccessCodeExchange(Base, handler);
 
         await exchange.ExchangeAsync(Guid.NewGuid(), Code, CancellationToken.None);
@@ -82,7 +82,7 @@ public sealed class AccessCodeSignInTests
     public async Task AResponseWithoutACredentialIsRefused()
     {
         var handler = new ScriptedHandler();
-        handler.Respond(HttpStatusCode.OK, """{"device_credential":"  "}""");
+        handler.Respond(HttpStatusCode.OK, """{"credential":"  "}""");
         using var exchange = new HttpAccessCodeExchange(Base, handler);
 
         await Assert.ThrowsAsync<Protocol.ProtocolException>(() => exchange.ExchangeAsync(Guid.NewGuid(), Code, CancellationToken.None));

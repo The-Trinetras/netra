@@ -32,8 +32,10 @@ public sealed class AccessCodeExchangeUnavailableException : Exception
 
 public sealed class HttpAccessCodeExchange : IAccessCodeExchange, IDisposable
 {
-    // Proposed in the C2 review; changes here if C2 names it differently.
-    public const string RoutePath = "v1/access-codes/exchange";
+    // C2 merged and named it: shared/contracts/http/v1/device_credential.schema.json
+    // ("Netra access-code exchange: POST /v1/device-credentials"). The earlier
+    // "v1/access-codes/exchange" was this client's placeholder and 404s.
+    public const string RoutePath = "v1/device-credentials";
 
     private readonly HttpClient _http;
 
@@ -101,19 +103,20 @@ public sealed class HttpAccessCodeExchange : IAccessCodeExchange, IDisposable
             throw new ProtocolException("The server's sign-in response could not be read.", ex);
         }
 
-        if (body is null || string.IsNullOrWhiteSpace(body.DeviceCredential))
+        if (body is null || string.IsNullOrWhiteSpace(body.Credential))
         {
             throw new ProtocolException("The server's sign-in response carried no credential.");
         }
 
-        return new DeviceCredential(body.DeviceCredential, body.ExpiresAt);
+        return new DeviceCredential(body.Credential, body.ExpiresAt);
     }
 
     public void Dispose() => _http.Dispose();
 
     private sealed record ExchangeBody(Guid RequestId, string AccessCode);
 
-    private sealed record ExchangedBody(string DeviceCredential, DateTimeOffset? ExpiresAt);
+    // CredentialIssued in the C2 contract: {"credential": "...", "expires_at": "..."}.
+    private sealed record ExchangedBody(string Credential, DateTimeOffset? ExpiresAt);
 
     private sealed record ErrorBody(ErrorPayload? Error);
 }

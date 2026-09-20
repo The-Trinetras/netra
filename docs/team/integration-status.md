@@ -12,7 +12,8 @@ production readiness.
 ### Integration of all three streams — 20 September 2026
 
 All 31 commits from Arshad, Arun and Ashlin are merged into one branch
-(`integration/completion`, 238 files, +16,300/-726 against main `ab92908`).
+(`integration/completion`, 241 files, +16,536/-727 against main `ab92908`,
+including this record and the dependency fix below).
 Merge order: `arshad/C3-speech-wire`, `arshad/A1-api-logging`,
 `ashlin/completion-step1` (carries C5, C6, I4, I5), `arshad/T2-tutor-spans`
 (carries C1, C2, A2, A3, A4, B1, B2), `arun/F6-mathml-decision` (carries C7,
@@ -27,23 +28,38 @@ Four conflicts, all resolved keeping both sides:
 | `docs/architecture/message-flow.md` | Two new rows in one table | Both rows kept |
 | `docs/team/integration-status.md` | Same rows updated by two people | Per row, the newer owner's text |
 
-**Verified.** Python: 1,381 passed, 5 skipped — the same 47 failures and 37
-collection errors as `arshad/T2-tutor-spans` alone, so the merge introduces no
-new failure. Every one of those traces to a dependency missing from this
-machine, not to the code (see "Environment gap" below). Cross-stream contract
-suites are green: `api/tests/protocol`, `api/tests/multimedia` and
-`tests/infrastructure` give 489 passed, so C1, C2, C3, C5, C6, C7 and C8 agree
-with each other once merged. Client: `Netra.Desktop.PortableTests` builds with
-0 warnings and runs **275 passed, 5 skipped, 0 failed on Windows** — Arun's
-Mac run was 273/7, so the two Windows-only cases now execute and pass.
+**Verified on this machine, 20 September 2026.** Dependencies were installed
+with `uv sync --locked` (the lock validated unchanged) and a disposable
+PostgreSQL 17.11 container from `infrastructure/compose/docker-compose.test.yml`
+served the database tests.
 
-**Environment gap.** This machine has 22 Python packages installed and no
-project virtual environment; 14 of the project's runtime dependencies are
-absent (`alembic`, `botocore`, `deepgram`, `elevenlabs`, `fastapi`, `google`,
-`httpx`, `langgraph`, `neo4j`, `pinecone`, `pymupdf`, `sqlite_vec`,
-`tokenizers`, `yaml`). Every current Python failure and collection error is one
-of these. A full run needs `uv sync` first; no run on this machine has yet
-exercised the whole suite.
+| Suite | Command | Result |
+|---|---|---|
+| Python, team default | `pytest -p no:cacheprovider --ignore=tests/test_integration.py` | **1,806 passed, 1 skipped, 0 failed** |
+| Python, incl. real PostgreSQL | same, `-m "integration or not integration"` | **1,856 passed, 3 skipped, 0 failed** |
+| Client, portable | `dotnet vstest Netra.Desktop.PortableTests.dll` | **275 passed, 5 skipped, 0 failed** |
+| Client, Windows (`net10.0-windows`) | `dotnet vstest Netra.Desktop.Tests.dll` | **285 passed, 5 skipped, 0 failed** |
+
+2,141 tests pass and none fail. The WPF solution builds on Windows with 0 errors
+(52 warnings, all the unused-event warnings on test doubles that F1 recorded).
+`dotnet restore --locked-mode` succeeds, so Arun's F1 NuGet lock is valid.
+
+The Windows client run is the verification Arun's runbook asked a Windows
+machine for, and it hit the predicted count exactly (290 cases: 285 passed, 5
+skipped). The 5 skips are the 3 live-server cases and the 2 opt-in credential
+cases; they need `NETRA_LIVE_SERVER_INFO` and a real vault write. **NVDA and
+speech were not exercised** — no screen-reader or audio session has happened,
+and no student has used any of this.
+
+**Migrations.** All 11 applied to a real PostgreSQL for the first time,
+including Arshad's `0009_m1_access_codes`, `0010_m1_turn_budgets` and
+`0011_m1_speech_quota`, which had only ever been fixture-tested. Downgrading
+0011 → 0008 and re-upgrading to head both succeed, so the three are reversible
+(Ashlin's I2 requirement for them). 49 integration-marked tests pass against
+that database. Nothing touched RDS.
+
+**Still mocks.** No live provider was called: no ElevenLabs, Deepgram, Gemini,
+OpenRouter, Pinecone, TwelveLabs, Tunelio, Modal or AX. Nothing touched AWS.
 
 **Two traps found while integrating.**
 
@@ -51,13 +67,15 @@ exercised the whole suite.
    the Microsoft Testing Platform runner while these projects are VSTest, so it
    silently matches no tests. Use `dotnet vstest <built dll>` (or pin the
    runner) — otherwise the client suite reports a false green.
-2. `requirements.txt` and `pyproject.toml` drift in one direction only.
-   `tests/test_requirements.py` checks that every pyproject pin appears in
-   requirements.txt, never the reverse, so `sqlite-vec>=0.1.9` and
-   `fastembed>=0.4` live in `requirements.txt` alone — absent from
+2. `requirements.txt` and `pyproject.toml` drifted in one direction only.
+   `tests/test_requirements.py` checked that every pyproject pin appeared in
+   requirements.txt but never the reverse, so `sqlite-vec>=0.1.9` and
+   `fastembed>=0.4` lived in `requirements.txt` alone — absent from
    `pyproject.toml` and therefore from `uv.lock`. Both are imported by
-   `slice/retrieve.py`, which is why no uv user can run the notes slice. Fixing
-   it needs a lock regeneration, so it is Ashlin's call (I1).
+   `slice/retrieve.py`, so no uv user could run the notes slice: 21 tests failed
+   or would not collect. **Fixed**: both declared in `pyproject.toml`, `uv.lock`
+   regenerated (purely additive, no existing pin moved), and the guard now runs
+   both ways. `uv.lock` is M2's artifact, so **Ashlin reviews this** (I1).
 
 ### F1 / M5-LOCK — 20 September 2026
 

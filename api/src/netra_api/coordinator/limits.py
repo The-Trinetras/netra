@@ -15,9 +15,24 @@ from typing import Callable, Optional
 
 from netra_api.platform.errors import TurnBudgetExceededError
 
-MAX_MODEL_DECISIONS_PER_TURN = 4
-MAX_TOOL_CALLS_PER_TURN = 6
-ANSWER_DEADLINE_SECONDS = 20.0
+# Raised from 4/6/20 to the AgentSpec's 8/12/45 on 20 September 2026, on the
+# system lead's decision (D-BUDGET-2). CLAUDE.md recorded 8/12/45 as an
+# AgentSpec *proposal*; this adopts it, so the proposal is now the
+# configuration and 4/6/20 is the historical baseline.
+#
+# The reason is measured, not theoretical: with two tools offered and a
+# retrieval round costing ~4.6s (Gemini embeddings + Pinecone), a turn that
+# searched twice reached the 4-decision ceiling before it could answer, and
+# the student got "I could not find authorized evidence" for a question whose
+# evidence had in fact been retrieved. See the Coordinator traces recorded in
+# integration-status.md.
+#
+# These remain hard, application-enforced limits shared across retries,
+# fallback and delegation - raising them does not make them advisory, and long
+# work still belongs in a durable job rather than a longer turn.
+MAX_MODEL_DECISIONS_PER_TURN = 8
+MAX_TOOL_CALLS_PER_TURN = 12
+ANSWER_DEADLINE_SECONDS = 45.0
 
 
 @dataclass

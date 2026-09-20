@@ -7,7 +7,7 @@ from uuid import uuid4
 from pydantic import BaseModel, ConfigDict
 
 from netra_api.content.retrieval.evidence import EvidenceTrust
-from netra_api.coordinator.limits import MAX_TOOL_CALLS_PER_TURN, TurnBudget
+from netra_api.coordinator.limits import ANSWER_DEADLINE_SECONDS, MAX_TOOL_CALLS_PER_TURN, TurnBudget
 from netra_api.coordinator.providers.gemini import ToolCallRequest
 from netra_api.coordinator.tool_registry import (
     ToolContext,
@@ -86,12 +86,17 @@ async def test_parallel_batch_cannot_overshoot_the_shared_tool_budget():
     budget.register_tool_call()
     context, _ = _context(budget)
 
-    outcomes = await gateway.dispatch(context, [_call(str(i)) for i in range(6)])
+    # Two more than the budget allows, so the overshoot is what is tested
+    # rather than the batch size; written against the constant so raising the
+    # budget (D-BUDGET-2) does not silently stop exercising the limit.
+    requested = MAX_TOOL_CALLS_PER_TURN
+    allowed = MAX_TOOL_CALLS_PER_TURN - 2
+    outcomes = await gateway.dispatch(context, [_call(str(i)) for i in range(requested)])
 
-    assert [o.status for o in outcomes].count("ok") == MAX_TOOL_CALLS_PER_TURN - 2
-    assert [o.status for o in outcomes].count("not_dispatched") == 2
+    assert [o.status for o in outcomes].count("ok") == allowed
+    assert [o.status for o in outcomes].count("not_dispatched") == requested - allowed
     assert budget.tool_calls_used == MAX_TOOL_CALLS_PER_TURN
-    assert tool.started == 4 and tool.max_concurrent == 4
+    assert tool.started == allowed and tool.max_concurrent == allowed
 
 
 async def test_arguments_carrying_authority_fields_are_rejected_and_cost_nothing():
@@ -115,7 +120,9 @@ async def test_tool_not_permitted_in_current_mode_is_not_offered_or_run():
 async def test_timeout_is_capped_by_remaining_turn_time():
     tool = RecordingTool(delay=5.0)
     gateway, _ = _gateway(tool, timeout=30.0)
-    budget = TurnBudget(started_at=datetime.now(timezone.utc) - timedelta(seconds=19.9))
+    # 0.1s of the turn left, whatever the deadline is set to.
+    budget = TurnBudget(started_at=datetime.now(timezone.utc)
+                        - timedelta(seconds=ANSWER_DEADLINE_SECONDS - 0.1))
     context, sink = _context(budget)
     started = asyncio.get_running_loop().time()
     outcomes = await gateway.dispatch(context, [_call()])

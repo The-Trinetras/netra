@@ -59,9 +59,10 @@ require both owners' review; speech/session integration requires M1/M5 review.
   cannot resume audio. One speaking response; distinguish sent, played and acknowledged.
 - Preserve retry identity, version checks, reconnect and the same pending question
   as specified in message flow. Duplicate effects do not advance session version.
-- Existing turn budget: 4 attempted model decisions, 6 tool invocations, 20 seconds,
-  shared across retries, fallback and delegation. AgentSpec 8/12/45 and two-revision
-  limits are proposals, not approved configuration. Long work uses durable jobs.
+- Turn budget: 8 attempted model decisions, 12 tool invocations, 45 seconds, shared
+  across retries, fallback and delegation (D-BUDGET-2, 20 September 2026: the
+  AgentSpec's 8/12/45 adopted after 4/6/20 exhausted turns whose evidence had been
+  retrieved). Two-revision limits remain a proposal. Long work uses durable jobs.
 - Jobs use PostgreSQL leases, at-least-once execution, idempotent effects, bounded
   retry/backoff with jitter and outbox. No long DB transaction around external calls.
   Checkpoint replay does not establish exactly-once external effects.

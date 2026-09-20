@@ -106,10 +106,13 @@ async def test_missing_axes_gap_changes_the_next_action_and_is_validated_before_
     assert gap_detail["requirement"] == "x-axis" and gap_detail["gap"] == "reported_missing"
     assert journey.trace.of_kind("action_changed")[0].detail["new_tools"] == ["describe_figure"]
 
-    # Shared budget: 3 Coordinator decisions + 1 Tutor decision on the SAME instance.
+    # Shared budget: 3 Coordinator decisions + 1 Tutor decision on the SAME
+    # instance. Four is the count this script produces, not the ceiling: the
+    # two were equal only while the ceiling happened to be 4 (D-BUDGET-2).
     assert model.calls == 3
     tutor_budget = journey.tutor.budgets[0]
-    assert tutor_budget.model_decisions_used == MAX_MODEL_DECISIONS_PER_TURN
+    assert tutor_budget.model_decisions_used == 4
+    assert tutor_budget.max_model_decisions == MAX_MODEL_DECISIONS_PER_TURN
     assert tutor_budget.tool_calls_used == 2
     handoff = journey.tutor.handoffs[0]
     assert handoff.deadline_at == tutor_budget.deadline_at
@@ -247,9 +250,13 @@ async def test_invalid_model_output_exhausts_the_shared_budget_with_a_bounded_re
 
 
 async def test_budget_exhausted_inside_the_tutor_is_reported_as_the_limit_not_an_outage():
-    # One rejected output, then the repair script: the 4th decision delegates,
-    # and the Tutor's own decision would be the 5th on the shared budget.
-    model = ScriptedModel([final({"action": "answer"}), *_repair_script()])
+    # Rejected outputs until the repair script's last decision delegates on
+    # the very last decision the budget allows; the Tutor's own decision would
+    # then be one past it, on the shared instance. Sized from the constant so
+    # the limit is still reached after D-BUDGET-2 raised it.
+    script = _repair_script()
+    padding = [final({"action": "answer"})] * (MAX_MODEL_DECISIONS_PER_TURN - len(script))
+    model = ScriptedModel([*padding, *script])
     journey = await build_journey(model=model)
     socket, task = await _open(journey)
     responses = await _submit(socket, _turn(), until="response.segment")

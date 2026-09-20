@@ -13,7 +13,7 @@ from uuid import uuid4
 import pytest
 
 from netra_api.coordinator.budget_ledger import BudgetUsage, InMemoryBudgetLedger
-from netra_api.coordinator.limits import MAX_MODEL_DECISIONS_PER_TURN, TurnBudget
+from netra_api.coordinator.limits import ANSWER_DEADLINE_SECONDS, MAX_MODEL_DECISIONS_PER_TURN, TurnBudget
 from netra_api.platform.errors import IdempotencyConflictError
 from netra_api.transport.websocket.dispatcher import TurnRegistry
 from netra_api.transport.websocket.endpoint import serve
@@ -92,7 +92,7 @@ async def test_retransmission_after_the_original_deadline_calls_no_model():
     journey = await build_journey(model=model)
     ledger = journey.services.budgets = InMemoryBudgetLedger()
     turn_id = uuid4()
-    await ledger.open(ACCOUNT, turn_id, SESSION, datetime.now(timezone.utc) - timedelta(seconds=25))
+    await ledger.open(ACCOUNT, turn_id, SESSION, datetime.now(timezone.utc) - timedelta(seconds=ANSWER_DEADLINE_SECONDS + 5))
     socket, task = await _open(journey)
     responses = await _submit(socket, _turn(turn_id))
     assert model.calls == 0

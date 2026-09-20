@@ -12,9 +12,15 @@ from netra_api.platform.errors import TurnBudgetExceededError
 
 
 def test_default_limits_match_claude_md():
-    assert MAX_MODEL_DECISIONS_PER_TURN == 4
-    assert MAX_TOOL_CALLS_PER_TURN == 6
-    assert ANSWER_DEADLINE_SECONDS == 20.0
+    """D-BUDGET-2 (20 September 2026): the AgentSpec's 8/12/45 was adopted.
+
+    CLAUDE.md and these constants must say the same thing; this test is what
+    fails if one moves without the other.
+    """
+
+    assert MAX_MODEL_DECISIONS_PER_TURN == 8
+    assert MAX_TOOL_CALLS_PER_TURN == 12
+    assert ANSWER_DEADLINE_SECONDS == 45.0
 
 
 def test_register_model_decision_stops_at_max():

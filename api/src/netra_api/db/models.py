@@ -179,6 +179,35 @@ class MultimediaCandidateRow(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
+class VideoAssetRow(Base):
+    """Netra's canonical identity for one video (migration 0012).
+
+    Mirrors ``netra_api.multimedia.video.models.VideoAsset``. Provider asset
+    and index ids stay in ``VideoProviderBindingRow``: re-indexing a video
+    changes one binding row instead of invalidating every citation a student
+    has already been given.
+    """
+
+    __tablename__ = "video_assets"
+    __table_args__ = (
+        Index("ux_video_assets_source_version", "source_version_id", unique=True),
+        Index("ix_video_assets_source_id", "source_id"),
+        CheckConstraint("kind IN ('upload', 'youtube')", name="ck_video_assets_kind"),
+        CheckConstraint("duration_ms IS NULL OR duration_ms >= 0", name="ck_video_assets_duration"),
+    )
+
+    video_id: Mapped[UUID] = uuid_column()
+    source_id: Mapped[UUID] = mapped_column(
+        ForeignKey("sources.source_id", ondelete="CASCADE"), nullable=False)
+    source_version_id: Mapped[UUID] = mapped_column(
+        ForeignKey("source_versions.source_version_id", ondelete="CASCADE"), nullable=False)
+    kind: Mapped[str] = mapped_column(String(16), nullable=False)
+    external_ref: Mapped[str | None] = mapped_column(String(500))
+    # NULL means unknown, which time-range checks treat as unbounded, not zero.
+    duration_ms: Mapped[int | None] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
 class VideoEvidenceCandidateRow(Base):
     """One derived, not-yet-citable video evidence candidate (M3 producer)."""
 

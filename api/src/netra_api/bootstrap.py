@@ -77,6 +77,9 @@ class IntegrationDependencies:
     # M3 multimedia
     figures: Any = None
     video_evidence: Any = None
+    discovery: Any = None
+    """M3's ``VideoDiscoveryProvider`` (Tavily). YouTube discovery stays
+    unregistered without it, and its route answers 503 rather than empty."""
     # M4 learning
     tutor_runner: Optional[TutorRunner] = None
     tutor_services: Any = None
@@ -199,6 +202,7 @@ def production_dependencies(engine: Any, tracer: Optional[Tracer] = None,
     from netra_api.content.settings import ContentSettings
     from netra_api.content.providers.s3 import build_object_storage
     from netra_api.content.sources.ingestion import SourceIngestionService
+    from netra_api.multimedia.factory import build_discovery_provider, build_video_evidence_service
     from netra_api.content.sources.postgres import AsyncSourceRepository
     from netra_api.db.scoped import SessionScoped
     from netra_api.learning.postgres import PostgresLearningStore
@@ -220,6 +224,9 @@ def production_dependencies(engine: Any, tracer: Optional[Tracer] = None,
         storage=build_object_storage(content),
         session_factory=sessions,
         upload_max_body=content.upload_max_body,
+        # M3 video: the read side of the video tool, per request/session.
+        video_evidence=SessionScoped(sessions, lambda session: build_video_evidence_service(session, content, tracer)),
+        discovery=build_discovery_provider(content, tracer),
     )
     settings = settings or Settings()
     timeout = settings.model_request_timeout_seconds
@@ -380,6 +387,9 @@ def compose(
         budgets=repositories.budgets,
         recognizer=dependencies.recognizer,
     )
+    from netra_api.content.settings import ContentSettings
+    from netra_api.multimedia.factory import twelve_labs_settings
+
     registered = {
         "persistence": not isinstance(repositories.sessions, UnavailableRepository),
         "authentication": not isinstance(verifier, UnconfiguredCredentialVerifier),
@@ -393,6 +403,10 @@ def compose(
         # U1: all three parts plus the approved size, or uploads answer 503.
         "uploads": (dependencies.ingestion is not None and dependencies.storage is not None
                     and dependencies.sources is not None and dependencies.upload_max_body is not None),
+        # Stored video evidence reads need no provider; analysis does.
+        "video_evidence": dependencies.video_evidence is not None,
+        "video_analysis": twelve_labs_settings(ContentSettings()) is not None,
+        "youtube_discovery": dependencies.discovery is not None,
         **{f"tool:{name}": True for name in tools},
     }
     return Composition(

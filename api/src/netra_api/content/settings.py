@@ -94,6 +94,53 @@ class ContentSettings(BaseSettings):
     log_format: str = "json"
     metrics_enabled: bool = True
 
+    # Video analysis (M3-PIN-1). TwelveLabsSettings requires every model pin
+    # and none is defaulted here: the pins must match the models the index was
+    # actually created with, and guessing one produces evidence attributed to
+    # a model that never ran. Unset leaves video analysis unregistered rather
+    # than half-configured.
+    twelve_labs_api_key: Optional[str] = None
+    twelve_labs_index_id: Optional[str] = None
+    twelve_labs_marengo_model_name: Optional[str] = None
+    twelve_labs_marengo_model_version: Optional[str] = None
+    twelve_labs_pegasus_model_name: Optional[str] = None
+    twelve_labs_pegasus_model_version: Optional[str] = None
+    twelve_labs_search_options: str = "visual,audio"
+    twelve_labs_search_page_limit: int = Field(default=10, ge=1, le=50)
+    twelve_labs_description_window_ms: int = Field(default=30000, gt=0)
+    twelve_labs_max_description_windows: int = Field(default=120, gt=0)
+    twelve_labs_pegasus_max_tokens: int = Field(default=512, gt=0)
+    twelve_labs_reconcile_max_pages: int = Field(default=3, gt=0)
+    twelve_labs_reconcile_page_limit: int = Field(default=50, ge=1, le=50)
+    twelve_labs_reconcile_timeout_seconds: float = Field(default=10.0, gt=0)
+
+    # Video evidence service: how far either side of a player timestamp still
+    # counts as "here", and which provider's bindings it reads.
+    video_provider: str = "twelvelabs"
+    video_moment_before_ms: int = Field(default=15000, ge=0)
+    video_moment_after_ms: int = Field(default=15000, ge=0)
+    video_search_limit: int = Field(default=10, ge=1)
+    video_search_timeout_seconds: float = Field(default=10.0, gt=0)
+
+    # YouTube discovery (Tavily). Discovery stays unregistered without a key.
+    tavily_api_key: Optional[str] = None
+    tavily_search_depth: str = "basic"
+    tavily_timeout_seconds: float = Field(default=10.0, gt=0)
+    tavily_request_max_results: int = Field(default=10, ge=1, le=20)
+
+    # YouTube media resolution (Tunelio, decision M3-YT-ANALYSIS). Off without
+    # a key, with the documented risks: downloading breaks YouTube's Terms of
+    # Service, the service can stop without notice, and the student's choice
+    # of video reaches a third party. Each resolution spends credits (6 + 10),
+    # so the ceilings below are refusals, not hints.
+    tunelio_api_key: Optional[str] = None
+    tunelio_quality: str = "360p"
+    """A lecture is read for its slides, not its cinematography."""
+    tunelio_timeout_seconds: float = Field(default=90.0, gt=0)
+    tunelio_max_duration_seconds: int = Field(default=3600, gt=0)
+    """TwelveLabs' own sync analysis stops at one hour."""
+    tunelio_max_bytes: int = Field(default=500_000_000, gt=0)
+
 
 __all__ = ["ContentSettings"]
 

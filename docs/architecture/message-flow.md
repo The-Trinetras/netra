@@ -123,7 +123,7 @@ The result-set model/repository protocol exists in [result_sets.py](../../api/sr
 | Item | Status |
 |---|---|
 | Python/C# contract mirror package location | Pending approved contract/policy decision. |
-| Need for, and shape of, external job contract; current job schema is empty | Pending approved contract/policy decision. |
+| Need for, and shape of, external job contract | Settled by C5 (`shared/contracts/jobs/v1/job.schema.json`, Ashlin); upload and polled job-status routes still to be mounted (M1). |
 | Optional-check grounding criteria and factual activity/answer/reasoning/assistance representation | M4 with M1/M2: define validation and coordinate any contract/schema migration; no automatic labels or review intervals. |
 | AgentSpec 8/12/45 budget and two-revision proposal | M1 with M3/M4: pending alignment; existing 4/6/20 remains approved. |
 | Downstream endpoint/dispatcher wiring for the newly-typed server payloads | Pending implementation. |

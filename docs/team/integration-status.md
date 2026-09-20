@@ -9,6 +9,56 @@ production readiness.
 
 ## Checkpoint
 
+### Integration of all three streams — 20 September 2026
+
+All 31 commits from Arshad, Arun and Ashlin are merged into one branch
+(`integration/completion`, 238 files, +16,300/-726 against main `ab92908`).
+Merge order: `arshad/C3-speech-wire`, `arshad/A1-api-logging`,
+`ashlin/completion-step1` (carries C5, C6, I4, I5), `arshad/T2-tutor-spans`
+(carries C1, C2, A2, A3, A4, B1, B2), `arun/F6-mathml-decision` (carries C7,
+C8, F1, F2, F3, F8, F10, P1, P3).
+
+Four conflicts, all resolved keeping both sides:
+
+| File | Conflict | Resolution |
+|---|---|---|
+| `transport/audio/frame.py` | C3's per-frame audio size cap vs B1's shared `split_length_prefixed` | Both: the helper splits, the cap is then applied to the audio it returns |
+| `speech/synthesis.py` | Import lists diverged | Union (`SpeechQuotaExhaustedError` + `MAX_AUDIO_BYTES_PER_FRAME`, both used) |
+| `docs/architecture/message-flow.md` | Two new rows in one table | Both rows kept |
+| `docs/team/integration-status.md` | Same rows updated by two people | Per row, the newer owner's text |
+
+**Verified.** Python: 1,381 passed, 5 skipped — the same 47 failures and 37
+collection errors as `arshad/T2-tutor-spans` alone, so the merge introduces no
+new failure. Every one of those traces to a dependency missing from this
+machine, not to the code (see "Environment gap" below). Cross-stream contract
+suites are green: `api/tests/protocol`, `api/tests/multimedia` and
+`tests/infrastructure` give 489 passed, so C1, C2, C3, C5, C6, C7 and C8 agree
+with each other once merged. Client: `Netra.Desktop.PortableTests` builds with
+0 warnings and runs **275 passed, 5 skipped, 0 failed on Windows** — Arun's
+Mac run was 273/7, so the two Windows-only cases now execute and pass.
+
+**Environment gap.** This machine has 22 Python packages installed and no
+project virtual environment; 14 of the project's runtime dependencies are
+absent (`alembic`, `botocore`, `deepgram`, `elevenlabs`, `fastapi`, `google`,
+`httpx`, `langgraph`, `neo4j`, `pinecone`, `pymupdf`, `sqlite_vec`,
+`tokenizers`, `yaml`). Every current Python failure and collection error is one
+of these. A full run needs `uv sync` first; no run on this machine has yet
+exercised the whole suite.
+
+**Two traps found while integrating.**
+
+1. `dotnet test` exits 0 here having run nothing: the .NET 10 SDK defaults to
+   the Microsoft Testing Platform runner while these projects are VSTest, so it
+   silently matches no tests. Use `dotnet vstest <built dll>` (or pin the
+   runner) — otherwise the client suite reports a false green.
+2. `requirements.txt` and `pyproject.toml` drift in one direction only.
+   `tests/test_requirements.py` checks that every pyproject pin appears in
+   requirements.txt, never the reverse, so `sqlite-vec>=0.1.9` and
+   `fastembed>=0.4` live in `requirements.txt` alone — absent from
+   `pyproject.toml` and therefore from `uv.lock`. Both are imported by
+   `slice/retrieve.py`, which is why no uv user can run the notes slice. Fixing
+   it needs a lock regeneration, so it is Ashlin's call (I1).
+
 ### F1 / M5-LOCK — 20 September 2026
 
 | Item | Branch | Result | Remaining owner/gate |
@@ -481,7 +531,6 @@ Gaps found while reading the Terraform (20 September):
 | D-MODAL-PINS | 7 pins in `evaluation/deploy/prometheus_modal.py` are `PENDING_M2_REVIEW` | M2 review; fix OPT-7/OPT-8 before GPU use | Modal judge |
 | INT-11b / INT-11c | ElevenLabs output media type; total audio frame size limit | **C3 drafted** on `arshad/C3-speech-wire`: `audio/mpeg` (mp3_44100_128); 64 KiB audio per frame, 81,924 bytes per message, sender splits, receiver drops the rest of the segment's audio and keeps text and connection. Awaiting Arun's review; client check is Arun's | Speech output |
 | M3-MATHML-1 | MathML fidelity for `render_mathml` | Accept the proposal in the M5 handoff (presentation MathML only; symbols not spoken text; units kept; structure checked, never repaired; verified trees only) | F6 MathML (not NVDA-critical: the spoken equation tree already serves screen readers) |
-| C1–C3, C5, C6 (drafts) | Microphone protocol, access-code exchange, speech wire details (Arshad); job status and evidence payload (Ashlin) | Draft them; the client's review requirements for C1 and C2 are in the M5 handoff | F3 end to end, F2 exchange, F4, F5, F6 |
 
 ## Independent work that can proceed
 

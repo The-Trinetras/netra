@@ -20,7 +20,7 @@ sid = (sess.get("session") or sess).get("session_id") if s < 400 else None
 print("   session_id:", sid)
 
 import mimetypes, time, pathlib
-pdf = pathlib.Path("docs/One Dinner Four Kitchens.pdf")
+pdf = pathlib.Path(sys.argv[2] if len(sys.argv) > 2 else "docs/One Dinner Four Kitchens.pdf")
 data = pdf.read_bytes()
 boundary = "----netra" + uuid.uuid4().hex
 def part(name, value, filename=None, ctype=None):

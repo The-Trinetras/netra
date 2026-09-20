@@ -8,6 +8,24 @@ Everything below was run on your machine on 20 September 2026. Commands are for
 
 ---
 
+## Everything at once
+
+    .un-netra.ps1
+
+Starts PostgreSQL, Neo4j, the migrations, the API, the worker and the WPF client,
+then prints how many capabilities registered and whether tracing is exporting.
+Re-running is safe: anything already up is left alone, so it doubles as a status
+check. `-NoClient` skips the WPF app; `-AccessCode` also provisions a student code.
+
+It supplies the two settings `.env` still lacks (`NETRA_TRACING_MODE=ax` and the
+`NETRA_NEO4J_*` trio) to the processes it starts, without writing to `.env`. Put
+them in `.env` if you want them for hand-started processes too.
+
+Stop a service by closing its window; `docker stop compose-postgres-test-1
+netra-neo4j` stops the containers. The steps below are the same thing by hand.
+
+---
+
 ## 0. Once per shell: load the environment
 
     cd C:\Users\Arshad\AppData\Local\Temp\netra-int

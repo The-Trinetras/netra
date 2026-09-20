@@ -57,11 +57,18 @@ from netra_api.platform.errors import NetraError, TurnBudgetExceededError, TurnC
 from netra_api.platform.observability import TurnTrace
 from netra_api.platform.tracing import DISABLED_TRACER, Tracer
 from netra_api.session.outputs import PlannedSegment
-from netra_api.session.state import PendingQuestionRef
+from netra_api.session.state import PendingQuestionRef, SessionState
 
 logger = logging.getLogger(__name__)
 
 LIMIT_PREFIX = "I stopped before finishing this answer."
+
+NO_SOURCE_OPEN = (
+    "No source is open for study yet, so I have nothing to look this up in. "
+    "Open one from your library first, then ask me again."
+)
+"""Said instead of asking which material the student means: that question
+cannot be answered by typing, because opening a source is what unblocks it."""
 UNAVAILABLE_TEXT = "I can't answer that right now because a required service is unavailable."
 
 
@@ -133,6 +140,18 @@ class CoordinatorEngine:
         feedback: list[str] = []
         had_gap = False
         trace.record("turn_started", mode=turn.session.interaction_mode.value)
+
+        # Deterministic, before any model decision: with no source open, every
+        # tool that reads the student's material has been filtered out, so the
+        # turn can only discover that by spending its whole budget - and the
+        # question it ends up asking ("which material do you mean?") cannot be
+        # answered by typing, because what unblocks it is opening a source.
+        if self._needs_an_open_source(turn.session):
+            trace.record("turn_completed", outcome="clarification", open_requirements=[])
+            return TurnOutcome(
+                kind="clarification",
+                segments=(PlannedSegment(origin="generated", kind="question", text=NO_SOURCE_OPEN),))
+
         selected = await self._context.select(turn.session, trace)
 
         while True:
@@ -439,6 +458,20 @@ class CoordinatorEngine:
         text = self._gap_sentence(ledger) + " You can point me to another part of the material or rephrase."
         trace.record("turn_completed", outcome="gap", reason=reason)
         return TurnOutcome(kind="gap", segments=(PlannedSegment(origin="generated", kind="explanation", text=text),))
+
+    def _needs_an_open_source(self, session: SessionState) -> bool:
+        """No source is open while registered tools require one.
+
+        The tools left permitted here read stored lecture evidence, which no
+        build produces yet, so a turn in this state cannot reach the student's
+        material at all. When lecture evidence can actually answer a turn this
+        must also check that some exists before short-circuiting, otherwise it
+        would refuse a legitimate question about an open lecture.
+        """
+
+        if session.reading_position.source_version_id is not None:
+            return False
+        return any(definition.requires_pinned_source for definition in self._registry.list_tools())
 
     def _limited(self, ledger: EvidenceLedger, trace: TurnTrace, limit: str) -> TurnOutcome:
         trace.record("budget_exhausted", limit=limit)

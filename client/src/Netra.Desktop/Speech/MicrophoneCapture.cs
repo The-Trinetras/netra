@@ -227,7 +227,7 @@ public sealed class MicrophoneCapture : ISpeechInputService, IRecognitionAvailab
         {
             await _channel.SendAsrStartAsync(
                 capture.RequestId,
-                new AsrStartPayload { CaptureId = capture.CaptureId, MediaType = MicrophoneFrame.MediaType },
+                new AsrStartPayload { CaptureId = capture.CaptureId },
                 cancellationToken).ConfigureAwait(false);
         }
         catch (Exception)

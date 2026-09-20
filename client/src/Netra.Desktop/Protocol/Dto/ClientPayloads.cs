@@ -43,10 +43,16 @@ public sealed record PlaybackAckPayload
     public long? PlayedMs { get; init; }
 }
 
-// asr.start (pending C1): opens one push-to-talk capture. Audio frames for
+// asr.start (D-MIC): opens one push-to-talk capture. Audio frames for
 // capture_id follow only after the server answers asr.ready.
+//
+// capture_id is the ONLY field. client_to_server.schema.json declares
+// "additionalProperties": false for AsrStart and the server's wire models
+// forbid extras, so also sending a media type failed validation on every
+// capture - which this client then reported to the student as "voice input
+// is not available on this Netra server yet". The audio's media type belongs
+// to each frame, in microphone_frame_header.schema.json, where it is sent.
 public sealed record AsrStartPayload
 {
     public required Guid CaptureId { get; init; }
-    public required string MediaType { get; init; }
 }

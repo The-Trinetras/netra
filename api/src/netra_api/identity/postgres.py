@@ -8,13 +8,16 @@ than granting access.
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta
 from typing import Optional
-from uuid import UUID
+from uuid import UUID, uuid4
 
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, String, Table, and_, insert, select
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Table, and_, insert, select, update
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
 
+from netra_api.identity.access_codes import AccessCodeRecord, ExchangeDecision, decide_exchange
 from netra_api.identity.models import Account, DeviceAccess, SessionBinding, StoredCredential
 from netra_api.platform.database import M1_METADATA
 from netra_api.platform.errors import IdempotencyConflictError
@@ -55,6 +58,22 @@ session_bindings = Table(
     Column("revoked_at", DateTime(timezone=True), nullable=True),
 )
 
+access_codes = Table(
+    "access_codes",
+    M1_METADATA,
+    Column("code_id", PGUUID(as_uuid=True), primary_key=True),
+    Column("code_sha256", String(64), nullable=False, unique=True),
+    Column("account_id", PGUUID(as_uuid=True), ForeignKey("accounts.account_id"), nullable=False, index=True),
+    Column("issued_at", DateTime(timezone=True), nullable=False),
+    Column("expires_at", DateTime(timezone=True), nullable=False),
+    Column("credential_lifetime_seconds", Integer, nullable=False),
+    Column("exchanged_at", DateTime(timezone=True), nullable=True),
+    Column("exchange_request_id", PGUUID(as_uuid=True), nullable=True),
+    Column("credential_id", PGUUID(as_uuid=True), ForeignKey("account_credentials.credential_id"), nullable=True),
+    Column("revoked_at", DateTime(timezone=True), nullable=True),
+)
+"""D-CRED one-time access codes (migration 0009); only the code's digest is stored."""
+
 
 class PostgresIdentityRepository:
     def __init__(self, engine) -> None:
@@ -92,3 +111,41 @@ class PostgresIdentityRepository:
         except IntegrityError as exc:
             raise IdempotencyConflictError(str(binding.session_id)) from exc
         return binding
+
+    async def issue_access_code(self, record: AccessCodeRecord) -> None:
+        async with self._engine.begin() as connection:
+            await connection.execute(pg_insert(accounts).values(account_id=record.account_id, is_active=True)
+                                     .on_conflict_do_nothing(index_elements=["account_id"]))
+            await connection.execute(insert(access_codes).values(**record.model_dump()))
+
+    async def exchange_access_code(
+        self, code_sha256: str, request_id: UUID, token_sha256: str, now: datetime
+    ) -> Optional[datetime]:
+        async with self._engine.begin() as connection:
+            locked = select(access_codes).where(access_codes.c.code_sha256 == code_sha256).with_for_update()
+            row = (await connection.execute(locked)).mappings().first()
+            if row is None:
+                return None
+            record = AccessCodeRecord.model_validate(dict(row))
+            active = (await connection.execute(
+                select(accounts.c.is_active).where(accounts.c.account_id == record.account_id))).scalar()
+            if not active:
+                return None
+            decision = decide_exchange(record, request_id, now)
+            if decision is ExchangeDecision.REJECT:
+                return None
+            if decision is ExchangeDecision.REPLAY:
+                device_id = (await connection.execute(
+                    update(account_credentials).where(account_credentials.c.credential_id == record.credential_id)
+                    .values(revoked_at=now).returning(account_credentials.c.device_id))).scalar_one()
+            else:
+                device_id = uuid4()
+                await connection.execute(insert(account_devices).values(device_id=device_id, account_id=record.account_id))
+            credential_id = uuid4()
+            expires_at = now + timedelta(seconds=record.credential_lifetime_seconds)
+            await connection.execute(insert(account_credentials).values(
+                credential_id=credential_id, token_sha256=token_sha256, account_id=record.account_id,
+                device_id=device_id, issued_at=now, expires_at=expires_at))
+            await connection.execute(update(access_codes).where(access_codes.c.code_id == record.code_id).values(
+                exchanged_at=record.exchanged_at or now, exchange_request_id=request_id, credential_id=credential_id))
+            return expires_at

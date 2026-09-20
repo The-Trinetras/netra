@@ -237,7 +237,8 @@ def cmd_judge(args) -> int:
     transport = HttpxJudgeTransport(os.environ[ENV_JUDGE_URL], os.environ[ENV_MODAL_TOKEN_ID],
                                     os.environ[ENV_MODAL_TOKEN_SECRET], timeout_seconds=args.timeout)
     allowance = RunAllowance(max_gpu_seconds=args.max_gpu_seconds, margin_seconds=args.margin_seconds,
-                             per_call_estimate_seconds=args.per_call_seconds)
+                             per_call_estimate_seconds=args.per_call_seconds,
+                             per_cold_start_estimate_seconds=args.cold_start_seconds)
 
     async def _go():
         try:
@@ -247,6 +248,8 @@ def cmd_judge(args) -> int:
 
     summary = asyncio.run(_go())
     _print({**summary.__dict__, "allowance_spent_seconds": allowance.spent_seconds,
+            "cold_starts": allowance.cold_starts,
+            "cold_start_seconds": round(allowance.cold_start_seconds, 3),
             "estimated_gpu_cost_usd": allowance.estimated_cost_usd(),
             "reminder": "read billed usage from the Modal account and stop the app explicitly"})
     return 0 if summary.stopped_reason is None else 3
@@ -408,6 +411,11 @@ def main(argv=None) -> int:
     p.add_argument("--max-gpu-seconds", type=float, required=True)
     p.add_argument("--margin-seconds", type=float, default=600.0)
     p.add_argument("--per-call-seconds", type=float, default=30.0)
+    # OPT-8: reserved on every dispatch because min_containers=0 means the
+    # container can always have gone away. Over-reserving stops the run early;
+    # under-reserving overruns the cap, so the default leans high. Replace it
+    # with a measured value once a real deployment reports cold_start_seconds.
+    p.add_argument("--cold-start-seconds", type=float, default=120.0)
     p.add_argument("--timeout", type=float, default=120.0)
     p.set_defaults(func=cmd_judge)
     p = sub.add_parser("upload"); run_args(p); p.add_argument("--live", action="store_true"); p.set_defaults(func=cmd_upload)

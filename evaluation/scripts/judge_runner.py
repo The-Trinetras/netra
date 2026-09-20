@@ -253,7 +253,7 @@ async def judge_run(
                         return summary
                     continue
                 elapsed = time.monotonic() - started
-                allowance.record(reply.gpu_seconds, elapsed)
+                allowance.record(reply.gpu_seconds, elapsed, reply.cold_start_seconds)
                 result = _from_reply(key, reply, config_id, input_hash, int(elapsed * 1000))
                 store.append_result(result)
                 summary.judged += 1

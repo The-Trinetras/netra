@@ -1,0 +1,8 @@
+<Project>
+  <PropertyGroup>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <!-- Explicit force-evaluate / -p:RestoreLockedMode=false is reserved for
+         an authorized dependency update, followed by review of both locks. -->
+    <RestoreLockedMode>true</RestoreLockedMode>
+  </PropertyGroup>
+</Project>

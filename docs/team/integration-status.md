@@ -9,6 +9,115 @@ production readiness.
 
 ## Checkpoint
 
+### Integration of all three streams — 20 September 2026
+
+All 31 commits from Arshad, Arun and Ashlin are merged into one branch
+(`integration/completion`, 241 files, +16,536/-727 against main `ab92908`,
+including this record and the dependency fix below).
+Merge order: `arshad/C3-speech-wire`, `arshad/A1-api-logging`,
+`ashlin/completion-step1` (carries C5, C6, I4, I5), `arshad/T2-tutor-spans`
+(carries C1, C2, A2, A3, A4, B1, B2), `arun/F6-mathml-decision` (carries C7,
+C8, F1, F2, F3, F8, F10, P1, P3).
+
+Four conflicts, all resolved keeping both sides:
+
+| File | Conflict | Resolution |
+|---|---|---|
+| `transport/audio/frame.py` | C3's per-frame audio size cap vs B1's shared `split_length_prefixed` | Both: the helper splits, the cap is then applied to the audio it returns |
+| `speech/synthesis.py` | Import lists diverged | Union (`SpeechQuotaExhaustedError` + `MAX_AUDIO_BYTES_PER_FRAME`, both used) |
+| `docs/architecture/message-flow.md` | Two new rows in one table | Both rows kept |
+| `docs/team/integration-status.md` | Same rows updated by two people | Per row, the newer owner's text |
+
+**Verified on this machine, 20 September 2026.** Dependencies were installed
+with `uv sync --locked` (the lock validated unchanged) and a disposable
+PostgreSQL 17.11 container from `infrastructure/compose/docker-compose.test.yml`
+served the database tests.
+
+| Suite | Command | Result |
+|---|---|---|
+| Python, team default | `pytest -p no:cacheprovider --ignore=tests/test_integration.py` | **1,806 passed, 1 skipped, 0 failed** |
+| Python, incl. real PostgreSQL | same, `-m "integration or not integration"` | **1,856 passed, 3 skipped, 0 failed** |
+| Client, portable | `dotnet vstest Netra.Desktop.PortableTests.dll` | **275 passed, 5 skipped, 0 failed** |
+| Client, Windows (`net10.0-windows`) | `dotnet vstest Netra.Desktop.Tests.dll` | **285 passed, 5 skipped, 0 failed** |
+
+2,141 tests pass and none fail. The WPF solution builds on Windows with 0 errors
+(52 warnings, all the unused-event warnings on test doubles that F1 recorded).
+`dotnet restore --locked-mode` succeeds, so Arun's F1 NuGet lock is valid.
+
+The Windows client run is the verification Arun's runbook asked a Windows
+machine for, and it hit the predicted count exactly (290 cases: 285 passed, 5
+skipped). The 5 skips are the 3 live-server cases and the 2 opt-in credential
+cases; they need `NETRA_LIVE_SERVER_INFO` and a real vault write. **NVDA and
+speech were not exercised** — no screen-reader or audio session has happened,
+and no student has used any of this.
+
+**Migrations.** All 11 applied to a real PostgreSQL for the first time,
+including Arshad's `0009_m1_access_codes`, `0010_m1_turn_budgets` and
+`0011_m1_speech_quota`, which had only ever been fixture-tested. Downgrading
+0011 → 0008 and re-upgrading to head both succeed, so the three are reversible
+(Ashlin's I2 requirement for them). 49 integration-marked tests pass against
+that database. Nothing touched RDS.
+
+**Still mocks.** No live provider was called: no ElevenLabs, Deepgram, Gemini,
+OpenRouter, Pinecone, TwelveLabs, Tunelio, Modal or AX. Nothing touched AWS.
+
+**Two traps found while integrating.**
+
+1. `dotnet test` exits 0 here having run nothing: the .NET 10 SDK defaults to
+   the Microsoft Testing Platform runner while these projects are VSTest, so it
+   silently matches no tests. Use `dotnet vstest <built dll>` (or pin the
+   runner) — otherwise the client suite reports a false green.
+2. `requirements.txt` and `pyproject.toml` drifted in one direction only.
+   `tests/test_requirements.py` checked that every pyproject pin appeared in
+   requirements.txt but never the reverse, so `sqlite-vec>=0.1.9` and
+   `fastembed>=0.4` lived in `requirements.txt` alone — absent from
+   `pyproject.toml` and therefore from `uv.lock`. Both are imported by
+   `slice/retrieve.py`, so no uv user could run the notes slice: 21 tests failed
+   or would not collect. **Fixed**: both declared in `pyproject.toml`, `uv.lock`
+   regenerated (purely additive, no existing pin moved), and the guard now runs
+   both ways. `uv.lock` is M2's artifact, so **Ashlin reviews this** (I1).
+
+### F1 / M5-LOCK — 20 September 2026
+
+| Item | Branch | Result | Remaining owner/gate |
+|---|---|---|---|
+| F1 / M5-LOCK | `arun/F1-nuget-lock` from fetched main `ab92908` | Both NuGet locks generated; default locked restore; approved WebView2 exactly pinned to 1.0.4191.47. Offline locked restore passes. | Arun: Windows xUnit and Evergreen player validation. |
+| F3 / D-MIC (client) | `arun/F3-voice-capture`, stacked on F1 | WinMM capture, `asr.start` → `asr.ready` gate → 100 ms L16 frames → one final → one voice `turn.submit`; STOP/focus loss discard; no announcements while the microphone is open. 173 portable tests pass on macOS; Windows build compiles; 16 mutations checked. | Arshad: C1 (client review items in the [M5 handoff](handoffs/M5.md#c1-review-from-the-client-side-for-arshad-before-c1-merges)) and Deepgram; Arun: real microphone on Windows. |
+| C8 / M5-VIDEO contract | `arun/C8-video-contract`, stacked on F3 | Review draft in `shared/contracts/video/v1`: paused player time, playback and analysis verdicts kept apart (with the server's summary sentence), `active_video` session field, `video_moments`; executable mirror `multimedia/video/wire.py`, 12 tests, 6 mutations detected. Nothing mounted; `protocol/v1` untouched. | Arshad: session fields and protocol additions (README "Review items"); Ashlin: the `VideoAsset` identity assumption for YouTube selections. |
+| F2 / D-CRED sign-in (client) | `arun/F2-sign-in`, stacked on C8 | First-run access-code dialog (keyboard/NVDA-first), exchange isolated in `HttpAccessCodeExchange` (C2 proposal), credential written to Windows Credential Manager with a this-run fallback, sign-out with confirmation that clears the screen and session; D-open-1 fixed (real close handshake). 201 portable tests pass; Windows build compiles; 14/14 mutations detected. | Arshad: C2 (client review items in the [M5 handoff](handoffs/M5.md#c2-review-from-the-client-side-for-arshad-before-c2-merges)); Arun: Windows run with a real vault write and NVDA. |
+| F8 / M5-VIDEO lecture player (client) | `arun/F8-lecture-player`, stacked on F2 | Lecture tab: WebView2 player page on the IFrame API, locked to YouTube embeds (no new windows, downloads, devtools, permissions); WPF keyboard control (K/J/L/T/C/D); pause-first time capture from the paused player (never guessed); exact resume; push-to-talk and typed questions pause first; playback and analysis readiness on separate lines. 260 portable tests pass; Windows build compiles; 15/15 mutations detected. | Arun: Windows/WebView2/NVDA run with a real lecture; Arshad: C8 so the kept time reaches the server; C7 so search results are real. |
+| F10 / accessibility (client) | `arun/F10-accessibility`, stacked on F8 | Activation shortcut moved off **Ctrl+Alt+N (NVDA's own start/restart shortcut)** to candidates Ctrl+Alt+Shift+N, then Ctrl+Alt+Shift+F9, with the result told in Preferences; all ten contracted commands as named buttons and window-wide shortcuts (pause/continue act locally first); Ctrl+1–5 tabs; F1 spoken shortcut list; D-open-3 and D-open-5 fixed; honest live/fixture notice; no silent command failures. 273 portable tests pass; 8/8 mutations detected. | Arun: M5-SHORTCUT live conflict test with NVDA (and JAWS if available) on Windows; Arshad: D-open-2. |
+| P1 / people and Windows evidence pack | `arun/P1-session-script`, stacked on F10 | `docs/team/evidence/`: 20-minute NVDA/keyboard/voice session script with consent line, observation sheet, P2 session log (states that **no session has been run**), and a Windows verification runbook for F1–F10 with the expected test count. Documents only. | Arun: recruit testers, run Windows checks and sessions; record only what happened. |
+| P3 / M3-LBL-1 review prep | `arun/P3-label-review`, stacked on P1 | `docs/team/evidence/media-label-review.md`, generated from `m3_media_labels_v1.json`: all 13 synthetic cases with columns for the original's location, result and correction. **No label has been compared with original media yet.** | Arun: review with the permitted original PDF and lecture, then a reviewed v2 of the label file. |
+
+Arun explicitly authorized fetch, first NuGet restore and exact runtime setup.
+SDK 10.0.401 installed on macOS after Microsoft SHA-512 verification. Both WPF
+projects compile; test execution aborts for missing WindowsDesktop runtime on
+macOS (29 existing CS0067 warnings). No Windows/live-server/provider/person run.
+Default locked restore mutation: test SDK 17.12.0 → 17.11.0 fails with NU1004;
+original restored and locked restore passes again. Exact commands/environment
+are in [M5 handoff](handoffs/M5.md#f1--m5-lock--arun-20-september-2026).
+C7 commit `6ebb512` is now included in the current F6 branch, pending Arshad and
+Ashlin review.
+
+### C7 / M5-DISCOVERY completion push — 20 September 2026
+
+The C7 work was originally produced from `main` and `origin/main` at
+`ab92908143b0a8998c74ee067423f9eb610be69a`; it is now included in the current
+F6 branch alongside the checkpoint work above.
+
+| Item | State | Evidence / next owner |
+|---|---|---|
+| C7 / M5-DISCOVERY | Draft implemented, pending Arshad + Ashlin review; not mounted | Commit `6ebb512`, originally on `arun/C7-youtube-contract` and now included in the current F6 branch; `shared/contracts/discovery/v1/README.md`, four schemas/examples, strict executable mirror and 27 new tests. No provider calls. |
+
+C7 checks (CPython 3.13.15; exact `uv.lock`, 102 applicable packages, no lock edits):
+
+- `PYTHON_DOTENV_DISABLED=1 /private/tmp/netra-app-venv/bin/python -m pytest -p no:cacheprovider api/tests/multimedia/test_discovery_wire.py api/tests/multimedia/test_tavily_discovery.py -q` → **48 passed**, including after restoration of all mutations.
+- `PYTHON_DOTENV_DISABLED=1 /private/tmp/netra-app-venv/bin/python -m pytest -p no:cacheprovider --ignore=tests/test_integration.py -q` → **8 collection errors**, missing `sqlite_vec` in notes tests. `requirements.txt` includes `sqlite-vec`/`fastembed`; `uv.lock` does not. Ashlin owns lock reconciliation; no additional unpinned installation performed.
+- `PYTHON_DOTENV_DISABLED=1 /private/tmp/netra-app-venv/bin/python -m pytest -p no:cacheprovider api/tests worker/tests evaluation/scripts -q` → **1166 passed, 1 skipped, 47 deselected**; 5 PyMuPDF deprecation warnings.
+- Eight deliberate defects were each caught by a behavioral test: remove order check, remove duplicate-ID check, accept unknown fields, coerce types, trim the query, replace video identity, raise request limit to 30, accept timezone-less timestamps. Original code restored; focused tests rerun green.
+- `git diff --check` → clean. All C7 execution used synthetic data. No local server, live provider, Windows, microphone, NVDA or participant run. HTTP auth/replay and durable result storage remain unimplemented pending owner review.
+
 - **Done:** slice A (runtime + baseline), slice B (database, migrations,
   transactions, learning persistence, worker projection/cancellation), slice C
   (real app composition, session routes, model adapters behind controlled
@@ -49,8 +158,9 @@ production readiness.
    `set NETRA_API_ENDPOINT=ws://127.0.0.1:<port>/v1/ws`, start `Netra.Desktop`.
    Remove with `cmdkey /delete:Netra:api`. If the server is not up yet, start it
    and choose Refresh in the library (no restart needed). This is an operator
-   integration aid; credential issuance (PKCE) and the production credential
-   store are still undecided (D-CRED).
+   integration aid. For students, credentials come from D-CRED access codes:
+   `python -m netra_api.identity.provisioning --access-code --code-valid-days 7 --credential-valid-days 120`,
+   exchanged by the app at `POST /v1/device-credentials`.
 
 ### Evaluation dataset package (overnight, 2026-09-19)
 
@@ -146,10 +256,10 @@ Ranked findings:
 | 6 | OPT-6 | agent runtime (docs) | The engine docstring said LangGraph was not installed. | defect (docs) | – | fixed `559cbcf` |
 | 7 | OPT-7 | evaluation cost | `GET /result/{id}` is served by the A100 class. A reconciliation lookup after scale-down therefore cold-starts the GPU and loads the model just to read a Modal Dict. | defect, deferred | Code reading, `evaluation/deploy/prometheus_modal.py` | Serve `/result` from a CPU function over the same Dict; needs M4/M2 review and a Modal run |
 | 8 | OPT-8 | evaluation cost | By design (pinned by an M4 test), `RunAllowance` counts the inference seconds the endpoint reports. A second cold start within one invocation (a gap longer than the 60 s scale-down) is covered only by the fixed 600 s margin. | risk | Code and the pinned test | M4 decision: count the larger of reported and wall-clock time, or count each such gap as a cold start |
-| 9 | OPT-9 | deployment, reliability | The API process calls no `configure_logging` (the worker does). `api.Dockerfile` and `docker-compose.yml` are empty placeholders. | gap | Code reading | M2/M1 deployment work |
+| 9 | OPT-9 | deployment, reliability | The API process calls no `configure_logging` (the worker does). `api.Dockerfile` and `docker-compose.yml` are empty placeholders. | **API part fixed** (A1, `arshad/A1-api-logging`): the API lifespan configures the worker's JSON logging; the Dockerfile/Compose part is Ashlin's I4 | `test_api_logging.py` | M2/M1 deployment work |
 | 10 | OPT-10 | agent runtime, cost | Answering a pending check spends 2 Coordinator model decisions (search, then delegate) before deterministic grading. | hypothesis | E1: 2 calls per answer | Live cost of about two provider round trips per answer is unmeasured; routing is an M1/M4 decision |
 | 11 | OPT-11 | policy | The repair flow uses the whole approved budget (3 Coordinator decisions + 1 Tutor). One rejected output, or a drop during a decision, ends the turn with the limit reply. | observation | E1 | Budget unchanged (approved 4/6/20) |
-| 12 | OPT-12 | observability | There is no span per Tutor provider attempt or for the learning commit (AX plan item 3). | gap | Span inventory | M4 |
+| 12 | OPT-12 | observability | There is no span per Tutor provider attempt or for the learning commit (AX plan item 3). | **Fixed** (T2, `arshad/T2-tutor-spans`): `netra.tutor.model` per Tutor model decision (explanation, grading, quiz drafting), `netra.learning.commit` per committed answer, Tutor status/handoff/evidence ids/budget on `netra.tutor.handoff`. Also fixed: model spans now name the adapter's provider (OpenRouter, not "google"), and the allowlist keeps provider-prefixed model ids (they were silently dropped). Reconciliation (INT-12) waits for the AX exporter (T1) | Span tests in `test_m4_tutor_integration.py`, `test_tracing_journey.py` | M4 |
 | 13 | OPT-13 | memory and state (database) | `session_request_records` and dialogue entries have no retention. The ordered dialogue fetch uses the `session_id` index, then sorts. | hypothesis | Schema reading | Retention policy plus a reviewed migration; measure in E2 |
 
 **Verified, no change needed:**
@@ -290,8 +400,9 @@ incomplete (partial) · unverified (fixture only) · blocked (decision/hardware/
 | Credential Manager read | partly verified | decode + absent-target read (real `CredReadW`, read-only); reading a stored credential needs a tester-created throw-away entry (opt-in test); **no test writes to the user's vault** |
 | Library view keyboard paths | working (real WPF binding, off-screen window) | `LibraryViewBindingTests` (3); **NVDA announcement not verified** (needs a person) |
 | Audible playback, NVDA, real App startup in live mode | blocked (needs Windows/NVDA session with a person) | not claimed |
-| Voice input | disabled | not claimed; INT-11a mic protocol unapproved |
-| Upload / YouTube discovery in client | fixture | upload/job contract empty; no discovery route |
+| Voice input | client done, server pending (F3) | Client capture and D-MIC protocol tested on fixtures and a real loopback socket; today's server refuses `asr.start`, so the app says voice is not available. Needs C1 + Deepgram (M1) and a Windows microphone run |
+| Upload / YouTube discovery in client | fixture | upload/job contract empty; no discovery route (C7 drafted, unreviewed) |
+| Lecture player (WebView2) | client done, not run on Windows (F8) | Player page protocol tested against a fake page; YouTube, WebView2 and NVDA need a Windows run; time capture not sent until C8 |
 | Optional-check support (D2) | blocked (decision P-1) | binding enforced; support fails closed |
 | Factual activity/assistance/reasoning records (D3) | blocked (review) | proposal code only; no table |
 | AX exporter | unwired (no OTel pins) | slice E |
@@ -349,11 +460,11 @@ cache so every run is identical.
 | ID | Item | Plan |
 |---|---|---|
 | C-open-3 | Bounded-failure wording for a refused quiz draft says "a required service is unavailable" | Review with M5 wording; not changed yet |
-| C-open-4 | PyMuPDF provider imports the deprecated `fitz` alias | Use `import pymupdf` (same pinned package) |
-| D-open-1 | `NetraWebSocketClient.CloseAsync` cancels its receive loop first, which aborts the socket, so no close handshake is sent. No production caller (shutdown disposes the socket); tests only | Close output first, then stop the loop; avoid a double `Disconnected` (M5) |
-| D-open-5 | `ConversationViewModel` reports every snapshot (including navigation replies) as "Session restored" | M5 wording review |
-| D-open-2 | Each app launch creates a new session; resuming the previous session after restart needs a persisted session id | M1/M5 decision |
-| D-open-3 | `NetraHttpClient` scaffold is unused (no auth, no typed errors); `NetraApiClient` supersedes it for the session routes | Remove or merge after M5 review |
+| C-open-4 | PyMuPDF provider imports the deprecated `fitz` alias | **Fixed** on `ashlin/i5-pymupdf-import`: `import pymupdf` everywhere (same pinned package); guard test `test_no_module_uses_the_deprecated_fitz_alias` |
+| D-open-1 | **Fixed in F2** (`arun/F2-sign-in`): `CloseAsync` sends the close first, waits up to 2 s for the reply, and reports one `Disconnected`; sign-out is its first production caller | `LiveAccountTests.ClosingSendsANormalCloseAndReportsOneDisconnect` |
+| D-open-5 | **Fixed in F10** (`arun/F10-accessibility`): only the snapshot answering a `session.resume` is announced, and only when there is a place to restore (reading, lesson, or a waiting question); navigation replies are silent | `ReadingControlsTests` |
+| D-open-2 | Each app launch creates a new session; resuming the previous session after restart needs a persisted session id | **Still open; needs Arshad (M1).** The client side is small (keep the session id in the user profile, resume it before creating a new one) once M1 confirms a restarted client may resume its own session. |
+| D-open-3 | **Fixed in F10**: the unused `NetraHttpClient` scaffold is removed; `NetraApiClient` and `HttpAccessCodeExchange` are the HTTP clients | — |
 | D-open-4 | The HTTP session/source route shapes are an integration proposal | Formal M1/M5 sign-off |
 | OPT-7 to OPT-13 | Evaluation `/result` wakes the GPU; the run allowance's cold-start accounting; API logging configuration and empty deployment files; answer routing cost; budget headroom; missing Tutor and learning-commit spans; request and dialogue retention | See "Measured optimization and reliability phase". Each row names its owner. |
 
@@ -370,19 +481,19 @@ and in AWS Secrets Manager.
 | D-LIC | Keep PyMuPDF (AGPL-3.0); Netra's source stays public under AGPL-compatible terms | No LlamaParse adapter is needed | M1 |
 | D-AGENT | OpenRouter runs both agents; the Gemini key serves embeddings only | Done (20 September): a set `NETRA_OPENROUTER_API_KEY` wins over Gemini/Groq keys for the agents, and a blank `NETRA_*` line counts as unset. Mock-transport and wiring tests only; no live call made | M1 |
 | D-AX | AX export through the OpenTelemetry SDK | M2 reviews and adds the OpenTelemetry pins to the lock (install authorization needed), then M1 builds the exporter behind `SpanExporter` (slice E) | M2 → M1 |
-| D-CRED | A one-time access code per student, exchanged once by the app; the credential is kept in Windows Credential Manager | Replaces the PKCE browser sign-in of message-flow flow 1 for now; needs an issuance route (M1), the client exchange (M5) and a message-flow update | M1 + M5 |
-| D-QUOTA | 20,000 characters of speech per student per day; ledger in PostgreSQL | Migration (M2) and ledger (M1), then register ElevenLabs | M1, M2 |
-| D-MIC | M5's INT-11a proposal: separate binary framing (`capture_id`, `sequence`, `end_of_utterance`, `audio/L16;rate=16000`) after `asr.start`; server `asr.transcript`; WinMM capture, no NuGet. **Voice input is the top frontend priority**, ahead of further keyboard/NVDA work | Protocol v1 change: M1 and M5 review; Deepgram adapter (M1), capture (M5) | M1 + M5 |
+| D-CRED | A one-time access code per student, exchanged once by the app; the credential is kept in Windows Credential Manager | Replaces the PKCE browser sign-in of message-flow flow 1 for now; needs an issuance route (M1), the client exchange (M5) and a message-flow update. **C2 contract drafted** on `arshad/C2-access-code-exchange`: `POST /v1/device-credentials` (`shared/contracts/http/v1/device_credential.schema.json`), 12-character Crockford codes, 15-minute same-request_id replay; awaiting Arun's review. **A2 built** on `arshad/A2-sign-in` (on top of C2): route, `IdentityService.exchange_access_code`, migration `0009_m1_access_codes` (Ashlin reviews), operator `--access-code`; PostgreSQL test pending the Docker database | M1 + M5 |
+| D-QUOTA | 20,000 characters of speech per student per day; ledger in PostgreSQL | Migration (M2) and ledger (M1), then register ElevenLabs. **A4 built** on `arshad/A4-speech-output` (on top of A3): `speech_quota_usage` (migration 0011, Ashlin reviews), atomic per-UTC-day upsert, ElevenLabs registered when key, model and voice are set, one accessible notice per connection when exhausted (`error`, `retryable: false`, `details.reason: speech_quota_exhausted`; Arun reviews). Fixture-tested; PostgreSQL test pending the Docker database; no live ElevenLabs call made | M1, M2 |
+| D-MIC | M5's INT-11a proposal: separate binary framing (`capture_id`, `sequence`, `end_of_utterance`, `audio/L16;rate=16000`) after `asr.start`; server `asr.transcript`; WinMM capture, no NuGet. **Voice input is the top frontend priority**, ahead of further keyboard/NVDA work | Protocol v1 change: M1 and M5 review; Deepgram adapter (M1), capture (M5). **C1 contract drafted** on `arshad/C1-microphone-protocol` (schemas, examples, Python mirror, frame rules; `asr.start` fails closed until B1) — awaiting Arun's review; C# mirror is Arun's F3. **B1 built** on `arshad/B1-voice-input` (A4 + C1): Deepgram adapter (deepgram-sdk 7.8.1, linear16 16 kHz, interim results), frames forwarded per capture, one final per capture, STOP/new press/disconnect end captures; on when `NETRA_DEEPGRAM_API_KEY` and `NETRA_DEEPGRAM_MODEL` are set (no model chosen by default). Fixture-tested; no live Deepgram call made | M1 + M5 |
 | M5-VIDEO | WebView2 approved (free SDK, Evergreen runtime) | Version pinned with M5-LOCK; navigation limited to the YouTube embed origin | M5 |
 | M3-PIN-1 | Marengo 3.0 and Pegasus 1.5 (`marengo3.0`, `pegasus1.5`); changed from 3.5 on 20 September because TwelveLabs supports 3.0 | The index must be created on these models (the first index was on 2.7 / 1.2); `NETRA_TWELVE_LABS_*` model names and index id must match it | M3 |
 | M3-YT-ANALYSIS | YouTube videos are analysed through Tunelio, a hosted YouTube downloader (`GET /create` returns a signed, temporary direct link; 6 credits per `/info`, 10 per `/create`) | Risks accepted by the owner: downloading breaks YouTube's Terms of Service and may infringe copyright on lecture videos; the service works around YouTube's bot checks and can stop without notice; students' video choices go to a third party. Guardrails: off unless `NETRA_TUNELIO_API_KEY` is set; the worker copies the video into the private S3 bucket and TwelveLabs reads it through a presigned URL (the upload path, M3-MEDIA-URL); results are labelled AI descriptions. Considered and not chosen: Gemini's official YouTube-link input (no download; public videos only; preview feature). | M3, M2 |
 | M1-M3-V | A generated (Pegasus) description is shown labelled as an AI description; it is never verified evidence and never grades an answer | Matches the evidence ledger's GENERATED handling | M1, M3 |
-| P-1 | A check question is asked only when its answer is supported by the cited evidence; otherwise it is skipped (fail closed) | Implement `validate_draft_is_grounded` | M4 (+M3) |
+| P-1 | A check question is asked only when its answer is supported by the cited evidence; otherwise it is skipped (fail closed) | **B2 built** on `arshad/B2-optional-checks` (on top of B1): `validate_draft_is_grounded` is a deterministic lexical check (the reference answer stated in one evidence sentence: every number exactly, 80% of content words, same polarity; the question at least 50% about the evidence; false true/false statements not asked). Skipped checks are said plainly and record nothing. Questions are drafted by `ModelQuizGenerator` on the Tutor provider (OpenRouter). Known limit: a paraphrased correct answer is skipped. Fixture-tested; no live model call | M4 (+M3) |
 | P-2 | A declined check records nothing; history shows "studied, not tested" | Current behaviour kept | M4, M5 |
-| P-3 | Evidence deleted or re-versioned while a question waits: do not grade, keep the question, tell the student | | M4, M2, M1 |
+| P-3 | Evidence deleted or re-versioned while a question waits: do not grade, keep the question, tell the student | **B2 built**: before grading, the question's recorded evidence is re-resolved; gone or a different source version -> not graded, question kept, student told | M4, M2, M1 |
 | P-4 | `source_version_id` is a UUID string; `evidence_version` is carried on `Evidence` | Already implemented (INT-03) | — |
 | D3 / D-CONCEPT | Adopt M4's factual history records and a curated concept catalog, projected before attempts | M2 migrations, M4 services | M4, M2 |
-| D-BUDGET | Keep 4 decisions / 6 tools / 20 s; persist budget use per request id | Migration (M2), accounting (M1) | M1, M2 |
+| D-BUDGET | Keep 4 decisions / 6 tools / 20 s; persist budget use per request id | Migration (M2), accounting (M1). **A3 built** on `arshad/A3-persisted-budget` (on top of A2): `turn_budgets` table (migration 0010, Ashlin reviews), start recorded before any model call, every increment recorded monotonically; a retransmission after a restart resumes its use and original deadline. Fixture-tested; PostgreSQL test pending the Docker database | M1, M2 |
 | INT-10c | Upload and processing status are read by polling an HTTP job-status route | Job schema (M2), routes (M1), screens (M5) | M2, M1, M5 |
 | D-OWNERS | For the completion push, with Dhanishka (M4) and Sumedhaa (M5) unavailable: Arshad covers M1, M4 and the Modal judge deployment (Ashlin reviews its pins); Ashlin covers M2, infrastructure and the M3 media pipeline; Arun covers M5 and the user-facing M3 pieces | Reviews that `CLAUDE.md` requires from M4 or M5 go to Arshad or Arun respectively; `.github/CODEOWNERS` still names the original owners | Arshad |
 
@@ -435,9 +546,23 @@ Gaps found while reading the Terraform (20 September):
 | D-BACKUP | RDS automated backups are off | Set a retention period (for example 7 days) before real student data | Production data |
 | D-TFSTATE | Terraform state exists only on M2's machine | An S3 backend with state locking | Anyone but M2 changing infrastructure |
 | D-OTEL-PINS | Exact OpenTelemetry versions (D-AX) | M2 review under the lock cutoff | AX exporter |
-| D-MODAL-PINS | 7 pins in `evaluation/deploy/prometheus_modal.py` are `PENDING_M2_REVIEW` | M2 review; fix OPT-7/OPT-8 before GPU use | Modal judge |
-| INT-11b / INT-11c | ElevenLabs output media type; total audio frame size limit | M1 with M5 | Speech output |
+| D-MODAL-PINS | 7 pins in `evaluation/deploy/prometheus_modal.py` are `PENDING_M2_REVIEW` | M2 review. **OPT-7 and OPT-8 are now fixed** (the HTTP surface is a CPU function, so `GET /result` never wakes the A100; replies carry `cold_start_seconds` and the run allowance charges and reserves for it). The pins remain the only code blocker; the module still refuses to import while any is pending. Nothing deployed, no GPU has run, Modal SDK not installed. | Modal judge |
+| INT-11b / INT-11c | ElevenLabs output media type; total audio frame size limit | **C3 drafted** on `arshad/C3-speech-wire`: `audio/mpeg` (mp3_44100_128); 64 KiB audio per frame, 81,924 bytes per message, sender splits, receiver drops the rest of the segment's audio and keeps text and connection. Awaiting Arun's review; client check is Arun's | Speech output |
+| M3-MATHML-1 | MathML fidelity for `render_mathml` | Accept the proposal in the M5 handoff (presentation MathML only; symbols not spoken text; units kept; structure checked, never repaired; verified trees only) | F6 MathML (not NVDA-critical: the spoken equation tree already serves screen readers) |
 
 ## Independent work that can proceed
 
 Slices C–E need no live provider or new product policy for their local parts.
+
+## Completion push — Ashlin (M2, AWS, M3 media pipeline)
+
+| Item | State | Branch | Evidence | Reviews / blockers |
+|---|---|---|---|---|
+| C5 job contract (INT-10c) | drafted, awaiting review | `ashlin/c5-job-contract` | `shared/contracts/jobs/v1/job.schema.json` + `examples/jobs/*`; Python mirror and derivation `content/job_status.py`; `api/tests/protocol/test_job_contract.py` (28, mocks only) | Arshad (mounts `POST /v1/sessions/{id}/uploads`, `GET /v1/sessions/{id}/jobs[/{job_id}]`), Arun (screens). Open decision **D-UPLOAD-SIZE**: maximum upload size; uploads answer 503 until it is configured. Failure reasons need a stored reason column (I2). |
+| C6 client evidence payload (M5-EVIDENCE) | drafted, awaiting review | `ashlin/c6-evidence-payload` | `shared/contracts/protocol/v1/evidence_view.schema.json`; examples `examples/server/evidence_view_{table,chart,equation}.json` generated from M3's real Ohm's-law fixtures; mirror/builder `multimedia/evidence_view.py`; `api/tests/multimedia/test_evidence_view.py` (19, fixtures only) | Arshad (transport; recommended deterministic `GET /v1/sessions/{id}/evidence/{evidence_id}/view?layer=…`), Arun (exploration screens; MathML fills `equation.mathml`, absent until then) |
+| I4 deployment (D-HOST, D-BACKUP, D-TFSTATE) | code complete; **not planned or applied** | `ashlin/i4-deployment` | Dockerfiles (Python 3.13.15, uv 0.12.13, `uv sync --locked --no-dev`, non-root), Compose (migrate → api/worker → nginx, no database), nginx TLS/WebSocket template; Terraform: application host + EIP + least-privilege role, PgBouncer on its private address with 6432 only from the host, RDS backups 7 days, S3 state backend with lock file, state bucket config; `terraform validate` passes offline for both configurations; `tests/infrastructure/test_{deployment_files,terraform}.py` (31) | Ashlin: approve `app_instance_type`, the plan (it **replaces PgBouncer**), the TLS domain and D-UPLOAD-SIZE. Images not built (needs Docker and base-image downloads). |
+
+Found while doing I4: the Windows checkout (`core.autocrlf=true`) stored the
+Terraform boot scripts with CRLF endings; the PgBouncer instance was created
+from that copy, so its boot script (`#!/bin/bash\r`) most likely never ran.
+`.gitattributes` now forces LF; the runbook has the check and the fix.

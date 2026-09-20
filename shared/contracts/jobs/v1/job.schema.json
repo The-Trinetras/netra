@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://netra.local/contracts/jobs/v1/job.schema.json",
+  "title": "Netra Job Status",
+  "$comment": "C5 / INT-10c (decided 2026-09-20: upload and processing status are read by POLLING an HTTP job-status route). DRAFT by M2 (Ashlin); reviews: Arshad (M1 mounts the routes), Arun (M5 builds the screens). Routes, all requiring `Authorization: Bearer` and scoped by the caller's bound session like the existing /v1/sessions routes: (1) POST /v1/sessions/{session_id}/uploads — multipart/form-data with fields `request_id` (UUID, one per logical upload; a retransmission replays), `title` (1-200 chars, shown to the student) and `file` (the document); responds 202 with {\"job\": Job}. The same request_id with the same bytes and title returns the same job (200); with different content it is 409 REQUEST_ID_CONFLICT. An unsupported or unreadable file is 422 INVALID_REQUEST with details.field = \"file\"; uploads are 503 RESOURCE_UNAVAILABLE until the server has an approved maximum upload size configured (no default is invented). (2) GET /v1/sessions/{session_id}/jobs/{job_id} — 200 with {\"job\": Job}. A job of another account, or an unknown job_id, is 403 AUTHORIZATION_DENIED for both, so the route is never an existence oracle. (3) GET /v1/sessions/{session_id}/jobs — 200 with {\"jobs\": [Job, ...]}, the caller's most recent jobs, newest first, at most 20, so a restarted client can find work in progress. Errors use protocol/v1/error.schema.json as {\"error\": Error}. A job is READY only when its source can be opened and appears in GET /v1/sessions/{session_id}/sources; the client then pins it with POST /v1/sessions/{session_id}/source as usual. Polling: wait at least `poll_after_ms` between requests while the state is processing; stop polling on ready or failed.",
+
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["job_id", "kind", "state", "title", "created_at", "updated_at"],
+  "properties": {
+    "job_id": {
+      "type": "string",
+      "format": "uuid",
+      "$comment": "Opaque, stable identity of one upload's processing. Not a source id and not a provider id."
+    },
+    "kind": {
+      "enum": ["document_ingestion"],
+      "$comment": "What is being processed. document_ingestion: an uploaded PDF (text layer, OCR fallback, reading blocks, search index). New kinds (for example uploaded or YouTube lecture video) are additive enum values in a later reviewed revision."
+    },
+    "state": {
+      "enum": ["processing", "ready", "failed"],
+      "$comment": "The three states the client presents: Processing, Ready, Failed. A job moves processing -> ready or processing -> failed and never back. `ready` means the source is openable; `failed` is terminal for this upload (the student may upload again)."
+    },
+    "stage": {
+      "enum": ["queued", "reading", "structuring", "indexing", "activating"],
+      "$comment": "Optional finer progress while state is processing, for an accessible status line (for example 'Reading the document'). Absent when ready or failed. Stages are informational only; the client must not infer readiness from them."
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "$comment": "The title the student gave the upload, echoed back. Untrusted text: display only."
+    },
+    "source_id": {
+      "type": "string",
+      "format": "uuid",
+      "$comment": "The source this upload creates. Present once known; the same id appears in the sources list when ready."
+    },
+    "source_version_id": {
+      "type": "string",
+      "format": "uuid",
+      "$comment": "The immutable version this upload creates; pin it with POST /v1/sessions/{session_id}/source once state is ready."
+    },
+    "failure": {
+      "$ref": "#/$defs/JobFailure",
+      "$comment": "Present if and only if state is failed."
+    },
+    "poll_after_ms": {
+      "type": "integer",
+      "minimum": 250,
+      "maximum": 60000,
+      "$comment": "Server's suggested minimum wait before the next status request while processing. Absent when ready or failed."
+    },
+    "created_at": { "type": "string", "format": "date-time" },
+    "updated_at": { "type": "string", "format": "date-time" }
+  },
+
+  "allOf": [
+    {
+      "if": { "properties": { "state": { "const": "failed" } } },
+      "then": { "required": ["failure"], "not": { "anyOf": [{ "required": ["stage"] }, { "required": ["poll_after_ms"] }] } },
+      "else": { "not": { "required": ["failure"] } }
+    },
+    {
+      "if": { "properties": { "state": { "const": "ready" } } },
+      "then": { "required": ["source_id", "source_version_id"], "not": { "anyOf": [{ "required": ["stage"] }, { "required": ["poll_after_ms"] }] } }
+    }
+  ],
+
+  "$defs": {
+    "JobFailure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reason", "message", "retryable"],
+      "properties": {
+        "reason": {
+          "enum": [
+            "unreadable_document",
+            "unsupported_document",
+            "content_mismatch",
+            "processing_failed"
+          ],
+          "$comment": "Closed vocabulary; never exception or provider text. unreadable_document: no readable text even after OCR, or a malformed PDF. unsupported_document: not a supported document type. content_mismatch: the stored bytes no longer match what was uploaded (integrity check). processing_failed: the service could not finish (retries exhausted); the document itself may be fine."
+        },
+        "message": {
+          "type": "string",
+          "maxLength": 300,
+          "$comment": "Safe, accessible wording chosen by the server for the reason. Never exception text, file paths or identifiers."
+        },
+        "retryable": {
+          "type": "boolean",
+          "$comment": "Whether uploading the same file again (with a NEW request_id) could succeed. False for unreadable/unsupported documents."
+        }
+      }
+    },
+    "UploadForm": {
+      "type": "object",
+      "$comment": "The multipart/form-data fields of POST /v1/sessions/{session_id}/uploads, described as JSON for review. `file` is the binary part; its declared type must be application/pdf and its bytes must start with %PDF-.",
+      "additionalProperties": false,
+      "required": ["request_id", "title", "file"],
+      "properties": {
+        "request_id": { "type": "string", "format": "uuid" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "file": { "type": "string", "contentMediaType": "application/pdf" }
+      }
+    }
+  }
+}

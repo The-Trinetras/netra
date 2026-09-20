@@ -1,0 +1,27 @@
+{
+  "view": {
+    "evidence_id": "ev-ohm-equation",
+    "source_version_id": "00000000-0000-4000-8000-00000000ff02",
+    "evidence_version": 2,
+    "object_kind": "equation",
+    "locator": "chapter 4, equation 4.1",
+    "layer": "overview",
+    "summary": {
+      "text": "V equals I times R",
+      "source": "observed"
+    },
+    "parts": [],
+    "relationships": [],
+    "unreadable_part_ids": [],
+    "equation": {
+      "spoken_form": "V equals I times R",
+      "extraction_source": "observed"
+    },
+    "source_check": "verified",
+    "ai_description": false,
+    "provenance": {
+      "origin": "extraction",
+      "provider": "fixture-extractor"
+    }
+  }
+}

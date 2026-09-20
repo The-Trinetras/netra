@@ -17,6 +17,7 @@ from pathlib import Path
 
 import netra_api.identity.postgres  # noqa: F401  (populates M1_METADATA)
 import netra_api.session.postgres  # noqa: F401
+import netra_api.speech.postgres  # noqa: F401
 from netra_api.db.models import Base
 from netra_api.platform.database import M1_METADATA, create_engine
 

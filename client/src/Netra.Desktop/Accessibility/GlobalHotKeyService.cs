@@ -54,8 +54,13 @@ public sealed class GlobalHotKeyService : IDisposable
         var helper = new WindowInteropHelper(_window);
         var handle = helper.EnsureHandle();
 
-        _source = HwndSource.FromHwnd(handle);
-        _source?.AddHook(WndProc);
+        // One hook, however many combinations are tried: a second hook would
+        // raise HotKeyPressed twice per press.
+        if (_source is null)
+        {
+            _source = HwndSource.FromHwnd(handle);
+            _source?.AddHook(WndProc);
+        }
 
         var vk = (uint)KeyInterop.VirtualKeyFromKey(key);
         var fsModifiers = ToWin32Modifiers(modifiers);

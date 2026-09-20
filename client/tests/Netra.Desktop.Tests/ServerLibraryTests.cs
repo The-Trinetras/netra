@@ -131,11 +131,11 @@ public sealed class ServerLibraryTests
 
         api.ListFailure = new CredentialUnavailableException();
         await viewModel.RefreshSourcesAsync(CancellationToken.None);
-        Assert.Equal("This computer is not signed in to Netra.", viewModel.StatusMessage);
+        Assert.Equal("This computer is not signed in to Netra. Choose Sign in under Preferences and status.", viewModel.StatusMessage);
 
         api.ListFailure = new ApiErrorException(401, new ErrorPayload { Code = ErrorCode.AuthRequired, Message = "x", Retryable = false });
         await viewModel.RefreshSourcesAsync(CancellationToken.None);
-        Assert.Equal("Netra did not accept this computer's sign-in. It may have expired.", viewModel.StatusMessage);
+        Assert.Equal("Netra did not accept this computer's sign-in. It may have expired. Choose Sign in under Preferences and status to enter a new access code.", viewModel.StatusMessage);
     }
 
     [Fact]

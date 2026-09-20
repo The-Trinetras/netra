@@ -94,6 +94,65 @@ def test_the_allowance_stops_before_the_cap_with_a_margin():
     assert allowance.estimated_cost_usd() == round(75 * 0.000583, 4)
 
 
+def test_a_cold_start_is_charged_to_the_allowance_and_reserved_before_dispatch():
+    """OPT-8: the load that precedes gpu_seconds is billed, so it must count."""
+
+    allowance = RunAllowance(max_gpu_seconds=100, margin_seconds=0, per_call_estimate_seconds=10)
+    allowance.record(20.0, 25.0, 30.0)
+    # 20 s of scoring plus the 30 s container load it paid for.
+    assert allowance.spent_seconds == 50.0
+    assert allowance.cold_starts == 1 and allowance.cold_start_seconds == 30.0
+
+    # A second call on the same warm container adds no cold start.
+    allowance.record(20.0, 21.0, 0.0)
+    assert allowance.spent_seconds == 70.0 and allowance.cold_starts == 1
+
+
+def test_dispatch_reserves_for_a_cold_start_that_may_still_happen():
+    """min_containers=0 means the next call may reload the weights."""
+
+    warm = RunAllowance(max_gpu_seconds=100, margin_seconds=0, per_call_estimate_seconds=10)
+    warm.record(85.0, 85.0)
+    assert warm.can_dispatch()  # 85 + 10 fits
+
+    cold = RunAllowance(max_gpu_seconds=100, margin_seconds=0, per_call_estimate_seconds=10,
+                        per_cold_start_estimate_seconds=30)
+    cold.record(85.0, 85.0)
+    # 85 + 10 + 30 would overrun the cap, so it stops instead.
+    assert not cold.can_dispatch()
+
+
+def test_a_cold_start_field_is_read_from_the_reply_and_defaults_to_zero():
+    base = {"request_id": "r1", "output": "x", "finish_reason": "stop",
+            "prompt_tokens": 1, "completion_tokens": 1, "gpu_seconds": 2.0}
+    assert reply_from_json(base, "r1").cold_start_seconds == 0.0
+    assert reply_from_json({**base, "cold_start_seconds": 42.5}, "r1").cold_start_seconds == 42.5
+
+
+def test_the_result_lookup_never_runs_on_the_gpu(): 
+    """OPT-7: GET /result must not sit on the A100 class, or reconciling a
+    timed-out judgement wakes the GPU and is billed for nothing."""
+
+    import ast
+
+    path = REPO / "evaluation" / "deploy" / "prometheus_modal.py"
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+
+    gpu_class = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "PrometheusJudge")
+    assert any("A100" in ast.unparse(d) for d in gpu_class.decorator_list), "the GPU class moved"
+    assert "/result" not in ast.unparse(gpu_class), "GET /result is back on the GPU class"
+
+    web = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "web")
+    decorators = " ".join(ast.unparse(d) for d in web.decorator_list)
+    assert "app.function" in decorators and "cpu" in decorators, "the web app is not on a CPU function"
+    assert "gpu" not in decorators, "the web app asks for a GPU"
+    assert "requires_proxy_auth=True" in decorators, "the web app lost proxy auth"
+    body = ast.unparse(web)
+    assert "/result" in body and "/score" in body, "both routes belong on the CPU app"
+    # Only /score reaches the GPU class.
+    assert "score_prompt.remote" in body
+
+
 def test_the_deployment_source_fails_closed_until_pins_are_reviewed():
     path = REPO / "evaluation" / "deploy" / "prometheus_modal.py"
     spec = importlib.util.spec_from_file_location("prometheus_modal_under_test", path)

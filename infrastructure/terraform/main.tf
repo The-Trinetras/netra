@@ -47,6 +47,14 @@ resource "aws_security_group" "pgbouncer" {
   name        = "${local.name}-pgbouncer"
   vpc_id      = aws_vpc.netra.id
   description = "PgBouncer has no public ingress; SSM only"
+  # D-HOST: the application host reaches PgBouncer on its private address.
+  ingress {
+    description     = "PgBouncer from the application host only"
+    from_port       = 6432
+    to_port         = 6432
+    protocol        = "tcp"
+    security_groups = [aws_security_group.app.id]
+  }
   egress {
     from_port   = 0
     to_port     = 0
@@ -71,6 +79,33 @@ resource "aws_security_group" "evaluator" {
   count  = var.enable_prometheus_gpu ? 1 : 0
   name   = "${local.name}-evaluator"
   vpc_id = aws_vpc.netra.id
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  tags = local.tags
+}
+
+resource "aws_security_group" "app" {
+  name        = "${local.name}-app"
+  vpc_id      = aws_vpc.netra.id
+  description = "Application host: HTTPS (and HTTP for redirects/ACME) only; administration through SSM"
+  ingress {
+    description = "HTTP redirect and Let's Encrypt challenges"
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = var.app_ingress_cidrs
+  }
+  ingress {
+    description = "HTTPS"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = var.app_ingress_cidrs
+  }
   egress {
     from_port   = 0
     to_port     = 0

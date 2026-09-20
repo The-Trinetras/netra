@@ -1,0 +1,113 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://netra.local/contracts/discovery/v1/search_response.schema.json",
+  "$comment": "C7 REVIEW DRAFT. Arshad and Ashlin review required before route use. Cross-field semantics are specified in README.md.",
+  "$defs": {
+    "YouTubeResult": {
+      "additionalProperties": false,
+      "properties": {
+        "result_ordinal": {
+          "maximum": 20,
+          "minimum": 1,
+          "title": "Result Ordinal",
+          "type": "integer"
+        },
+        "youtube_video_id": {
+          "pattern": "^[A-Za-z0-9_-]{11}$",
+          "title": "Youtube Video Id",
+          "type": "string"
+        },
+        "title": {
+          "maxLength": 300,
+          "minLength": 1,
+          "title": "Title",
+          "type": "string"
+        },
+        "channel": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Channel"
+        },
+        "duration_ms": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Duration Ms"
+        },
+        "embeddable": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Embeddable"
+        }
+      },
+      "required": [
+        "result_ordinal",
+        "youtube_video_id",
+        "title"
+      ],
+      "title": "YouTubeResult",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "request_id": {
+      "format": "uuid",
+      "title": "Request Id",
+      "type": "string"
+    },
+    "session_version": {
+      "minimum": 0,
+      "title": "Session Version",
+      "type": "integer"
+    },
+    "result_set_id": {
+      "format": "uuid",
+      "title": "Result Set Id",
+      "type": "string"
+    },
+    "produced_at": {
+      "format": "date-time",
+      "title": "Produced At",
+      "type": "string"
+    },
+    "results": {
+      "items": {
+        "$ref": "#/$defs/YouTubeResult"
+      },
+      "maxItems": 20,
+      "title": "Results",
+      "type": "array"
+    }
+  },
+  "required": [
+    "request_id",
+    "session_version",
+    "result_set_id",
+    "produced_at",
+    "results"
+  ],
+  "title": "YouTubeSearchResponse",
+  "type": "object"
+}

@@ -64,20 +64,95 @@ public sealed class PushToTalkControllerTests
         controller.OnKeyUp();
 
         Assert.False(speechInputService.IsListening);
+        Assert.Equal(1, speechInputService.StopCount);
+        Assert.Equal(0, speechInputService.AbortCount);
     }
 
-    private static (PushToTalkController Controller, RecordingPlaybackController PlaybackController, MicrophoneCapture SpeechInputService, InterruptionController InterruptionController) Build()
+    // Alt+Tab while holding the key: the key-up goes to another window, so
+    // the capture is discarded (never sent), not left running.
+    [Fact]
+    public async Task FocusLostWhileHeld_DiscardsTheCaptureAndTheLaterKeyUpDoesNothing()
+    {
+        var (controller, _, speechInputService, _) = Build();
+        await controller.OnKeyDownAsync(CancellationToken.None);
+
+        controller.OnFocusLost();
+        controller.OnKeyUp();
+
+        Assert.False(speechInputService.IsListening);
+        Assert.Equal(1, speechInputService.AbortCount);
+        Assert.Equal(0, speechInputService.StopCount);
+    }
+
+    [Fact]
+    public void FocusLostWhileNotHeld_DoesNothing()
+    {
+        var (controller, _, speechInputService, _) = Build();
+
+        controller.OnFocusLost();
+
+        Assert.Equal(0, speechInputService.AbortCount);
+    }
+
+    // Press-to-interrupt while disconnected: playback still stops locally,
+    // the unsendable cancel does not escape (it would crash the async key
+    // handler), and the student can still speak.
+    [Fact]
+    public async Task InterruptWhoseCancelCannotBeSent_StillSilencesAndStartsListening()
+    {
+        var (controller, playbackController, speechInputService, _) = Build(new NoOpWebSocketClient { FailSends = true });
+        playbackController.SetPlaying();
+
+        await controller.OnKeyDownAsync(CancellationToken.None);
+
+        Assert.True(playbackController.StopImmediateCalled);
+        Assert.True(speechInputService.IsListening);
+    }
+
+    private static (PushToTalkController Controller, RecordingPlaybackController PlaybackController, RecordingSpeechInput SpeechInputService, InterruptionController InterruptionController) Build(
+        NoOpWebSocketClient? socket = null)
     {
         var sessionState = new ClientSessionState();
         sessionState.Initialize(Guid.NewGuid(), sessionVersion: 1);
-        var socket = new NoOpWebSocketClient();
-        var connectionManager = new ConnectionManager(socket, sessionState);
+        var connectionManager = new ConnectionManager(socket ?? new NoOpWebSocketClient(), sessionState);
         var playbackController = new RecordingPlaybackController();
         var interruptionController = new InterruptionController(playbackController, connectionManager);
-        var speechInputService = new MicrophoneCapture();
+        var speechInputService = new RecordingSpeechInput();
 
         var controller = new PushToTalkController(playbackController, interruptionController, speechInputService);
         return (controller, playbackController, speechInputService, interruptionController);
+    }
+
+    private sealed class RecordingSpeechInput : ISpeechInputService
+    {
+        public bool IsListening { get; private set; }
+        public int StopCount { get; private set; }
+        public int AbortCount { get; private set; }
+
+        public event EventHandler<TranscriptReceivedEventArgs>? TranscriptReceived;
+        public event EventHandler<VoiceInputStatus>? StatusChanged;
+
+        public Task StartListeningAsync(CancellationToken cancellationToken)
+        {
+            IsListening = true;
+            return Task.CompletedTask;
+        }
+
+        public void StopListening()
+        {
+            IsListening = false;
+            StopCount++;
+        }
+
+        public void AbortListening()
+        {
+            IsListening = false;
+            AbortCount++;
+        }
+
+        public void Dispose()
+        {
+        }
     }
 
     private sealed class RecordingPlaybackController : IPlaybackController
@@ -112,7 +187,9 @@ public sealed class PushToTalkControllerTests
 
     private sealed class NoOpWebSocketClient : INetraWebSocketClient
     {
-        public bool IsConnected => true;
+        public bool FailSends { get; init; }
+
+        public bool IsConnected => !FailSends;
 
         public event EventHandler<string>? TextMessageReceived;
         public event EventHandler<ReadOnlyMemory<byte>>? BinaryMessageReceived;
@@ -121,7 +198,10 @@ public sealed class PushToTalkControllerTests
 
         public Task ConnectAsync(Uri endpoint, CancellationToken cancellationToken) => Task.CompletedTask;
 
-        public Task SendTextAsync(string message, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task SendBinaryAsync(ReadOnlyMemory<byte> message, CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task SendTextAsync(string message, CancellationToken cancellationToken) =>
+            FailSends ? Task.FromException(new NotConnectedException()) : Task.CompletedTask;
 
         public Task CloseAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 

@@ -24,7 +24,7 @@ public sealed class LibraryViewModelTests
         Assert.Contains("cancelled", viewModel.StatusMessage, StringComparison.OrdinalIgnoreCase);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task OnFileSelectedAsync_SelectedFile_AddsEntryAndReachesReadyThroughFixture()
     {
         var preparationService = new RecordingSourcePreparationService();

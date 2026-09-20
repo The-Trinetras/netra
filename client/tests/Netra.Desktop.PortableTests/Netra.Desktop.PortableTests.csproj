@@ -1,0 +1,46 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The non-WPF part of the desktop client and its tests, compiled for plain
+    net10.0 so they also run on macOS and Linux developer machines, where the
+    WindowsDesktop runtime does not exist. Sources and tests are linked from
+    the real projects, never copied: Netra.Desktop.Tests stays the canonical
+    suite and is what runs on Windows.
+
+    Excluded: views, windows, MediaPlayer playback, the WebView2 player surface,
+    WPF focus/hotkey/live-region helpers, the WPF dispatcher and the
+    measurement harness, plus the tests
+    that need a real WPF window (LibraryViewBindingTests and Tests/Views/).
+    Passing here is not Windows, WPF, NVDA or real-device evidence.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Netra.Desktop.Tests</RootNamespace>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <!-- On Windows the same tests run in Netra.Desktop.Tests against the real
+         WPF assembly; running them twice would only double the counts. -->
+    <IsTestProject Condition="'$(OS)' == 'Windows_NT'">false</IsTestProject>
+    <!-- Existing CS0067 warnings on test doubles, as in Netra.Desktop.Tests. -->
+    <NoWarn>$(NoWarn);CS0067</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
+    <PackageReference Include="xunit" Version="2.9.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="../../src/Netra.Desktop/**/*.cs"
+             Exclude="../../src/Netra.Desktop/obj/**;../../src/Netra.Desktop/bin/**;../../src/Netra.Desktop/App.xaml.cs;../../src/Netra.Desktop/Views/**;../../src/Netra.Desktop/Accessibility/FocusService.cs;../../src/Netra.Desktop/Accessibility/GlobalHotKeyService.cs;../../src/Netra.Desktop/Accessibility/KeyboardNavigation.cs;../../src/Netra.Desktop/Accessibility/LiveRegionAnnouncer.cs;../../src/Netra.Desktop/Audio/PlaybackController.cs;../../src/Netra.Desktop/Threading/WpfUiDispatcher.cs;../../src/Netra.Desktop/Diagnostics/PlaybackMeasurementHarness.cs;../../src/Netra.Desktop/Video/WebView2PlayerSurface.cs"
+             LinkBase="Production" />
+    <Compile Include="../Netra.Desktop.Tests/**/*.cs"
+             Exclude="../Netra.Desktop.Tests/obj/**;../Netra.Desktop.Tests/bin/**;../Netra.Desktop.Tests/LibraryViewBindingTests.cs;../Netra.Desktop.Tests/Views/**"
+             LinkBase="Tests" />
+    <None Include="../Netra.Desktop.Tests/Fixtures/**" LinkBase="Fixtures" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

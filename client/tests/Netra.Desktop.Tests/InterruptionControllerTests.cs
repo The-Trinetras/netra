@@ -93,6 +93,8 @@ public sealed class InterruptionControllerTests
 
         public Task ConnectAsync(Uri endpoint, CancellationToken cancellationToken) => Task.CompletedTask;
 
+        public Task SendBinaryAsync(ReadOnlyMemory<byte> message, CancellationToken cancellationToken) => Task.CompletedTask;
+
         public Task SendTextAsync(string message, CancellationToken cancellationToken) => Task.CompletedTask;
 
         public Task CloseAsync(CancellationToken cancellationToken) => Task.CompletedTask;

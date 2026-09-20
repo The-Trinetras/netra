@@ -26,8 +26,7 @@ and the Tutor never touches session state:
   before delivering it to the client"). If the pending-question store
   cannot return it, the runner raises instead of letting an unresolvable
   question reach the student.
-- It turns the deliberately unimplemented optional-check grounding
-  decision (NotImplementedError from the production validator) into
+- It turns any NotImplementedError from a Tutor path into
   TutorCapabilityPendingError, a NetraError M1 can map to a safe client
   error, while keeping it distinguishable from an ordinary failed turn.
 - It flags a turn whose budget was cancelled while it ran. A cancelled or

@@ -27,13 +27,10 @@ public partial class ConversationView : UserControl
                 _liveRegionAnnouncer.Announce(StatusRegion, viewModel.StatusMessage);
                 break;
 
-            case nameof(ConversationViewModel.InterimTranscript):
-                // Interim captioning must never steal focus or interrupt
-                // NVDA's current utterance — a polite live-region update is
-                // the correct channel (client.md: "Streaming must not steal
-                // focus or cause competing Netra/NVDA speech").
-                _liveRegionAnnouncer.Announce(InterimRegion, viewModel.InterimTranscript);
-                break;
+            // InterimTranscript and VoiceStatus are deliberately not
+            // announced: they change while the microphone is open, and NVDA
+            // speaking them would be recorded into the question and compete
+            // with the student (client.md: no competing Netra/NVDA speech).
         }
     }
 }

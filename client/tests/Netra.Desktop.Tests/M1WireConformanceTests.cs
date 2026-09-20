@@ -103,7 +103,7 @@ public sealed class M1WireConformanceTests
         socket.BinaryMessageReceived += processor.OnBinaryMessageReceived;
         using var acknowledger = new PlaybackAcknowledger(player, connection);
         using var viewModel = new ConversationViewModel(
-            sessionState, connection, player, interruption, processor, new MicrophoneCapture(), new SynchronousUiDispatcher(), queue);
+            sessionState, connection, player, interruption, processor, new MicrophoneCapture(connection), new SynchronousUiDispatcher(), queue);
 
         foreach (var message in messages)
         {

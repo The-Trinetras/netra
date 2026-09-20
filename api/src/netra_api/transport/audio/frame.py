@@ -30,11 +30,12 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from netra_api.platform.errors import NetraError
 
 MAX_HEADER_BYTES = 16 * 1024
-"""Structural cap from audio_frame_header.schema.json. No authoritative
-total-binary-message size limit exists yet anywhere in the runtime
-baseline or committed contracts; that remains an explicit open
-transport-hardening decision this module does not invent (see
-docs/architecture/message-flow.md's unresolved-decisions table)."""
+"""Structural cap from audio_frame_header.schema.json."""
+MAX_AUDIO_BYTES_PER_FRAME = 64 * 1024
+"""INT-11c (20 September 2026): senders split larger audio into more frames;
+a receiver rejects a bigger frame. One frame is therefore at most
+4 + MAX_HEADER_BYTES + MAX_AUDIO_BYTES_PER_FRAME bytes."""
+MAX_FRAME_BYTES = 4 + MAX_HEADER_BYTES + MAX_AUDIO_BYTES_PER_FRAME
 
 _LENGTH_PREFIX_SIZE = 4
 _SUPPORTED_VERSION = 1
@@ -69,10 +70,12 @@ def encode_audio_frame(header: AudioFrameHeader, audio_bytes: bytes) -> bytes:
     """Build one binary WebSocket message from a header and raw audio bytes.
 
     Raises AudioFrameError if the encoded header would exceed
-    MAX_HEADER_BYTES — callers must not silently truncate or fall back to
-    a different framing.
+    MAX_HEADER_BYTES or the audio MAX_AUDIO_BYTES_PER_FRAME — callers split
+    audio across frames; they never truncate or fall back to another framing.
     """
 
+    if len(audio_bytes) > MAX_AUDIO_BYTES_PER_FRAME:
+        raise AudioFrameError(f"frame audio exceeds the {MAX_AUDIO_BYTES_PER_FRAME}-byte limit")
     header_bytes = header.model_dump_json().encode("utf-8")
     if len(header_bytes) > MAX_HEADER_BYTES:
         raise AudioFrameError(
@@ -96,29 +99,7 @@ def decode_audio_frame(frame: bytes) -> tuple[AudioFrameHeader, bytes]:
     unsupported version.
     """
 
-    if len(frame) < _LENGTH_PREFIX_SIZE:
-        raise AudioFrameError("frame is shorter than the 4-byte length prefix")
-
-    (declared_header_length,) = struct.unpack(">I", frame[:_LENGTH_PREFIX_SIZE])
-
-    if declared_header_length == 0:
-        raise AudioFrameError("declared header length is zero")
-
-    if declared_header_length > MAX_HEADER_BYTES:
-        raise AudioFrameError(
-            f"declared header length {declared_header_length} exceeds the {MAX_HEADER_BYTES}-byte limit"
-        )
-
-    available_after_prefix = len(frame) - _LENGTH_PREFIX_SIZE
-    if declared_header_length > available_after_prefix:
-        raise AudioFrameError(
-            f"declared header length {declared_header_length} exceeds the "
-            f"{available_after_prefix} bytes actually available in the frame"
-        )
-
-    header_start = _LENGTH_PREFIX_SIZE
-    header_end = header_start + declared_header_length
-    header_bytes = frame[header_start:header_end]
+    header_bytes, audio_bytes = split_length_prefixed(frame, MAX_HEADER_BYTES, AudioFrameError)
 
     try:
         header = AudioFrameHeader.model_validate_json(header_bytes)
@@ -128,7 +109,40 @@ def decode_audio_frame(frame: bytes) -> tuple[AudioFrameHeader, bytes]:
     if header.version != _SUPPORTED_VERSION:
         raise AudioFrameError(f"unsupported audio frame version {header.version}")
 
-    return header, frame[header_end:]
+    if len(audio_bytes) > MAX_AUDIO_BYTES_PER_FRAME:
+        raise AudioFrameError(f"frame audio exceeds the {MAX_AUDIO_BYTES_PER_FRAME}-byte limit")
+
+    return header, audio_bytes
+
+
+def split_length_prefixed(frame: bytes, max_header_bytes: int, error: type[Exception]) -> tuple[bytes, bytes]:
+    """Split [4-byte big-endian length][header][rest], checking the length
+    against the bytes actually present before anything is parsed.
+
+    Shared by the server audio and microphone framings, which have the same
+    layout but distinct headers; ``error`` is raised for every fault.
+    """
+
+    if len(frame) < _LENGTH_PREFIX_SIZE:
+        raise error("frame is shorter than the 4-byte length prefix")
+
+    (declared_header_length,) = struct.unpack(">I", frame[:_LENGTH_PREFIX_SIZE])
+
+    if declared_header_length == 0:
+        raise error("declared header length is zero")
+
+    if declared_header_length > max_header_bytes:
+        raise error(f"declared header length {declared_header_length} exceeds the {max_header_bytes}-byte limit")
+
+    available_after_prefix = len(frame) - _LENGTH_PREFIX_SIZE
+    if declared_header_length > available_after_prefix:
+        raise error(
+            f"declared header length {declared_header_length} exceeds the "
+            f"{available_after_prefix} bytes actually available in the frame"
+        )
+
+    header_end = _LENGTH_PREFIX_SIZE + declared_header_length
+    return frame[_LENGTH_PREFIX_SIZE:header_end], frame[header_end:]
 
 
 class GenerationSequenceTracker:

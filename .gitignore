@@ -15,6 +15,11 @@ infrastructure/terraform/*.tfstate
 infrastructure/terraform/*.tfstate.*
 infrastructure/terraform/*.tfvars
 infrastructure/terraform/*.tfplan
+infrastructure/terraform/backend.hcl
+infrastructure/terraform/state-bucket/.terraform/
+infrastructure/terraform/state-bucket/*.tfstate
+infrastructure/terraform/state-bucket/*.tfstate.*
+infrastructure/terraform/state-bucket/*.tfvars
 
 # .NET
 bin/

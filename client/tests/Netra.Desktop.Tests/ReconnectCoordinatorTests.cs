@@ -122,7 +122,7 @@ public sealed class ReconnectCoordinatorTests
         Assert.Single(delays);
         Assert.Equal(2, socket.ConnectCount);
         Assert.Equal(ConnectionState.Disconnected, state.ConnectionState);
-        Assert.Equal("Cannot reconnect: Netra did not accept this computer's sign-in. It may have expired.", statuses[^1]);
+        Assert.Equal("Cannot reconnect: Netra did not accept this computer's sign-in. It may have expired. Choose Sign in under Preferences and status to enter a new access code.", statuses[^1]);
         await coordinator.DisposeAsync();
     }
 

@@ -51,6 +51,12 @@ dependencies = [
 
     # Local normal-PDF extraction boundary (Stage C)
     "PyMuPDF==1.28.2",
+
+    # Agentic-slice-kit spine (slice/retrieve.py): vector search in the run
+    # database and local embeddings. Declared here, not only in
+    # requirements.txt, so uv users get them too and tests/test_notes_* can run.
+    "sqlite-vec>=0.1.9",
+    "fastembed>=0.4",
 ]
 
 [dependency-groups]

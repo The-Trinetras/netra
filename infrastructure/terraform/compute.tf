@@ -84,6 +84,12 @@ resource "aws_instance" "pgbouncer" {
   })
   user_data_replace_on_change = true
   tags                        = merge(local.tags, { Name = "${local.name}-pgbouncer" })
+
+  # most_recent AMI lookups must not replace a running instance on every
+  # plan after Canonical publishes a new image. Replace deliberately instead.
+  lifecycle {
+    ignore_changes = [ami]
+  }
 }
 
 resource "aws_iam_role" "prometheus" {

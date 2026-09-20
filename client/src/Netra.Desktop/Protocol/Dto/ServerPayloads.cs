@@ -90,3 +90,20 @@ public sealed record ErrorPayload
     public long? CurrentSessionVersion { get; init; }
     public string? CorrelationId { get; init; }
 }
+
+// asr.ready (pending C1): the server accepted this capture; audio may follow.
+public sealed record AsrReadyPayload
+{
+    public required Guid CaptureId { get; init; }
+}
+
+// asr.transcript (pending C1). Interim text is captioning only. One final per
+// capture, after end_of_utterance, carries the whole utterance; the client
+// (never the server) turns it into a voice turn.submit.
+public sealed record AsrTranscriptPayload
+{
+    public required Guid CaptureId { get; init; }
+    public required Guid TranscriptId { get; init; }
+    public required string Text { get; init; }
+    public required bool IsFinal { get; init; }
+}

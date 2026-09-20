@@ -16,6 +16,7 @@ Registration instructions for each boundary are in docs/team/handoffs/M1.md.
 
 from __future__ import annotations
 
+import dataclasses
 from dataclasses import dataclass, field
 from datetime import timedelta
 from typing import Any, Optional
@@ -83,6 +84,8 @@ class IntegrationDependencies:
     # M1 providers (behind adapters)
     coordinator_model: Optional[GeminiCoordinatorProvider] = None
     speech_output: Optional[SpeechOutput] = None
+    recognizer: Any = None
+    """D-MIC push-to-talk Recognizer (speech/recognition.py); None -> voice input off."""
 
 
 @dataclass
@@ -91,6 +94,8 @@ class Repositories:
     sessions: Any
     result_sets: Any = None
     dialogue: Any = None
+    budgets: Any = None
+    """D-BUDGET ledger; None without a database (the in-process budget then applies)."""
     engine: Any = None
     """The shared async engine when a database is configured (one pool per process)."""
 
@@ -141,7 +146,12 @@ def durable_repositories(settings: Settings) -> Repositories:
 
     from netra_api.identity.postgres import PostgresIdentityRepository
     from netra_api.platform.database import create_engine
-    from netra_api.session.postgres import PostgresDialogueLog, PostgresResultSetRepository, PostgresSessionRepository
+    from netra_api.session.postgres import (
+        PostgresBudgetLedger,
+        PostgresDialogueLog,
+        PostgresResultSetRepository,
+        PostgresSessionRepository,
+    )
 
     engine = create_engine(settings.database_url)
     return Repositories(
@@ -149,6 +159,7 @@ def durable_repositories(settings: Settings) -> Repositories:
         sessions=PostgresSessionRepository(engine),
         result_sets=PostgresResultSetRepository(engine),
         dialogue=PostgresDialogueLog(engine),
+        budgets=PostgresBudgetLedger(engine),
         engine=engine,
     )
 
@@ -220,14 +231,37 @@ def production_dependencies(engine: Any, tracer: Optional[Tracer] = None,
         from netra_api.learning.assessment.service import LearningService
         from netra_api.learning.tutor.agent import TutorServices
 
-        # No quiz generator is registered: optional-check support (D2) is an
-        # open decision and fails closed, so drafting questions is not wired.
+        from netra_api.learning.quiz.generator import ModelQuizGenerator
+
+        # P-1: questions are drafted on the Tutor's provider and asked only
+        # when the evidence supports their answer (the default validator).
         dependencies.tutor_services = TutorServices(
             provider=tutor_provider,
             evidence_resolver=dependencies.evidence_resolver,
             pending_questions=learning,
             learning_service=LearningService(learning, None, learning),
+            quiz_generator=ModelQuizGenerator(tutor_provider),
         )
+    if (settings.elevenlabs_api_key is not None and settings.elevenlabs_model_id
+            and settings.elevenlabs_voice_id):
+        from netra_api.speech.postgres import PostgresQuotaLedger
+        from netra_api.speech.providers.elevenlabs import build_elevenlabs_synthesizer
+        from netra_api.speech.synthesis import BoundedAudioCache
+
+        synthesizer = build_elevenlabs_synthesizer(
+            api_key=settings.elevenlabs_api_key.get_secret_value(), model_id=settings.elevenlabs_model_id,
+            voice_id=settings.elevenlabs_voice_id, output_format=settings.elevenlabs_output_format,
+            timeout_seconds=settings.elevenlabs_timeout_seconds)
+        # compose() binds the transport's GenerationRegistry.
+        dependencies.speech_output = SpeechOutput(
+            synthesizer, PostgresQuotaLedger(engine, settings.speech_daily_characters), BoundedAudioCache(),
+            GenerationRegistry())
+    if settings.deepgram_api_key is not None and settings.deepgram_model:
+        from netra_api.speech.providers.deepgram import DeepgramRecognizer
+
+        dependencies.recognizer = DeepgramRecognizer.from_api_key(
+            settings.deepgram_api_key.get_secret_value(), model=settings.deepgram_model,
+            language=settings.deepgram_language, timeout_seconds=settings.deepgram_timeout_seconds)
     return dependencies
 
 
@@ -251,6 +285,8 @@ def compose(
     )
 
     if dependencies.tutor_services is not None:
+        # TutorServices is frozen: bind the process tracer on a copy (OPT-12).
+        dependencies.tutor_services = dataclasses.replace(dependencies.tutor_services, tracer=tracer)
         if dependencies.tutor_runner is None:
             dependencies.tutor_runner = LearningTutorRunner(dependencies.tutor_services)
         if dependencies.pending_questions is None:
@@ -305,19 +341,23 @@ def compose(
 
     base_sink = trace_sink or (LoggingTraceSink() if settings.trace_to_log else InMemoryTraceSink())
     sink = FanOutTraceSink(base_sink, TracingTraceSink(tracer)) if tracer.enabled else base_sink
+    generations = GenerationRegistry()
     if dependencies.speech_output is not None:
         dependencies.speech_output.tracer = tracer
+        dependencies.speech_output.registry = generations
     services = TransportServices(
         identity=IdentityService(repositories.identity),
         sessions=sessions,
         navigator=navigator,
-        generations=GenerationRegistry(),
+        generations=generations,
         turns=TurnRegistry(),
         trace_sink=sink,
         coordinator=coordinator,
         dialogue=repositories.dialogue,
         speech=dependencies.speech_output,
         tracer=tracer,
+        budgets=repositories.budgets,
+        recognizer=dependencies.recognizer,
     )
     registered = {
         "persistence": not isinstance(repositories.sessions, UnavailableRepository),
@@ -326,7 +366,9 @@ def compose(
         "coordinator_model": coordinator is not None,
         "tutor": tutor is not None,
         "speech": dependencies.speech_output is not None,
+        "voice_input": dependencies.recognizer is not None,
         "result_sets": ttl is not None and repositories.result_sets is not None,
+        "persisted_turn_budget": repositories.budgets is not None,
         **{f"tool:{name}": True for name in tools},
     }
     return Composition(

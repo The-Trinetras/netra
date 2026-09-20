@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<!-- Netra's lecture player page (F8). Served only from the app folder under
+     https://netra-player.example/ inside WebView2; it can reach nothing but
+     YouTube's player script and YouTube embed frames. Controlled from WPF. -->
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self' https://www.youtube.com https://s.ytimg.com; frame-src https://www.youtube-nocookie.com https://www.youtube.com; style-src 'self'; img-src 'self' data:">
+<title>Netra lecture player</title>
+<link rel="stylesheet" href="player.css">
+</head>
+<body>
+<div id="player" aria-label="Lecture video"></div>
+<script src="player.js"></script>
+</body>
+</html>

@@ -1,0 +1,36 @@
+{
+  "view": {
+    "evidence_id": "ev-ohm-graph",
+    "source_version_id": "00000000-0000-4000-8000-00000000ff02",
+    "evidence_version": 2,
+    "object_kind": "chart",
+    "locator": "chapter 4, figure 4.2",
+    "layer": "relationships",
+    "parts": [],
+    "relationships": [
+      {
+        "source_part_id": "fig02.s1",
+        "target_part_id": "fig02.x",
+        "label": "plotted against the x axis",
+        "label_source": "observed",
+        "observation_source": "observed",
+        "directed": true
+      },
+      {
+        "source_part_id": "fig02.s1",
+        "target_part_id": "fig02.y",
+        "label": "plotted against the y axis",
+        "label_source": "observed",
+        "observation_source": "observed",
+        "directed": true
+      }
+    ],
+    "unreadable_part_ids": [],
+    "source_check": "verified",
+    "ai_description": false,
+    "provenance": {
+      "origin": "extraction",
+      "provider": "fixture-extractor"
+    }
+  }
+}

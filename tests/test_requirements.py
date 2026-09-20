@@ -18,6 +18,18 @@ def test_every_pyproject_requirement_is_mirrored_exactly():
     assert not missing, f"pyproject.toml pins missing from requirements.txt: {sorted(missing)}"
 
 
+def test_every_requirement_is_declared_in_pyproject():
+    """The mirror runs both ways, or uv users silently lose a package.
+
+    sqlite-vec and fastembed once lived in requirements.txt alone, so they never
+    reached uv.lock and no uv user could import slice/retrieve.py.
+    """
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    declared = set(project["project"]["dependencies"]) | set(project["dependency-groups"]["dev"])
+    missing = set(_requirements()) - declared
+    assert not missing, f"requirements.txt pins missing from pyproject.toml (so absent from uv.lock): {sorted(missing)}"
+
+
 def test_no_package_is_listed_twice():
     names = [re.match(r"[A-Za-z0-9_.\-]+", line).group(0).lower().replace("_", "-") for line in _requirements()]
     assert len(names) == len(set(names)), "one line per package, or pip may combine conflicting ranges"

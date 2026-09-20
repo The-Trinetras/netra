@@ -7,9 +7,9 @@ sending audio does not advance played position. Flow 7: cancellation stops
 further frames immediately, including frames already produced by the provider.
 
 Frames use the approved binary framing (transport/audio/frame.py). Frame
-sequence numbers are per generation and strictly increasing. The chunk size
-below only bounds how cached audio is split; it is NOT an authoritative total
-binary-message size limit, which remains an open M1/M5 decision.
+sequence numbers are per generation and strictly increasing. Provider chunks
+larger than MAX_AUDIO_BYTES_PER_FRAME (INT-11c) are split across frames, never
+truncated; cached audio is replayed in smaller chunks.
 
 Speech failure never blocks text: every failure path here returns without
 audio after the text segment has already been delivered.
@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+from collections import OrderedDict
 from typing import AsyncIterator, Awaitable, Callable, Optional, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -27,8 +28,8 @@ from netra_api.platform.auth_context import AuthContext
 from netra_api.platform.errors import NetraError
 from netra_api.speech.playback_metadata import Generation, GenerationRegistry
 from netra_api.platform.tracing import DISABLED_TRACER, Tracer
-from netra_api.speech.quota import QuotaLedger
-from netra_api.transport.audio.frame import AudioFrameHeader, encode_audio_frame
+from netra_api.speech.quota import QuotaLedger, SpeechQuotaExhaustedError
+from netra_api.transport.audio.frame import MAX_AUDIO_BYTES_PER_FRAME, AudioFrameHeader, encode_audio_frame
 
 logger = logging.getLogger(__name__)
 
@@ -72,6 +73,37 @@ class AudioCache(Protocol):
         ...
 
 
+class BoundedAudioCache:
+    """Per-process completed-audio cache holding at most ``max_bytes`` (LRU).
+
+    ponytail: in-process only; a private-S3 cache shared by processes is the
+    upgrade if repeated reading across restarts matters.
+    """
+
+    def __init__(self, max_bytes: int = 64 * 1024 * 1024) -> None:
+        self._max = max_bytes
+        self._bytes = 0
+        self.entries: OrderedDict[str, CachedAudio] = OrderedDict()
+
+    async def get(self, key: str) -> Optional[CachedAudio]:
+        audio = self.entries.get(key)
+        if audio is not None:
+            self.entries.move_to_end(key)
+        return audio
+
+    async def put(self, key: str, audio: CachedAudio) -> None:
+        if len(audio.audio) > self._max:
+            return
+        previous = self.entries.pop(key, None)
+        if previous is not None:
+            self._bytes -= len(previous.audio)
+        self.entries[key] = audio
+        self._bytes += len(audio.audio)
+        while self._bytes > self._max:
+            _, evicted = self.entries.popitem(last=False)
+            self._bytes -= len(evicted.audio)
+
+
 class InMemoryAudioCache:
     """Non-durable completed-audio cache for tests and labelled fixtures."""
 
@@ -113,7 +145,8 @@ class SpeechOutput:
         self._synthesizer = synthesizer
         self._quota = quota
         self._cache = cache
-        self._registry = registry
+        self.registry = registry
+        """Must be the transport's GenerationRegistry; compose() binds it."""
 
     async def speak_segment(self, auth: AuthContext, generation: Generation, **kwargs) -> bool:
         """Deliver one segment's audio inside a span recording SENT frames only.
@@ -163,6 +196,8 @@ class SpeechOutput:
 
         try:
             await self._quota.reserve(auth.account_id, max(1, len(text)))
+        except SpeechQuotaExhaustedError:
+            raise  # the caller tells the student once and stops speaking this reply
         except NetraError as exc:
             logger.info("speech skipped for segment: %s", type(exc).__name__)
             return False
@@ -171,13 +206,12 @@ class SpeechOutput:
         pending: Optional[bytes] = None
         try:
             async for chunk in self._synthesizer.stream(text):
-                if not chunk:
-                    continue
-                if pending is not None:
-                    if not await self._send_frame(generation, segment_id, config.media_type, pending, False, False, send_bytes):
-                        return False
-                    collected.append(pending)
-                pending = chunk
+                for offset in range(0, len(chunk), MAX_AUDIO_BYTES_PER_FRAME):
+                    if pending is not None:
+                        if not await self._send_frame(generation, segment_id, config.media_type, pending, False, False, send_bytes):
+                            return False
+                        collected.append(pending)
+                    pending = chunk[offset : offset + MAX_AUDIO_BYTES_PER_FRAME]
         except NetraError as exc:
             logger.info("speech provider failed for segment: %s", type(exc).__name__)
             return False
@@ -219,7 +253,7 @@ class SpeechOutput:
             version=1,
             generation_id=generation.generation_id,
             segment_id=segment_id,
-            sequence=self._registry.next_frame_sequence(generation),
+            sequence=self.registry.next_frame_sequence(generation),
             end_of_segment=end_of_segment,
             end_of_generation=end_of_generation,
             media_type=media_type,

@@ -43,6 +43,7 @@ public sealed class LibraryViewModel : ViewModelBase
 
         SearchVideosCommand = new RelayCommand(_ => FireAndForget(SearchVideosAsync));
         SelectVideoResultCommand = new RelayCommand(parameter => SelectVideoResult(parameter as VideoDiscoveryResult));
+        PlayVideoResultCommand = new RelayCommand(parameter => PlayVideoResult(parameter as VideoDiscoveryResult));
         RefreshSourcesCommand = new RelayCommand(_ => FireAndForget(() => RefreshSourcesAsync(CancellationToken.None)));
         OpenSourceCommand = new RelayCommand(
             parameter => FireAndForget(() => OpenSourceAsync(parameter as CatalogSource ?? SelectedAvailableSource, CancellationToken.None)));
@@ -93,6 +94,10 @@ public sealed class LibraryViewModel : ViewModelBase
 
     public ICommand SearchVideosCommand { get; }
     public ICommand SelectVideoResultCommand { get; }
+    public ICommand PlayVideoResultCommand { get; }
+
+    // The exact result to open in the Lecture tab (after it was selected).
+    public event EventHandler<VideoDiscoveryResult>? LecturePlayRequested;
     public ICommand RefreshSourcesCommand { get; }
     public ICommand OpenSourceCommand { get; }
 
@@ -140,13 +145,26 @@ public sealed class LibraryViewModel : ViewModelBase
         VideoResults.Clear();
         SelectedVideoResult = null;
 
-        var results = await _videoDiscoveryService.SearchAsync(VideoSearchQuery, CancellationToken.None);
+        StatusMessage = "Searching for lectures.";
+        IReadOnlyList<VideoDiscoveryResult> results;
+        try
+        {
+            results = await _videoDiscoveryService.SearchAsync(VideoSearchQuery, CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = FailureText.Describe(ex, "search for lectures", CancellationToken.None);
+            return;
+        }
+
         foreach (var result in results)
         {
             VideoResults.Add(result);
         }
 
-        StatusMessage = $"Found {VideoResults.Count} result(s) (fixture data).";
+        StatusMessage = VideoResults.Count == 0
+            ? "No lectures found (fixture data)."
+            : $"Found {VideoResults.Count} lecture result{(VideoResults.Count == 1 ? string.Empty : "s")} (fixture data). Use the arrow keys in the numbered list.";
     }
 
     public async Task RefreshSourcesAsync(CancellationToken cancellationToken)
@@ -246,6 +264,15 @@ public sealed class LibraryViewModel : ViewModelBase
         }
     }
 
+    // Signing out: the previous student's sources leave the screen.
+    public void ClearServerSources()
+    {
+        AvailableSources.Clear();
+        SelectedAvailableSource = null;
+        OpenedSource = null;
+        StatusMessage = "Signed out. Sign in to see your sources.";
+    }
+
     private async Task<string> ResynchronizeAfterConflictAsync(CancellationToken cancellationToken)
     {
         if (_server?.Session is not { } session)
@@ -264,6 +291,18 @@ public sealed class LibraryViewModel : ViewModelBase
         }
     }
 
+    private void PlayVideoResult(VideoDiscoveryResult? result)
+    {
+        if (result is null)
+        {
+            StatusMessage = "Choose a lecture result in the list first.";
+            return;
+        }
+
+        SelectVideoResult(result);
+        LecturePlayRequested?.Invoke(this, result);
+    }
+
     private void SelectVideoResult(VideoDiscoveryResult? result)
     {
         if (result is null)
@@ -275,17 +314,16 @@ public sealed class LibraryViewModel : ViewModelBase
         StatusMessage = $"Selected result {result.Ordinal}: {result.Title}.";
     }
 
-    private static async void FireAndForget(Func<Task> operation)
+    // Never lets an async command crash the app, and never fails silently.
+    private async void FireAndForget(Func<Task> operation)
     {
         try
         {
             await operation();
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            // TODO: surface command failures via StatusMessage once an
-            // error-presentation policy is defined. Never let an async
-            // command crash the app.
+            StatusMessage = FailureText.Describe(ex, "do that", CancellationToken.None);
         }
     }
 }

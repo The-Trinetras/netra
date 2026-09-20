@@ -11,7 +11,7 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import Callable, Optional
 
 from netra_api.platform.errors import TurnBudgetExceededError
 
@@ -42,6 +42,13 @@ class TurnBudget:
     proposes counting them; the approved 4/6/20 baseline does not say).
     Recording them keeps that decision evaluable without silently making it."""
     _cancelled_event: asyncio.Event = field(default_factory=asyncio.Event, repr=False, compare=False)
+    observer: Optional[Callable[["TurnBudget"], None]] = field(default=None, repr=False, compare=False)
+    """Called after every counter increment; the dispatcher persists use per
+    request id through it (D-BUDGET, coordinator/budget_ledger.py)."""
+
+    def _changed(self) -> None:
+        if self.observer is not None:
+            self.observer(self)
 
     @classmethod
     def from_deadline(cls, deadline_at: datetime, now: Optional[datetime] = None) -> "TurnBudget":
@@ -103,6 +110,8 @@ class TurnBudget:
             return 0
         granted = min(count, self.remaining_tool_calls)
         self.tool_calls_used += granted
+        if granted:
+            self._changed()
         return granted
 
     def for_retransmission(self) -> "TurnBudget":
@@ -125,6 +134,7 @@ class TurnBudget:
 
     def record_nested_model_call(self) -> None:
         self.nested_model_calls += 1
+        self._changed()
 
     def is_expired(self, now: Optional[datetime] = None) -> bool:
         return (now or datetime.now(timezone.utc)) >= self.deadline_at
@@ -147,6 +157,7 @@ class TurnBudget:
                 f"max model decisions per turn ({self.max_model_decisions}) exceeded"
             )
         self.model_decisions_used += 1
+        self._changed()
 
     def register_tool_call(self) -> None:
         if self.cancelled or self.is_expired():
@@ -156,3 +167,4 @@ class TurnBudget:
                 f"max tool calls per turn ({self.max_tool_calls}) exceeded"
             )
         self.tool_calls_used += 1
+        self._changed()

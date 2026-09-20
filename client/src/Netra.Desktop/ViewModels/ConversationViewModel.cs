@@ -9,6 +9,7 @@ using Netra.Desktop.Protocol.Dto;
 using Netra.Desktop.Speech;
 using Netra.Desktop.State;
 using Netra.Desktop.Threading;
+using Netra.Desktop.Video;
 
 namespace Netra.Desktop.ViewModels;
 
@@ -38,6 +39,8 @@ public sealed class ConversationViewModel : ViewModelBase, IDisposable
     private readonly IUiDispatcher _dispatcher;
     private readonly SegmentPlaybackQueue? _playbackQueue;
     private readonly PlaybackTimeline? _timeline;
+    private readonly ILecturePause? _lecture;
+    private readonly IPlaybackController _playbackController;
 
     // Final transcripts already turned into a turn, by their stable
     // TranscriptId. Recognition providers redeliver results on reconnect
@@ -54,6 +57,7 @@ public sealed class ConversationViewModel : ViewModelBase, IDisposable
     private string _inputText = string.Empty;
     private string _interimTranscript = string.Empty;
     private string _statusMessage = string.Empty;
+    private string _voiceStatus = "Voice input off.";
 
     public ConversationViewModel(
         ClientSessionState sessionState,
@@ -64,8 +68,10 @@ public sealed class ConversationViewModel : ViewModelBase, IDisposable
         ISpeechInputService speechInputService,
         IUiDispatcher dispatcher,
         SegmentPlaybackQueue? playbackQueue = null,
-        PlaybackTimeline? timeline = null)
+        PlaybackTimeline? timeline = null,
+        ILecturePause? lecture = null)
     {
+        _lecture = lecture;
         _playbackQueue = playbackQueue;
         _timeline = timeline;
         _sessionState = sessionState;
@@ -75,18 +81,18 @@ public sealed class ConversationViewModel : ViewModelBase, IDisposable
         _speechInputService = speechInputService;
         _dispatcher = dispatcher;
 
-        // playbackController is not read directly here; ownership of local
-        // playback lives in InterruptionController/PlaybackAcknowledger. It
-        // is accepted so the composition root (App.xaml.cs) can pass all
-        // session-scoped services through a single constructor.
-        _ = playbackController;
+        // Local playback belongs to InterruptionController/PlaybackAcknowledger;
+        // it is read here only to pause and continue speech at once, before
+        // the server hears of it.
+        _playbackController = playbackController;
 
         _connectionManager.MessageReceived += OnServerMessageReceived;
         _speechInputService.TranscriptReceived += OnTranscriptReceived;
+        _speechInputService.StatusChanged += OnVoiceStatusChanged;
 
-        SubmitCommand = new RelayCommand(_ => FireAndForget(SubmitAsync), _ => CanSubmit());
-        StopCommand = new RelayCommand(_ => FireAndForget(StopAsync));
-        NavigationCommandRequest = new RelayCommand(parameter => FireAndForget(() => SendNavigationCommandAsync(parameter)));
+        SubmitCommand = new RelayCommand(_ => FireAndForget(SubmitTypedAsync, "send your question"), _ => CanSubmit());
+        StopCommand = new RelayCommand(_ => FireAndForget(StopAsync, "stop"));
+        NavigationCommandRequest = new RelayCommand(parameter => FireAndForget(() => SendNavigationCommandAsync(parameter), "send that command"));
     }
 
     public ObservableCollection<TranscriptLine> Transcript { get; } = new();
@@ -109,24 +115,53 @@ public sealed class ConversationViewModel : ViewModelBase, IDisposable
         private set => SetField(ref _statusMessage, value);
     }
 
+    // Shown, not announced: it changes while the microphone is open, and a
+    // screen reader reading it aloud would be recorded into the question.
+    // Announcements that matter arrive through StatusMessage once capture ends.
+    public string VoiceStatus
+    {
+        get => _voiceStatus;
+        private set => SetField(ref _voiceStatus, value);
+    }
+
     public ICommand SubmitCommand { get; }
     public ICommand StopCommand { get; }
     public ICommand NavigationCommandRequest { get; }
 
     private bool CanSubmit() => !string.IsNullOrWhiteSpace(InputText);
 
-    private Task SubmitAsync() => SubmitAsync(Protocol.Dto.InputMode.Keyboard);
-
-    private async Task SubmitAsync(Protocol.Dto.InputMode inputMode)
+    private Task SubmitTypedAsync()
     {
         var utterance = InputText.Trim();
         if (utterance.Length == 0)
         {
-            return;
+            return Task.CompletedTask;
         }
 
         InputText = string.Empty;
-        Transcript.Add(new TranscriptLine { Speaker = "You", Text = utterance });
+        return SubmitTypedAsync(utterance);
+    }
+
+    // A playing lecture is paused first, so Netra's answer never talks over
+    // it and the question is about where it stopped. (A spoken question has
+    // already paused it at the push-to-talk key.) Sending that time with the
+    // turn waits for C8 on the server.
+    private async Task SubmitTypedAsync(string utterance)
+    {
+        if (_lecture is not null)
+        {
+            await _lecture.PauseForQuestionAsync(CancellationToken.None).ConfigureAwait(false);
+        }
+
+        await SubmitAsync(utterance, Protocol.Dto.InputMode.Keyboard).ConfigureAwait(false);
+    }
+
+    // The typed draft in InputText is left alone for a voice turn: speaking
+    // must not overwrite what the student was typing.
+    private async Task SubmitAsync(string utterance, Protocol.Dto.InputMode inputMode)
+    {
+        var speaker = inputMode == Protocol.Dto.InputMode.Voice ? "You (voice)" : "You";
+        _dispatcher.Invoke(() => Transcript.Add(new TranscriptLine { Speaker = speaker, Text = utterance }));
 
         await _connectionManager.SendTurnSubmitAsync(
             new TurnSubmitPayload
@@ -145,10 +180,23 @@ public sealed class ConversationViewModel : ViewModelBase, IDisposable
 
     private async Task StopAsync()
     {
+        // STOP also ends a capture in progress: nothing of it is sent on.
+        _speechInputService.AbortListening();
+
         // Local stop is synchronous inside InterruptionController.StopAsync;
         // the server is only notified after playback has already halted.
-        await _interruptionController.StopAsync(CancelReason.UserStop, CancellationToken.None).ConfigureAwait(false);
-        StatusMessage = "Stopped.";
+        // Local silence and fencing do not depend on that notification (a
+        // disconnect fences the generation too), so a cancel that cannot be
+        // sent must not contradict the stop the student already heard.
+        try
+        {
+            await _interruptionController.StopAsync(CancelReason.UserStop, CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (Exception)
+        {
+        }
+
+        ReportStatus("Stopped.");
     }
 
     private async Task SendNavigationCommandAsync(object? parameter)
@@ -156,6 +204,19 @@ public sealed class ConversationViewModel : ViewModelBase, IDisposable
         if (parameter is not NavigationCommandType command)
         {
             return;
+        }
+
+        // Pause silences Netra at once, like STOP but keeping what was paused;
+        // continue resumes only a paused, uncancelled segment (the player
+        // refuses cancelled ones). The server then pauses or resumes its own
+        // generation, or reads onward when nothing was paused.
+        if (command == NavigationCommandType.Pause)
+        {
+            _playbackController.Pause();
+        }
+        else if (command == NavigationCommandType.Continue)
+        {
+            _playbackController.Resume();
         }
 
         await _connectionManager.SendNavigationCommandAsync(
@@ -167,8 +228,8 @@ public sealed class ConversationViewModel : ViewModelBase, IDisposable
             CancellationToken.None).ConfigureAwait(false);
     }
 
-    // Fires from a future recognition-provider thread, not the UI thread —
-    // every mutation below is marshaled.
+    // Fires from the WebSocket receive loop (asr.transcript), not the UI
+    // thread — every mutation below is marshaled.
     private void OnTranscriptReceived(object? sender, TranscriptReceivedEventArgs e)
     {
         if (!e.IsFinal)
@@ -184,14 +245,38 @@ public sealed class ConversationViewModel : ViewModelBase, IDisposable
         // A provider that redelivers the same final result must not create
         // a second turn (client.md: "Deduplicate repeated final events
         // according to protocol identity").
-        if (!_submittedTranscriptIds.Add(e.TranscriptId))
+        lock (_submittedTranscriptIds)
         {
-            return;
+            if (!_submittedTranscriptIds.Add(e.TranscriptId))
+            {
+                return;
+            }
         }
 
-        _dispatcher.Invoke(() => InterimTranscript = string.Empty);
-        _dispatcher.Invoke(() => InputText = e.Text);
-        FireAndForget(() => SubmitAsync(Protocol.Dto.InputMode.Voice));
+        _dispatcher.Invoke(() =>
+        {
+            InterimTranscript = string.Empty;
+            // Read back what was heard so a misrecognition can be caught.
+            StatusMessage = $"Heard: {e.Text}";
+        });
+        FireAndForget(() => SubmitAsync(e.Text, Protocol.Dto.InputMode.Voice), "send your question");
+    }
+
+    private void OnVoiceStatusChanged(object? sender, VoiceInputStatus status)
+    {
+        _dispatcher.Invoke(() =>
+        {
+            VoiceStatus = status.Message;
+            if (status.State is VoiceInputState.Unavailable or VoiceInputState.Failed)
+            {
+                InterimTranscript = string.Empty;
+            }
+
+            if (status.Announce)
+            {
+                StatusMessage = status.Message;
+            }
+        });
     }
 
     // Fires from the WebSocket receive loop thread, not the UI thread.
@@ -267,9 +352,27 @@ public sealed class ConversationViewModel : ViewModelBase, IDisposable
             // shared with the HTTP source-selection path.
             SnapshotReconciler.Apply(_sessionState, snapshot);
 
-            StatusMessage = $"Session restored: {snapshot.InteractionMode}.";
+            // Snapshots also answer navigation; only the one answering a
+            // resume restores anything, and only a place worth telling about
+            // is announced (D-open-5). The connection status says "Connected."
+            if (envelope.RequestId == _connectionManager.LastResumeRequestId)
+            {
+                var restored = RestoredPlace(snapshot);
+                if (restored is not null)
+                {
+                    StatusMessage = restored;
+                }
+            }
         });
     }
+
+    private static string? RestoredPlace(SessionSnapshotPayload snapshot) => snapshot switch
+    {
+        { PendingQuestion: not null } => "Your place is restored. A question is waiting for your answer.",
+        { InteractionMode: SessionInteractionMode.Reading } => "Your place in the reading is restored.",
+        { InteractionMode: SessionInteractionMode.TutorLesson or SessionInteractionMode.Quiz } => "Your place in the lesson is restored.",
+        _ => null,
+    };
 
     private void HandleQuizQuestion(ServerToClientEnvelope envelope)
     {
@@ -287,6 +390,12 @@ public sealed class ConversationViewModel : ViewModelBase, IDisposable
 
     private void HandleError(ServerToClientEnvelope envelope)
     {
+        // Voice input reports its own errors in its own words.
+        if (_speechInputService is IVoiceRequestOwner voice && voice.OwnsRequest(envelope.RequestId))
+        {
+            return;
+        }
+
         var error = MessageParser.ParseError(envelope);
 
         _dispatcher.Invoke(() =>
@@ -303,21 +412,32 @@ public sealed class ConversationViewModel : ViewModelBase, IDisposable
         });
     }
 
+    // Signing out on a shared computer: the next student must not find the
+    // previous one's conversation on screen.
+    public void ClearForSignOut() => _dispatcher.Invoke(() =>
+    {
+        _speechInputService.AbortListening();
+        Transcript.Clear();
+        InputText = string.Empty;
+        InterimTranscript = string.Empty;
+        _lastAdmittedGenerationId = null;
+    });
+
     // Accessible status from services that are not view models (playback
     // queue, push-to-talk). Marshaled: callers may be on any thread.
     public void ReportStatus(string message) => _dispatcher.Invoke(() => StatusMessage = message);
 
-    private static async void FireAndForget(Func<Task> operation)
+    // Never lets an async command crash the app, and never fails silently:
+    // a student who cannot see the screen must hear that nothing happened.
+    private async void FireAndForget(Func<Task> operation, string action)
     {
         try
         {
             await operation().ConfigureAwait(false);
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            // TODO: surface command failures via StatusMessage/IScreenReaderService
-            // once an error-presentation policy is defined. Never let an
-            // async command crash the app.
+            ReportStatus(FailureText.Describe(ex, action, CancellationToken.None));
         }
     }
 
@@ -325,5 +445,6 @@ public sealed class ConversationViewModel : ViewModelBase, IDisposable
     {
         _connectionManager.MessageReceived -= OnServerMessageReceived;
         _speechInputService.TranscriptReceived -= OnTranscriptReceived;
+        _speechInputService.StatusChanged -= OnVoiceStatusChanged;
     }
 }

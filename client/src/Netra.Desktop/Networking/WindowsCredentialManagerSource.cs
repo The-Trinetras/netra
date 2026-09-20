@@ -4,24 +4,48 @@ using System.Threading;
 
 namespace Netra.Desktop.Networking;
 
-// ICredentialSource over the Windows Credential Manager (per-user vault,
+// Where the device credential lives between launches (decision D-CRED: a
+// one-time access code is exchanged once for a device credential kept in
+// Windows Credential Manager).
+public interface ICredentialStore : ICredentialSource
+{
+    bool HasCredential { get; }
+
+    // Replaces any stored credential. Throws CredentialStoreException when
+    // Windows refuses; the caller then keeps the credential for this session.
+    void Save(string token);
+
+    // Forgets this computer's sign-in. False when nothing was stored.
+    bool Delete();
+}
+
+public sealed class CredentialStoreException : Exception
+{
+    public CredentialStoreException(int win32Error)
+        : base($"Windows could not update the Netra sign-in (error {win32Error}).")
+    {
+    }
+}
+
+// ICredentialStore over the Windows Credential Manager (per-user vault,
 // protected by Windows). No NuGet package, file, registry value or
-// environment variable holds the token.
-//
-// NOT A DECISION: INT-10a leaves Windows credential storage open (DPAPI
-// ProtectedData scoped to the user, or Credential Manager). This source was
-// chosen for integration because an operator can manage it with Windows' own
-// tool; M5/M1 still decide the production store, and issuance (system-browser
-// PKCE sign-in, message-flow.md flow 1) does not exist yet. Until then an
-// operator stores a token provisioned for the account, e.g.
+// environment variable holds the token. The sign-in screen writes it after
+// an access-code exchange (F2); an operator can still manage it with
+// Windows' own tool:
 //     cmdkey /generic:Netra:api /user:netra /pass:<token>
-// and removes it with `cmdkey /delete:Netra:api`. The token is read only when
-// a connection or request needs it and is never logged or placed in a URL.
-public sealed class WindowsCredentialManagerSource : ICredentialSource
+//     cmdkey /delete:Netra:api
+// The token is read only when a connection or request needs it and is never
+// logged or placed in a URL.
+public sealed class WindowsCredentialManagerSource : ICredentialStore
 {
     public const string DefaultTarget = "Netra:api";
 
     private const int CredTypeGeneric = 1;
+
+    // This user on this computer only: never roams with a domain profile.
+    private const int CredPersistLocalMachine = 2;
+    private const int ErrorNotFound = 1168;
+    private const string UserName = "netra";
 
     private readonly string _target;
 
@@ -34,6 +58,51 @@ public sealed class WindowsCredentialManagerSource : ICredentialSource
     {
         cancellationToken.ThrowIfCancellationRequested();
         return ValueTask.FromResult(Read(_target));
+    }
+
+    public bool HasCredential => Read(_target) is not null;
+
+    public void Save(string token)
+    {
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            throw new ArgumentException("A credential cannot be empty.", nameof(token));
+        }
+
+        var blob = EncodeSecret(token);
+        var blobHandle = GCHandle.Alloc(blob, GCHandleType.Pinned);
+        try
+        {
+            var credential = new NativeCredentialIn
+            {
+                Type = CredTypeGeneric,
+                TargetName = _target,
+                CredentialBlobSize = blob.Length,
+                CredentialBlob = blobHandle.AddrOfPinnedObject(),
+                Persist = CredPersistLocalMachine,
+                UserName = UserName,
+            };
+            if (!CredWriteW(ref credential, 0))
+            {
+                throw new CredentialStoreException(Marshal.GetLastWin32Error());
+            }
+        }
+        finally
+        {
+            Array.Clear(blob);
+            blobHandle.Free();
+        }
+    }
+
+    public bool Delete()
+    {
+        if (CredDeleteW(_target, CredTypeGeneric, 0))
+        {
+            return true;
+        }
+
+        var error = Marshal.GetLastWin32Error();
+        return error == ErrorNotFound ? false : throw new CredentialStoreException(error);
     }
 
     private static string? Read(string target)
@@ -79,6 +148,26 @@ public sealed class WindowsCredentialManagerSource : ICredentialSource
         return string.IsNullOrWhiteSpace(token) ? null : token;
     }
 
+    // The same UTF-16LE form cmdkey writes, so either can read the other.
+    public static byte[] EncodeSecret(string token) => Encoding.Unicode.GetBytes(token);
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct NativeCredentialIn
+    {
+        public int Flags;
+        public int Type;
+        public string TargetName;
+        public string? Comment;
+        public System.Runtime.InteropServices.ComTypes.FILETIME LastWritten;
+        public int CredentialBlobSize;
+        public IntPtr CredentialBlob;
+        public int Persist;
+        public int AttributeCount;
+        public IntPtr Attributes;
+        public string? TargetAlias;
+        public string UserName;
+    }
+
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
     private struct NativeCredential
     {
@@ -101,4 +190,10 @@ public sealed class WindowsCredentialManagerSource : ICredentialSource
 
     [DllImport("advapi32.dll", SetLastError = false)]
     private static extern void CredFree(IntPtr buffer);
+
+    [DllImport("advapi32.dll", EntryPoint = "CredWriteW", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern bool CredWriteW(ref NativeCredentialIn credential, int flags);
+
+    [DllImport("advapi32.dll", EntryPoint = "CredDeleteW", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern bool CredDeleteW(string target, int type, int flags);
 }

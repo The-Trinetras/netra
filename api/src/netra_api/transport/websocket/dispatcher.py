@@ -29,12 +29,15 @@ import json
 import logging
 import traceback
 from collections import OrderedDict
+from contextlib import AsyncExitStack
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from typing import Any, Awaitable, Callable, Optional
 from uuid import UUID, uuid4
 
 from pydantic import ValidationError
 
+from netra_api.coordinator.budget_ledger import BudgetLedger, BudgetUsage
 from netra_api.coordinator.graph import CoordinatorEngine
 from netra_api.coordinator.limits import TurnBudget
 from netra_api.coordinator.state import CoordinatorTurnState, TurnOutcome
@@ -60,9 +63,14 @@ from netra_api.session.outputs import ResponsePlan
 from netra_api.session.service import SessionService
 from netra_api.session.state import ActiveLessonRef, SessionState
 from netra_api.speech.playback_metadata import CancelReasonName, DeliveredSentence, Generation, GenerationRegistry
+from netra_api.speech.quota import SpeechQuotaExhaustedError
+from netra_api.speech.recognition import RecognitionSession, Recognizer, TranscriptEvent, accept_final_transcript
 from netra_api.speech.synthesis import SpeechOutput
+from netra_api.transport.audio.microphone import CaptureGate, CaptureViolation, decode_microphone_frame
 from netra_api.transport.websocket.serializer import (
     PROTOCOL_VERSION,
+    AsrStartPayload,
+    AsrTranscriptPayload,
     NavigationCommandPayload,
     PlaybackAckPayload,
     ResponseCancelPayload,
@@ -88,6 +96,13 @@ def _log_unexpected(event: str, exc: BaseException) -> None:
     frames = "".join(traceback.format_tb(exc.__traceback__)).rstrip()
     logger.error("%s: %s\n%s", event, type(exc).__name__, frames)
 
+
+SPEECH_LIMIT_NOTICE = {
+    "code": "RESOURCE_UNAVAILABLE",
+    "message": "Today's speech limit is used up. Netra will keep answering in text.",
+    "retryable": False,
+    "details": {"reason": "speech_quota_exhausted"},
+}
 
 SendText = Callable[[str], Awaitable[None]]
 SendBytes = Callable[[bytes], Awaitable[None]]
@@ -256,6 +271,27 @@ class TransportServices:
     dialogue: Optional[DialogueLog] = None
     speech: Optional[SpeechOutput] = None
     tracer: Tracer = DISABLED_TRACER
+    budgets: Optional[BudgetLedger] = None
+    """D-BUDGET: persisted use per request id. None only in fixture journeys."""
+    recognizer: Optional[Recognizer] = None
+    """D-MIC push-to-talk recognition; None -> asr.start fails closed."""
+
+
+CAPTURE_TIMEOUT_SECONDS = 75.0
+"""A capture carries at most 60 s of audio; this bounds a client that never
+sends end_of_utterance, and the provider's final flush."""
+
+
+@dataclass
+class _Recognition:
+    """One push-to-talk capture at the recognition provider."""
+
+    auth: AuthContext
+    capture_id: UUID
+    transcript_id: UUID
+    session: RecognitionSession
+    stack: AsyncExitStack
+    task: Optional[asyncio.Task] = None
 
 
 @dataclass
@@ -269,6 +305,13 @@ class Connection:
     _send_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     _sessions: set[UUID] = field(default_factory=set)
     _tasks: set[asyncio.Task] = field(default_factory=set)
+    _budget_writes: set[asyncio.Task] = field(default_factory=set)
+    _speech_limit_told: bool = False
+    _captures: CaptureGate = field(default_factory=CaptureGate)
+    _recognitions: dict[UUID, _Recognition] = field(default_factory=dict)
+    """Live provider sessions: captures still receiving audio or finishing, each
+    delivering at most one final. A frame is forwarded only if the gate admits
+    it AND its capture is here, so a capture removed from here is dead."""
     _closed: bool = False
 
     # -- sending ---------------------------------------------------------------
@@ -359,6 +402,8 @@ class Connection:
                 await self._playback_ack(auth, payload)
             elif isinstance(payload, SessionResumePayload):
                 await self._resume(auth)
+            elif isinstance(payload, AsrStartPayload):
+                await self._asr_start(auth, payload)
             return None
         except SessionVersionConflictError as exc:
             await self._send_error(envelope.session_id, envelope.request_id, exc, current_version=exc.actual_version)
@@ -373,6 +418,94 @@ class Connection:
             await self._send_error(envelope.session_id, envelope.request_id, NetraError("internal"))
             return "internal_error"
 
+    # -- push-to-talk (D-MIC) ------------------------------------------------------
+
+    async def _asr_start(self, auth: AuthContext, payload: AsrStartPayload) -> None:
+        recognizer = self.services.recognizer
+        if recognizer is None:
+            raise ProviderUnavailableError("speech recognition is not available")
+        ended = self._captures.start(payload.capture_id, auth.request_id)
+        if ended is not None:  # a new press ends the one still receiving audio, without a final
+            for capture_id, recognition in list(self._recognitions.items()):
+                if recognition.auth.request_id == ended:
+                    await self._abort_capture(capture_id)
+        stack = AsyncExitStack()
+        try:
+            session = await stack.enter_async_context(recognizer.session())
+        except BaseException:
+            await stack.aclose()
+            raise
+        recognition = _Recognition(auth=auth, capture_id=payload.capture_id, transcript_id=uuid4(), session=session, stack=stack)
+        self._recognitions[payload.capture_id] = recognition
+        recognition.task = self._spawn(self._relay_transcripts(recognition))
+
+    async def handle_bytes(self, frame: bytes) -> None:
+        """One microphone frame. An unreadable header raises UnreadableMicrophoneFrame
+        (the endpoint closes with 1007); frames for no open capture are dropped."""
+
+        header, audio = decode_microphone_frame(frame)
+        recognition = self._recognitions.get(header.capture_id)
+        try:
+            accepted = self._captures.admit(header, audio)
+        except CaptureViolation as exc:
+            if recognition is not None:
+                await self._abort_capture(header.capture_id)
+                await self._send_error(recognition.auth.session_id, exc.request_id, exc)
+            return
+        if accepted is None or recognition is None:
+            return
+        try:
+            if accepted:
+                await recognition.session.send_audio(accepted)
+            if header.end_of_utterance:
+                await recognition.session.finish()
+        except NetraError as exc:
+            await self._abort_capture(header.capture_id)
+            await self._send_error(recognition.auth.session_id, recognition.auth.request_id, exc)
+
+    async def _relay_transcripts(self, recognition: _Recognition) -> None:
+        auth = recognition.auth
+        try:
+            async with asyncio.timeout(CAPTURE_TIMEOUT_SECONDS):
+                async for event in recognition.session.transcripts():
+                    await self._send_transcript(recognition, event)
+        except TimeoutError:
+            await self._send_error(auth.session_id, auth.request_id, InvalidRequestError("capture was not finished", field="end_of_utterance"))
+        except NetraError as exc:
+            await self._send_error(auth.session_id, auth.request_id, exc)
+        except Exception as exc:
+            _log_unexpected("speech recognition relay failed", exc)
+            await self._send_error(auth.session_id, auth.request_id, ProviderUnavailableError("speech recognition failed"))
+        finally:
+            if self._recognitions.get(recognition.capture_id) is recognition:
+                del self._recognitions[recognition.capture_id]
+            await recognition.stack.aclose()
+
+    async def _send_transcript(self, recognition: _Recognition, event: TranscriptEvent) -> None:
+        if event.is_final:
+            text = accept_final_transcript(event) or ""  # empty final: nothing was recognised
+        elif event.text.strip():
+            text = event.text
+        else:
+            return
+        payload = AsrTranscriptPayload(
+            capture_id=recognition.capture_id, transcript_id=recognition.transcript_id, text=text, is_final=event.is_final
+        )
+        await self._send_message(recognition.auth.session_id, recognition.auth.request_id, "asr.transcript", payload.model_dump(mode="json"))
+
+    async def _abort_capture(self, capture_id: UUID) -> None:
+        recognition = self._recognitions.pop(capture_id, None)
+        if recognition is None:
+            return
+        if recognition.task is not None:
+            recognition.task.cancel()
+            await asyncio.gather(recognition.task, return_exceptions=True)
+        await recognition.stack.aclose()
+
+    async def _abort_captures(self) -> None:
+        for capture_id in list(self._recognitions):
+            await self._abort_capture(capture_id)
+
     async def on_disconnect(self) -> None:
         """Fence everything this connection was producing, exactly like STOP."""
 
@@ -384,6 +517,8 @@ class Connection:
             task.cancel()
         if self._tasks:
             await asyncio.gather(*self._tasks, return_exceptions=True)
+        if self._budget_writes:  # never cancelled: spent budget must be recorded
+            await asyncio.gather(*self._budget_writes, return_exceptions=True)
 
     # -- navigation --------------------------------------------------------------
 
@@ -397,6 +532,8 @@ class Connection:
         unit: Optional[NavigationUnit],
     ) -> None:
         services = self.services
+        if command == NavigationCommandName.STOP:
+            await self._abort_captures()  # STOP ends listening too: no final, so no turn
         paused = services.generations.paused(auth.session_id) is not None
         planned: dict[str, Any] = {}
 
@@ -468,7 +605,16 @@ class Connection:
         if services.coordinator is None:
             raise ProviderUnavailableError("the Coordinator is not available")
 
-        budget = entry.budget.for_retransmission() if entry is not None else TurnBudget()
+        if entry is not None:
+            budget = entry.budget.for_retransmission()
+        elif services.budgets is not None:
+            # D-BUDGET: after a restart the same request_id resumes its recorded use and deadline.
+            usage = await services.budgets.open(auth.account_id, auth.request_id, auth.session_id, datetime.now(timezone.utc))
+            budget = usage.budget()
+        else:
+            budget = TurnBudget()
+        if services.budgets is not None:
+            budget.observer = self._budget_observer(services.budgets, auth)
         services.turns.cancel_session(auth.account_id, auth.session_id, "new_turn", except_request=auth.request_id)
         services.generations.cancel_speaking(auth.session_id, "new_turn")
         entry = TurnEntry(
@@ -481,6 +627,21 @@ class Connection:
         )
         services.turns.put(entry)
         entry.task = self._spawn(self._run_turn(auth, payload, state, entry))
+
+    def _budget_observer(self, ledger: BudgetLedger, auth: AuthContext) -> Callable[[TurnBudget], None]:
+        def observe(budget: TurnBudget) -> None:
+            task = asyncio.ensure_future(self._record_budget(ledger, auth, BudgetUsage.of(budget)))
+            self._budget_writes.add(task)
+            task.add_done_callback(self._budget_writes.discard)
+
+        return observe
+
+    @staticmethod
+    async def _record_budget(ledger: BudgetLedger, auth: AuthContext, usage: BudgetUsage) -> None:
+        try:
+            await ledger.record(auth.account_id, auth.request_id, usage)
+        except Exception as exc:  # the turn goes on; the start and earlier use are already recorded
+            _log_unexpected("turn budget use not recorded", exc)
 
     async def _run_turn(self, auth: AuthContext, payload: TurnSubmitPayload, state: SessionState, entry: TurnEntry) -> None:
         services = self.services
@@ -655,15 +816,31 @@ class Connection:
                 if info.get("origin") == "source_reading"
                 else f"account:{auth.account_id}"
             )
-            sent = await self.services.speech.speak_segment(
-                auth,
-                generation,
-                segment_id=segment["segment_id"],
-                text=segment["text"],
-                access_scope=scope,
-                end_of_generation=index == len(segments) - 1,
-                send_bytes=self._send_bytes,
-            )
+            try:
+                sent = await self.services.speech.speak_segment(
+                    auth,
+                    generation,
+                    segment_id=segment["segment_id"],
+                    text=segment["text"],
+                    access_scope=scope,
+                    end_of_generation=index == len(segments) - 1,
+                    send_bytes=self._send_bytes,
+                )
+            except SpeechQuotaExhaustedError:
+                await self._tell_speech_limit(auth)
+                break
             if not sent and generation.is_cancelled:
                 return
         self.services.generations.complete(generation)
+
+    async def _tell_speech_limit(self, auth: AuthContext) -> None:
+        """D-QUOTA: say once per connection that replies continue as text only.
+
+        A notice, not a failure: the reply's text was already delivered, so it
+        is not retryable and carries details.reason for the client.
+        """
+
+        if self._speech_limit_told:
+            return
+        self._speech_limit_told = True
+        await self._send_message(auth.session_id, auth.request_id, "error", SPEECH_LIMIT_NOTICE)

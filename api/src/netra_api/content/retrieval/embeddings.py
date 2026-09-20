@@ -8,6 +8,7 @@ the returned vector and specification.
 from __future__ import annotations
 
 import math
+import re
 from typing import Any, Protocol, Sequence
 
 from pydantic import BaseModel, Field
@@ -25,6 +26,44 @@ class EmbeddingConfigurationError(EmbeddingError):
 
 class EmbeddingProviderError(EmbeddingError):
     """Gemini failed or returned an unusable response."""
+
+
+class EmbeddingQuotaError(EmbeddingProviderError):
+    """The embedding quota is exhausted for now (HTTP 429).
+
+    Kept distinct from other provider failures because it is purely temporal:
+    the identical request succeeds once the window resets, so a caller may
+    wait rather than abandon the work. ``retry_after_seconds`` is what the
+    provider itself asked for, or None when it did not say. This type asserts
+    nothing about how long a caller should wait; that bound belongs to the
+    caller.
+    """
+
+    def __init__(self, message: str = "embedding quota exhausted", retry_after_seconds: float | None = None) -> None:
+        super().__init__(message)
+        self.retry_after_seconds = retry_after_seconds
+
+
+_NOT_QUOTA = object()
+"""Sentinel: this exception is not a quota failure (None means "429, no delay given")."""
+
+_RETRY_DELAY = re.compile(r"'retryDelay':\s*'(\d+(?:\.\d+)?)s'")
+
+
+def _quota_retry_after(exc: Exception) -> Any:
+    """Seconds the provider asked us to wait, None if it asked for none, or
+    ``_NOT_QUOTA`` when this failure is not a 429 at all.
+
+    Read from the exception rather than the SDK's typed errors so the adapter
+    does not depend on which error classes a given google-genai version raises.
+    """
+
+    code = getattr(exc, "code", None) or getattr(exc, "status_code", None)
+    text = str(exc)
+    if code != 429 and "RESOURCE_EXHAUSTED" not in text and "429" not in text:
+        return _NOT_QUOTA
+    match = _RETRY_DELAY.search(text)
+    return float(match.group(1)) if match else None
 
 
 class EmbeddingSpec(BaseModel):
@@ -117,6 +156,11 @@ class GeminiEmbeddingProvider:
         except EmbeddingError:
             raise
         except Exception as exc:
+            retry_after = _quota_retry_after(exc)
+            if retry_after is not _NOT_QUOTA:
+                # 429: temporal, not a bad request. The message is not carried
+                # through - provider text is untrusted and may name resources.
+                raise EmbeddingQuotaError(retry_after_seconds=retry_after) from exc
             raise EmbeddingProviderError("Gemini embedding request failed") from exc
 
     def _create_client(self) -> Any:

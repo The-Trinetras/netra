@@ -2,18 +2,22 @@
 
 This module deliberately has no RAGAS or Prometheus runtime dependency.  It
 stores canonical evidence returned by the application retrieval boundary and
-provides deterministic ID-based retrieval metrics.
+provides deterministic ID-based retrieval metrics, plus the repository-owned
+Ragas-style metrics from ragas_style (the Ragas package stays uninstalled:
+docs/architecture/runtime-baseline.md, "Evaluation dependencies").
 """
 
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Protocol
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from ragas_style import answer_relevancy, context_precision, context_recall, faithfulness
 
 
 class GoldenEvaluationCase(BaseModel):
@@ -172,6 +176,14 @@ class AggregatedMetrics:
     recall_at_5: float | None
     recall_at_10: float | None
     mrr: float | None
+    context_precision: float | None = None
+    context_recall: float | None = None
+    faithfulness: float | None = None
+    answer_relevancy: float | None = None
+    evaluated: dict[str, int] = field(default_factory=dict)
+    """How many examples each Ragas-style metric could actually be computed on.
+    An average over three of twelve cases is not an average over twelve, so the
+    denominator travels with the number."""
 
 
 def _average(values: list[float | None]) -> float | None:
@@ -179,9 +191,36 @@ def _average(values: list[float | None]) -> float | None:
     return sum(present) / len(present) if present else None
 
 
+RAGAS_STYLE_METRICS = ("context_precision", "context_recall", "faithfulness", "answer_relevancy")
+
+
+def with_ragas_style_metrics(result: RetrievalEvaluationResult) -> RetrievalEvaluationResult:
+    """Fill the Ragas-style metrics this result has the inputs for.
+
+    Each metric decides for itself whether it is evaluable: without relevance
+    labels, without retrieved context or without a generated answer the value
+    stays None, which reads as not evaluated and never as 0.0.
+    """
+
+    relevant = set(result.reference_evidence_ids) or None
+    values = {
+        "context_precision": context_precision(result.retrieved_chunk_ids, relevant),
+        "context_recall": context_recall(result.retrieved_chunk_ids, relevant),
+        "faithfulness": faithfulness(result.generated_answer, result.retrieved_contexts),
+        "answer_relevancy": answer_relevancy(result.query, result.generated_answer),
+    }
+    return result.model_copy(update={name: metric.value for name, metric in values.items()})
+
+
 def aggregate_metrics(results: list[RetrievalEvaluationResult]) -> AggregatedMetrics:
-    return AggregatedMetrics(len(results), _average([r.recall_at_5 for r in results]),
-                             _average([r.recall_at_10 for r in results]), _average([r.mrr for r in results]))
+    return AggregatedMetrics(
+        len(results),
+        _average([r.recall_at_5 for r in results]),
+        _average([r.recall_at_10 for r in results]),
+        _average([r.mrr for r in results]),
+        *[_average([getattr(r, name) for r in results]) for name in RAGAS_STYLE_METRICS],
+        evaluated={name: sum(1 for r in results if getattr(r, name) is not None) for name in RAGAS_STYLE_METRICS},
+    )
 
 
 class RetrievalOnlyRunner:
@@ -208,7 +247,7 @@ class RetrievalOnlyRunner:
                     auth, ids, allowed_source_version_ids=list(case.source_version_ids) or None,
                     require_active=True)
                 contexts = [resolution.evidence.text for resolution in resolutions if resolution.is_resolved]
-            return RetrievalEvaluationResult(
+            result = RetrievalEvaluationResult(
                 experiment_id=experiment.experiment_id, experiment_version=experiment.experiment_version,
                 dataset_id=case.dataset_id, dataset_version=case.dataset_version, example_id=case.example_id,
                 retrieval_strategy=experiment.retrieval_strategy, query=case.question,
@@ -219,6 +258,7 @@ class RetrievalOnlyRunner:
                 recall_at_5=recall_at_k(case.reference_evidence_ids, ids, 5),
                 recall_at_10=recall_at_k(case.reference_evidence_ids, ids, 10),
                 mrr=mean_reciprocal_rank(case.reference_evidence_ids, ids))
+            return with_ragas_style_metrics(result)
         except Exception as exc:
             return RetrievalEvaluationResult(
                 experiment_id=experiment.experiment_id, experiment_version=experiment.experiment_version,

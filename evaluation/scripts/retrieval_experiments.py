@@ -20,6 +20,7 @@ from netra_api.content.retrieval.service import RetrievalProviderUnavailableErro
 from hybrid_metrics import (ndcg_at_k, precision_at_k, security_metrics)
 from retrieval_evaluation import (GoldenEvaluationCase, RetrievalResultStore,
                                    aggregate_metrics, mean_reciprocal_rank, recall_at_k)
+from ragas_style import context_precision as ragas_context_precision, context_recall as ragas_context_recall
 
 
 class ExperimentSpec(BaseModel):
@@ -110,6 +111,12 @@ class ExperimentSummary(BaseModel):
     mrr: float | None = None
     precision_at_5: float | None = None
     ndcg_at_5: float | None = None
+    context_precision: float | None = None
+    """Ragas-style rank-aware context precision (ragas_style), not precision_at_5."""
+    context_recall: float | None = None
+    """Ragas-style context recall over the labelled relevant evidence."""
+    ragas_style_evaluated_cases: int = Field(default=0, ge=0)
+    """Successful cases the two Ragas-style metrics could be computed on."""
     correct_source_version_rate: float | None = None
     authorized_retrieval_rate: float | None = None
     stale_source_version_count: int = Field(default=0, ge=0)
@@ -119,6 +126,29 @@ class ExperimentSummary(BaseModel):
     latency_p95_ms: float | None = None
     configuration: dict[str, Any] = Field(default_factory=dict)
     cases_detail: tuple[ExperimentCaseResult, ...] = ()
+
+
+def _ragas_style_summary(successful: list) -> dict[str, Any]:
+    """Ragas-style context metrics over the cases that carry relevance labels.
+
+    A case without labels is not evaluated rather than counted as 0.0, so the
+    denominator is reported next to the averages.
+    """
+
+    precisions, recalls = [], []
+    for detail in successful:
+        relevant = set(detail.expected_ids) or None
+        precision = ragas_context_precision(detail.retrieved_ids, relevant)
+        recall = ragas_context_recall(detail.retrieved_ids, relevant)
+        if precision.evaluated:
+            precisions.append(precision.value)
+        if recall.evaluated:
+            recalls.append(recall.value)
+    return {
+        "context_precision": sum(precisions) / len(precisions) if precisions else None,
+        "context_recall": sum(recalls) / len(recalls) if recalls else None,
+        "ragas_style_evaluated_cases": len(precisions),
+    }
 
 
 def load_manifest(path: str | Path) -> list[ExperimentSpec]:
@@ -291,6 +321,7 @@ class RetrievalExperimentRunner:
                             if successful else None),
             ndcg_at_5=(sum(d.ndcg_at_5 for d in successful) / len(successful)
                        if successful else None),
+            **_ragas_style_summary(successful),
             correct_source_version_rate=(
                 sum(d.correct_source_version_rate for d in successful) / len(successful)
                 if successful else None

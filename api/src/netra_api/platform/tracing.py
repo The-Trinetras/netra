@@ -39,9 +39,10 @@ Identity: ``trace_id``/``span_id`` are diagnostic identities generated here.
 The logical ``request_id`` is recorded as an attribute; a retransmission is a
 new span with the same request_id, never a fabricated second effect.
 
-The AX/OTLP exporter is NOT implemented: OpenTelemetry/OpenInference pins are
-unreviewed and the packages are not installed (dependency request recorded for
-M2). Until then ``mode="ax"`` reports a configuration error and exports nothing.
+``mode="ax"`` exports through ``ax_exporter.ArizeSpanExporter``: OTLP/HTTP JSON
+over the httpx already in the runtime, so no OpenTelemetry pin enters the shared
+API/worker lock. With ARIZE_SPACE_ID/ARIZE_API_KEY unset it still records a
+configuration error and exports nothing, rather than guessing a destination.
 """
 
 from __future__ import annotations
@@ -720,18 +721,23 @@ def build_tracer(
     - ``off``: no spans are created (the measured baseline).
     - ``local``: spans export to the supplied exporter (tests, fixture
       evaluation manifests), defaulting to an in-memory exporter.
-    - ``ax``: requires an AX/OTLP exporter built from reviewed OpenTelemetry
-      pins. None exists in this build, so this records a configuration error
-      and returns a disabled tracer rather than failing the process.
+    - ``ax``: spans export to Arize AX over OTLP/HTTP (ax_exporter), built from
+      ARIZE_SPACE_ID/ARIZE_API_KEY. Without those this records a configuration
+      error and returns a disabled tracer rather than failing the process.
     """
 
     diagnostics = TracingDiagnostics()
     if mode == "off":
         return Tracer(None, diagnostics, service_name=service_name)
     if mode == "ax" and exporter is None:
+        # Imported here so httpx and the AX module load only when AX is on.
+        from netra_api.platform.ax_exporter import from_env as _ax_from_env
+
+        exporter = _ax_from_env(service_name, timeout=settings.export_timeout_seconds)
+    if mode == "ax" and exporter is None:
         diagnostics.add(configuration_errors=1)
-        diagnostics.last_error_code = "ax_exporter_unavailable"
-        logger.warning("AX tracing requested but no reviewed exporter is available; tracing disabled")
+        diagnostics.last_error_code = "ax_not_configured"
+        logger.warning("AX tracing requested but ARIZE_SPACE_ID/ARIZE_API_KEY are unset; tracing disabled")
         return Tracer(None, diagnostics, service_name=service_name)
     processor = BatchSpanProcessor(exporter or InMemorySpanExporter(), diagnostics, settings)
     return Tracer(processor, diagnostics, service_name=service_name)

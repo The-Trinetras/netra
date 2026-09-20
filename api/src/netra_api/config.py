@@ -37,9 +37,11 @@ class Settings(BaseSettings):
     """Operational log of structured action/evidence events (not AX export)."""
 
     tracing_mode: Literal["off", "local", "ax"] = "off"
-    """Span tracing. ``ax`` needs a reviewed OTLP exporter that is not in this
-    build (pending OpenTelemetry pins via M2); requesting it records a
-    configuration error and tracing stays off. It never blocks boot."""
+    """Span tracing. ``ax`` exports sanitized spans to Arize AX over OTLP/HTTP
+    and needs ARIZE_SPACE_ID and ARIZE_API_KEY in the environment (optionally
+    ARIZE_PROJECT_NAME, default ``netra``, and ARIZE_OTLP_ENDPOINT); without
+    them it records a configuration error and tracing stays off. Export is
+    always background: it never blocks boot, a turn or STOP."""
 
     tracing_shutdown_timeout_seconds: float = Field(default=5.0, gt=0, le=30)
     """Bound on the final flush at orderly shutdown; implementation bound."""

@@ -222,11 +222,13 @@ def test_spans_after_shutdown_are_counted_not_exported():
     assert tracer.diagnostics.dropped_at_shutdown == 1 and exporter.spans == []
 
 
-def test_ax_mode_without_a_reviewed_exporter_is_a_visible_config_error_not_a_boot_failure():
+def test_ax_mode_without_credentials_is_a_visible_config_error_not_a_boot_failure(monkeypatch):
+    monkeypatch.delenv("ARIZE_SPACE_ID", raising=False)
+    monkeypatch.delenv("ARIZE_API_KEY", raising=False)
     tracer = build_tracer("ax")
     assert tracer.enabled is False
     assert tracer.diagnostics.configuration_errors == 1
-    assert tracer.diagnostics.last_error_code == "ax_exporter_unavailable"
+    assert tracer.diagnostics.last_error_code == "ax_not_configured"
     with tracer.span("netra.request") as span:
         span.set(netra_outcome="handled")
 

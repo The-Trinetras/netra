@@ -1,4 +1,5 @@
 using System.Windows.Automation;
+using System.Windows;
 using System.Windows.Controls;
 using Netra.Desktop.Accessibility;
 using Netra.Desktop.Audio;
@@ -17,6 +18,58 @@ namespace Netra.Desktop.Tests.Views;
 // microphone is open; announced statuses still reach the live region.
 public sealed class ConversationViewVoiceTests
 {
+    [Fact]
+    public void VoiceResultAndFailureStayVisibleOutsideConversationWithoutDuplicateAnnouncements()
+    {
+        WpfTestHost.RunOnSta(() =>
+        {
+            var speech = new ScriptedSpeechInput();
+            var announcer = new RecordingAnnouncer();
+            using var viewModel = BuildViewModel(speech);
+            var conversation = new ConversationView(viewModel, announcer) { Visibility = Visibility.Collapsed };
+            var voice = new VoiceStatusView(announcer) { DataContext = viewModel };
+            var panel = new StackPanel();
+            panel.Children.Add(conversation);
+            panel.Children.Add(voice);
+            var window = WpfTestHost.Show(panel);
+            try
+            {
+                speech.Status(new VoiceInputStatus(VoiceInputState.Listening, "Listening.", Announce: false));
+                speech.Interim("explain the triangle");
+                WpfTestHost.Pump();
+                Assert.Equal("explain the triangle", ((TextBlock)voice.FindName("VoiceCaption")).Text);
+                Assert.Empty(announcer.Messages);
+                Assert.Equal(AutomationLiveSetting.Off, AutomationProperties.GetLiveSetting((TextBlock)voice.FindName("VoiceCaption")));
+
+                speech.Final("Explain the triangle.");
+                WpfTestHost.Pump();
+                Assert.Equal("Heard: Explain the triangle.", ((TextBlock)voice.FindName("VoiceCaption")).Text);
+                Assert.Single(announcer.Messages, "Heard: Explain the triangle.");
+                viewModel.ReportStatus("Netra is answering.");
+                WpfTestHost.Pump();
+                Assert.Equal("Heard: Explain the triangle.", ((TextBlock)voice.FindName("VoiceCaption")).Text);
+
+                const string failure = "No transcript arrived. Try again, or type your question.";
+                speech.Status(new VoiceInputStatus(VoiceInputState.Failed, failure, Announce: true));
+                WpfTestHost.Pump();
+                Assert.Equal(failure, ((TextBlock)voice.FindName("StatusRegion")).Text);
+                Assert.Empty(((TextBlock)voice.FindName("VoiceCaption")).Text);
+                Assert.Single(announcer.Messages, failure);
+
+                voice.Visibility = Visibility.Collapsed;
+                conversation.Visibility = Visibility.Visible;
+                WpfTestHost.Pump();
+                announcer.Messages.Clear();
+                viewModel.ReportStatus("Ready to try again.");
+                Assert.Equal(new[] { "Ready to try again." }, announcer.Messages);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
     [Fact]
     public void CaptionsAndVoiceStatusAreShownButNeverAnnounced()
     {
@@ -79,6 +132,9 @@ public sealed class ConversationViewVoiceTests
 
         public void Interim(string text) =>
             TranscriptReceived?.Invoke(this, new TranscriptReceivedEventArgs { Text = text, IsFinal = false, TranscriptId = Guid.NewGuid() });
+
+        public void Final(string text) =>
+            TranscriptReceived?.Invoke(this, new TranscriptReceivedEventArgs { Text = text, IsFinal = true, TranscriptId = Guid.NewGuid() });
 
         public Task StartListeningAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 

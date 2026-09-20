@@ -78,6 +78,8 @@ public sealed class ServerLibraryTests
         var (api, state) = Build(sessionVersion: 0);
         api.NextSnapshot = Snapshot(version: 1, source: "v-1");
         var viewModel = Library(api, state);
+        CatalogSource? opened = null;
+        viewModel.SourceOpened += (_, source) => opened = source;
 
         await viewModel.OpenSourceAsync(Ready, CancellationToken.None);
 
@@ -85,6 +87,7 @@ public sealed class ServerLibraryTests
         Assert.Equal("v-1", state.ActiveSourceVersionId);
         Assert.Equal(SessionInteractionMode.Reading, state.InteractionMode);
         Assert.Same(Ready, viewModel.OpenedSource);
+        Assert.Same(Ready, opened);
         Assert.Equal("Opened Ohm's law chapter, version 2, ready to study.", viewModel.StatusMessage);
     }
 
@@ -95,11 +98,13 @@ public sealed class ServerLibraryTests
         state.ActiveSourceVersionId = "v-current";
         api.NextSnapshot = Snapshot(version: 3, source: "v-1");
         var viewModel = Library(api, state);
+        viewModel.SourceOpened += (_, _) => Assert.Fail("A stale pin must not open the Study view.");
 
         await viewModel.OpenSourceAsync(Ready, CancellationToken.None);
 
         Assert.Equal(7, state.SessionVersion);
         Assert.Equal("v-current", state.ActiveSourceVersionId);
+        Assert.Null(viewModel.OpenedSource);
     }
 
     [Fact]

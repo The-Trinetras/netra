@@ -58,13 +58,6 @@ public static class MessageParser
             ?? throw new ProtocolException("error payload could not be parsed.");
     }
 
-    public static AsrReadyPayload ParseAsrReady(ServerToClientEnvelope envelope)
-    {
-        EnsureType(envelope, ServerMessageType.AsrReady);
-        return envelope.Payload.Deserialize<AsrReadyPayload>(NetraJsonSerialization.Options)
-            ?? throw new ProtocolException("asr.ready payload could not be parsed.");
-    }
-
     public static AsrTranscriptPayload ParseAsrTranscript(ServerToClientEnvelope envelope)
     {
         EnsureType(envelope, ServerMessageType.AsrTranscript);

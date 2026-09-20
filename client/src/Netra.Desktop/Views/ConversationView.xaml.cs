@@ -24,7 +24,10 @@ public partial class ConversationView : UserControl
         switch (e.PropertyName)
         {
             case nameof(ConversationViewModel.StatusMessage):
-                _liveRegionAnnouncer.Announce(StatusRegion, viewModel.StatusMessage);
+                if (IsVisible)
+                {
+                    _liveRegionAnnouncer.Announce(StatusRegion, viewModel.StatusMessage);
+                }
                 break;
 
             // InterimTranscript and VoiceStatus are deliberately not

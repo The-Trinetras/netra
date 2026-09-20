@@ -43,8 +43,7 @@ public sealed class VoiceLoopbackTests
             Assert.Equal("asr.start", start.GetProperty("type").GetString());
             var requestId = Guid.Parse(start.GetProperty("request_id").GetString()!);
             var captureId = start.GetProperty("payload").GetProperty("capture_id").GetGuid();
-            Assert.Equal("audio/L16;rate=16000", start.GetProperty("payload").GetProperty("media_type").GetString());
-            await SendTextAsync(ws, ConversationVoiceTests.Envelope("asr.ready", requestId, new { capture_id = captureId }), timeout.Token);
+            Assert.Equal(new[] { "capture_id" }, start.GetProperty("payload").EnumerateObject().Select(p => p.Name));
 
             while (true)
             {
@@ -81,14 +80,13 @@ public sealed class VoiceLoopbackTests
 
         await connection.ConnectAsync(new Uri($"ws://localhost:{port}/v1/ws/"), timeout.Token);
         await mic.StartListeningAsync(timeout.Token);
-        await Eventually.TrueAsync(() => mic.IsRecognitionAvailable, "the server accepts the capture");
         Assert.True(pcm.Speak(spoken));
         mic.StopListening();
         await server.WaitAsync(timeout.Token);
 
         Assert.Equal("Bearer voice-test-token", authorization);
         Assert.Equal(Enumerable.Range(0, framesSeen.Count).Select(i => (long)i), framesSeen.Select(f => f.Sequence));
-        Assert.Equal(spoken, framesSeen.SelectMany(f => MicrophoneFrameReader.ToLittleEndian(f.Audio)).ToArray());
+        Assert.Equal(spoken, framesSeen.SelectMany(f => f.Audio).ToArray());
         Assert.Equal("turn.submit", turn.GetProperty("type").GetString());
         var payload = turn.GetProperty("payload");
         Assert.Equal("Explain the second row of the table.", payload.GetProperty("utterance").GetString());

@@ -22,7 +22,11 @@ from fixtures.ohm_law import (
 )
 from fixtures.provider_fakes import FakeGateway, StatusError, local_tracer, settings
 from netra_api.content.retrieval.evidence import Evidence, EvidenceRejectionReason, EvidenceResolution, EvidenceTrust
+from netra_api.content.settings import ContentSettings
+from netra_api.multimedia import factory
+from netra_api.multimedia.providers.errors import ProviderConfigurationError
 from netra_api.multimedia.providers.twelve_labs_client import MarengoSearchAdapter, RawSearchHit
+from netra_api.multimedia.providers.twelve_labs_client import SdkTwelveLabsGateway
 from netra_api.multimedia.video.evidence_resolution import EvidenceSufficiency
 from netra_api.multimedia.video.models import ProviderAssetBinding
 from netra_api.multimedia.video.readiness import AnalysisStage, AnalysisUnreadyReason, PlaybackUnavailableReason
@@ -109,6 +113,62 @@ async def test_search_returns_only_stored_items_under_bound_video_hits():
     items = [transcript_evidence(), visual_evidence()]
     found = await _service(items, gateway=gateway).search_evidence(AUTH, SOURCE_VERSION_ID, "what are the axes")
     assert {item.kind.value for item in found} == {"transcript_segment", "visual_description"}
+
+
+def _factory_service(monkeypatch, *, configured=True, unavailable=False):
+    """Production composition over explicit offline storage/provider doubles."""
+
+    gateway = FakeGateway(hits=[
+        RawSearchHit("ia-1", 45_000, 50_000, rank=1),
+        RawSearchHit("another-accounts-video", 0, 90_000, rank=0),
+    ])
+    calls = []
+
+    def from_api_key(key):
+        calls.append(key)
+        if unavailable:
+            raise ProviderConfigurationError("twelvelabs", "test SDK unavailable")
+        return gateway
+
+    monkeypatch.setattr(SdkTwelveLabsGateway, "from_api_key", from_api_key)
+    monkeypatch.setattr(factory, "AsyncPostgresVideoEvidenceStore", lambda session: Store([visual_evidence()]))
+    monkeypatch.setattr(factory, "PostgresCapabilityFacts", lambda *args, **kwargs: Facts())
+    monkeypatch.setattr(factory, "_resolver", lambda session: Resolver())
+    configured_settings = ContentSettings(
+        twelve_labs_api_key="offline-test-key" if configured else None,
+        twelve_labs_index_id="idx-test",
+        twelve_labs_marengo_model_name="marengo-test-model",
+        twelve_labs_marengo_model_version="test-1",
+        twelve_labs_pegasus_model_name="pegasus-test-model",
+        twelve_labs_pegasus_model_version="test-1",
+    )
+    return factory.build_video_evidence_service(object(), configured_settings), gateway, calls
+
+
+async def test_production_factory_search_reaches_configured_marengo_and_returns_authorized_evidence(monkeypatch):
+    service, gateway, calls = _factory_service(monkeypatch)
+
+    found = await service.search_evidence(AUTH, SOURCE_VERSION_ID, "what are the axes")
+
+    assert found == [visual_evidence()]
+    assert calls == ["offline-test-key"]
+    assert gateway.calls == [("search", {
+        "index_id": "idx-test", "query_text": "what are the axes",
+        "search_options": ("visual", "audio"), "page_limit": 10,
+    })]
+
+
+@pytest.mark.parametrize("configured,unavailable", [(False, False), (True, True)])
+async def test_factory_preserves_stored_moment_evidence_when_search_is_unavailable(monkeypatch, configured, unavailable):
+    service, gateway, calls = _factory_service(monkeypatch, configured=configured, unavailable=unavailable)
+
+    assert await service.search_evidence(AUTH, SOURCE_VERSION_ID, "axes") == []
+    moment = await service.evidence_at_player_time(AUTH, VIDEO_ID, 48_000)
+
+    assert moment.sufficiency is EvidenceSufficiency.VISUAL
+    assert moment.visual_items == [visual_evidence()]
+    assert len(calls) == int(configured)
+    assert gateway.calls == []
 
 
 async def test_search_without_binding_or_marengo_returns_nothing_rather_than_everything():

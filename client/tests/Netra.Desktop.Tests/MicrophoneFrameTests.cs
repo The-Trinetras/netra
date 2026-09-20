@@ -4,12 +4,12 @@ using Xunit;
 
 namespace Netra.Desktop.Tests;
 
-// Microphone frames (D-MIC; C1 pending): the approved server framing shape,
-// with the decided header fields and audio/L16 in network byte order.
+// Microphone frames (D-MIC; approved C1): the approved server framing shape,
+// with the decided header fields and audio/L16 in little-endian byte order.
 public sealed class MicrophoneFrameTests
 {
     [Fact]
-    public void LayoutIsLengthPrefixedStrictHeaderThenBigEndianSamples()
+    public void LayoutIsLengthPrefixedStrictHeaderThenLittleEndianSamples()
     {
         var captureId = Guid.NewGuid();
         var pcm = new byte[] { 0x01, 0x02, 0xFF, 0x7F };
@@ -25,7 +25,7 @@ public sealed class MicrophoneFrameTests
         Assert.True(decoded.EndOfUtterance);
         Assert.Equal("audio/L16;rate=16000", decoded.MediaType);
         Assert.Equal(1, decoded.Version);
-        Assert.Equal(new byte[] { 0x02, 0x01, 0x7F, 0xFF }, decoded.Audio);
+        Assert.Equal(pcm, decoded.Audio);
     }
 
     [Fact]

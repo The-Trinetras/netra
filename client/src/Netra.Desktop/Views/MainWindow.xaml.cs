@@ -45,6 +45,7 @@ public partial class MainWindow : Window
         InitializeComponent();
 
         _shellViewModel = shellViewModel;
+        DataContext = shellViewModel;
         _pushToTalkController = pushToTalkController;
         _focusService = focusService;
 
@@ -65,6 +66,11 @@ public partial class MainWindow : Window
         {
             LectureTab.IsSelected = true;
             _focusService.MoveFocusToFirstFocusable(lectureView);
+        };
+        shellViewModel.ShowStudyRequested += (_, _) =>
+        {
+            StudyTab.IsSelected = true;
+            Dispatcher.BeginInvoke(() => _focusService.MoveFocusToFirstFocusable(studyView), System.Windows.Threading.DispatcherPriority.Input);
         };
 
         Loaded += OnLoaded;

@@ -1,8 +1,8 @@
 """Building M3's video tool and YouTube discovery from configuration.
 
 Kept out of bootstrap.py for the same reason the retrieval factory is: this
-function creates no engine, session factory, network connection or SDK client
-eagerly. Provider construction stays lazy behind the existing adapters, and an
+function creates no engine, session factory or network connection. Provider
+clients are constructed only for configured adapters when the factory runs, and an
 unconfigured provider returns None so its capability reports itself
 unregistered rather than failing at import (bootstrap.py's rule for every
 integration).
@@ -66,6 +66,7 @@ def build_video_evidence_service(session: AsyncSession, settings: Optional[Conte
 
     settings = settings or ContentSettings()
     store = AsyncPostgresVideoEvidenceStore(session)
+    marengo = build_video_search_provider(settings, tracer)
     return StoredVideoEvidenceService(
         store,
         # The resolver is the delivery gate: video candidates resolve as
@@ -78,9 +79,30 @@ def build_video_evidence_service(session: AsyncSession, settings: Optional[Conte
         moment_after_ms=settings.video_moment_after_ms,
         search_limit=settings.video_search_limit,
         search_timeout_seconds=settings.video_search_timeout_seconds,
-        marengo=None,
+        marengo=marengo,
         tracer=tracer,
     )
+
+
+def build_video_search_provider(settings: ContentSettings,
+                                tracer: Optional[Tracer] = None) -> Optional[Any]:
+    """Configured Marengo search, independent of reads of stored evidence.
+
+    Construction performs no provider request. Incomplete configuration or an
+    unavailable SDK leaves search unregistered while already-stored evidence
+    remains readable, including evidence at a captured player time.
+    """
+
+    from netra_api.multimedia.providers.twelve_labs_client import MarengoSearchAdapter, SdkTwelveLabsGateway
+
+    try:
+        configured = twelve_labs_settings(settings)
+        if configured is None:
+            return None
+        gateway = SdkTwelveLabsGateway.from_api_key(settings.twelve_labs_api_key)
+        return MarengoSearchAdapter(gateway, configured, tracer=tracer)
+    except Exception:  # noqa: BLE001 - an unusable search provider stays unregistered
+        return None
 
 
 def _resolver(session: AsyncSession) -> Any:

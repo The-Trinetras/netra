@@ -58,6 +58,25 @@ async def _submit(socket, message, until="session.snapshot", timeout=3.0):
     return [m for m in socket.texts if m["request_id"] == request_id]
 
 
+async def test_question_uses_opened_source_instead_of_repeatedly_asking_for_material():
+    model = ScriptedModel([
+        final({"action": "clarify", "text": "Which lecture or material do you mean?"}),
+        tools(("search_sources", {"query": "table measurements"})),
+        final({"action": "answer", "text": "The table lists three measurements.",
+               "cited_evidence_ids": ["ev-passage-b12"]}),
+    ])
+    journey = await build_journey(model=model)
+    socket, task = await _open(journey)
+    try:
+        responses = await _submit(socket, _turn("What does the table show?"), until="response.segment")
+        text = [m["payload"]["text"] for m in responses if m["type"] == "response.segment"]
+        assert text == ["The table lists three measurements."]
+        assert model.calls == 3
+        assert journey.trace.of_kind("model_output_rejected")[0].detail["check"] == "pinned_source_not_searched"
+    finally:
+        await _close(socket, task)
+
+
 def _repair_script():
     return [
         tools(("search_sources", {"query": "this line constant resistance"}), requirements=AXES),

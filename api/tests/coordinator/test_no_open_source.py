@@ -16,9 +16,9 @@ import pytest
 from netra_api.coordinator.context import ContextSelector
 from netra_api.coordinator.graph import NO_SOURCE_OPEN, CoordinatorEngine
 from netra_api.coordinator.limits import TurnBudget
-from netra_api.coordinator.providers.gemini import ModelDecision
+from netra_api.coordinator.providers.gemini import ModelDecision, ToolCallRequest
 from netra_api.coordinator.state import CoordinatorTurnState
-from netra_api.coordinator.tool_registry import ToolDefinition, ToolRegistry
+from netra_api.coordinator.tool_registry import ToolDefinition, ToolRegistry, ToolResult
 from netra_api.platform.auth_context import AuthContext
 from netra_api.platform.observability import InMemoryTraceSink, TurnTrace
 from netra_api.session.state import (
@@ -63,12 +63,12 @@ def _session(pinned):
     )
 
 
-def _engine(*, requires_pinned_source=True, model=None):
+def _engine(*, requires_pinned_source=True, model=None, tool=_tool):
     registry = ToolRegistry()
     registry.register(
         ToolDefinition(name="search_sources", description="d", input_model=Args, timeout_seconds=5.0,
                        requires_pinned_source=requires_pinned_source),
-        _tool)
+        tool)
     return CoordinatorEngine(model=model or RecordingModel(), registry=registry, context=ContextSelector(None))
 
 
@@ -110,15 +110,30 @@ async def test_it_costs_no_model_decision_and_no_tool_call():
 
 
 @pytest.mark.asyncio
-async def test_an_open_source_still_runs_the_normal_turn():
+async def test_open_material_is_searched_before_accepting_a_clarification():
     turn = _turn(_session(pinned=str(uuid4())))
-    trace, _ = _trace(turn)
-    model = RecordingModel()
+    trace, sink = _trace(turn)
+    searched = []
 
-    outcome = await _engine(model=model)._run(turn, trace)
+    async def search(context, arguments):
+        searched.append((context.pinned_source_version_id, arguments.query))
+        return ToolResult()
 
-    # Reaching the model, and answering in its words, proves no short-circuit.
-    assert model.calls == 1
+    class Model(RecordingModel):
+        async def decide(self, config, prompt, specs):
+            if self.calls == 1:
+                self.calls += 1
+                assert "A source is already open" in prompt
+                return ModelDecision(tool_calls=[ToolCallRequest(tool_name="search_sources", arguments={"query": "kernel"})])
+            return await super().decide(config, prompt, specs)
+
+    model = Model()
+
+    outcome = await _engine(model=model, tool=search)._run(turn, trace)
+
+    assert model.calls == 3
+    assert searched == [(turn.session.reading_position.source_version_id, "kernel")]
+    assert turn.budget.tool_calls_used == 1
     assert outcome.segments[0].text == "Which chapter?"
 
 

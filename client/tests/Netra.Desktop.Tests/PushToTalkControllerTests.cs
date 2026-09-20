@@ -109,6 +109,48 @@ public sealed class PushToTalkControllerTests
         Assert.True(speechInputService.IsListening);
     }
 
+    [Fact]
+    public async Task SlowRemoteCancelDoesNotDelayCaptureOrLoseAQuickPress()
+    {
+        var cancelSent = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var (controller, playback, speech, _) = Build(new NoOpWebSocketClient { SendGate = cancelSent });
+        playback.SetPlaying();
+
+        var press = controller.OnKeyDownAsync(CancellationToken.None);
+        try
+        {
+            Assert.True(playback.StopImmediateCalled);
+            Assert.True(speech.IsListening);
+            controller.OnKeyUp();
+            Assert.False(speech.IsListening);
+            Assert.Equal(1, speech.StopCount);
+        }
+        finally
+        {
+            cancelSent.TrySetResult();
+            await press;
+        }
+    }
+
+    [Fact]
+    public async Task APreviousPressFinishingItsCancelCannotRestartANewCapture()
+    {
+        var cancelSent = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var (controller, playback, speech, _) = Build(new NoOpWebSocketClient { SendGate = cancelSent });
+        playback.SetPlaying();
+
+        var firstPress = controller.OnKeyDownAsync(CancellationToken.None);
+        controller.OnFocusLost();
+        await controller.OnKeyDownAsync(CancellationToken.None);
+        cancelSent.SetResult();
+        await firstPress;
+
+        Assert.Equal(2, speech.StartCount);
+        Assert.Equal(1, speech.AbortCount);
+        Assert.True(speech.IsListening);
+        controller.OnKeyUp();
+    }
+
     private static (PushToTalkController Controller, RecordingPlaybackController PlaybackController, RecordingSpeechInput SpeechInputService, InterruptionController InterruptionController) Build(
         NoOpWebSocketClient? socket = null)
     {
@@ -128,12 +170,14 @@ public sealed class PushToTalkControllerTests
         public bool IsListening { get; private set; }
         public int StopCount { get; private set; }
         public int AbortCount { get; private set; }
+        public int StartCount { get; private set; }
 
         public event EventHandler<TranscriptReceivedEventArgs>? TranscriptReceived;
         public event EventHandler<VoiceInputStatus>? StatusChanged;
 
         public Task StartListeningAsync(CancellationToken cancellationToken)
         {
+            StartCount++;
             IsListening = true;
             return Task.CompletedTask;
         }
@@ -188,6 +232,7 @@ public sealed class PushToTalkControllerTests
     private sealed class NoOpWebSocketClient : INetraWebSocketClient
     {
         public bool FailSends { get; init; }
+        public TaskCompletionSource? SendGate { get; init; }
 
         public bool IsConnected => !FailSends;
 
@@ -201,7 +246,7 @@ public sealed class PushToTalkControllerTests
         public Task SendBinaryAsync(ReadOnlyMemory<byte> message, CancellationToken cancellationToken) => Task.CompletedTask;
 
         public Task SendTextAsync(string message, CancellationToken cancellationToken) =>
-            FailSends ? Task.FromException(new NotConnectedException()) : Task.CompletedTask;
+            FailSends ? Task.FromException(new NotConnectedException()) : SendGate?.Task ?? Task.CompletedTask;
 
         public Task CloseAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 

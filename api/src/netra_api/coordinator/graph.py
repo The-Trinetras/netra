@@ -224,6 +224,19 @@ class CoordinatorEngine:
                 continue
 
             if payload.action in ("clarify", "state_gap"):
+                # Inspect the already selected material before asking the
+                # student to identify it again or claiming it has no evidence.
+                # This remains a model-directed, budgeted tool call through
+                # the normal authorization gateway, never an unscoped search.
+                if (turn.session.reading_position.source_version_id is not None
+                        and budget.tool_calls_used == 0
+                        and any(tool.name == "search_sources" for tool in tools)):
+                    trace.record("model_output_rejected", check="pinned_source_not_searched")
+                    feedback.append(
+                        "A source is already open (canonical source_version_id). "
+                        "Search it with search_sources using the question's topic before "
+                        "asking which material the student means or stating an evidence gap.")
+                    continue
                 kind = "clarification" if payload.action == "clarify" else "gap"
                 segment_kind = "question" if payload.action == "clarify" else "explanation"
                 trace.record("turn_completed", outcome=kind, open_requirements=[s.requirement.requirement_id for s in ledger.open_requirements()])

@@ -98,6 +98,7 @@ public sealed class LibraryViewModel : ViewModelBase
 
     // The exact result to open in the Lecture tab (after it was selected).
     public event EventHandler<VideoDiscoveryResult>? LecturePlayRequested;
+    public event EventHandler<CatalogSource>? SourceOpened;
     public ICommand RefreshSourcesCommand { get; }
     public ICommand OpenSourceCommand { get; }
 
@@ -127,6 +128,11 @@ public sealed class LibraryViewModel : ViewModelBase
         entry.Status = LibrarySourceStatus.Processing;
         var resultStatus = await _sourcePreparationService.PrepareAsync(entry, cancellationToken);
         entry.Status = resultStatus;
+
+        if (_server is not null && resultStatus == LibrarySourceStatus.Ready)
+        {
+            await RefreshSourcesAsync(cancellationToken);
+        }
 
         // Still processing is its own outcome: the server accepted the upload
         // and is working on it, which must not be announced as a failure.
@@ -250,9 +256,15 @@ public sealed class LibraryViewModel : ViewModelBase
         try
         {
             var snapshot = await _server.Catalog.OpenAsync(source, cancellationToken);
-            SnapshotReconciler.ApplyUnlessOlder(_server.SessionState, snapshot);
+            if (!SnapshotReconciler.ApplyUnlessOlder(_server.SessionState, snapshot)
+                || snapshot.ActiveSourceVersionId != source.ActiveSourceVersionId)
+            {
+                StatusMessage = "Your session changed while opening this source. Choose Open again.";
+                return;
+            }
             OpenedSource = source;
             StatusMessage = $"Opened {source.AccessibleLabel}.";
+            SourceOpened?.Invoke(this, source);
         }
         catch (ApiErrorException ex) when (ex.Error?.Code == ErrorCode.SessionVersionConflict)
         {

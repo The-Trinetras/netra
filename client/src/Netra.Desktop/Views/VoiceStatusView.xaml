@@ -1,0 +1,18 @@
+<UserControl x:Class="Netra.Desktop.Views.VoiceStatusView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <StackPanel Margin="12,4,12,8">
+        <TextBlock x:Name="VoiceState" TextWrapping="Wrap"
+                   AutomationProperties.Name="Voice input status"
+                   AutomationProperties.LiveSetting="Off">
+            <Run Text="Hold F9 to speak; release to send. " FontWeight="SemiBold" />
+            <Run Text="{Binding VoiceStatus, Mode=OneWay}" />
+        </TextBlock>
+        <TextBlock x:Name="VoiceCaption" Text="{Binding VoiceTranscript}"
+                   TextWrapping="Wrap" AutomationProperties.Name="Voice transcript"
+                   AutomationProperties.LiveSetting="Off" />
+        <TextBlock x:Name="StatusRegion" Text="{Binding StatusMessage}"
+                   TextWrapping="Wrap" AutomationProperties.Name="Netra status"
+                   AutomationProperties.LiveSetting="Polite" />
+    </StackPanel>
+</UserControl>

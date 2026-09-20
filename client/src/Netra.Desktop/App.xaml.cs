@@ -141,7 +141,7 @@ public partial class App : Application
             new FixtureVideoDiscoveryService(),
             serverAccess);
         _libraryViewModel = libraryViewModel;
-        var studyViewModel = new StudyViewModel();
+        var studyViewModel = new StudyViewModel(isLive: liveEndpoint is not null);
 
         // Lecture player (F8): the view owns the WebView2 the player page runs in.
         var lectureView = new LectureView(liveRegionAnnouncer);
@@ -181,6 +181,7 @@ public partial class App : Application
                 {
                     conversationViewModel.ClearForSignOut();
                     libraryViewModel.ClearServerSources();
+                    studyViewModel.ClearForSignOut();
                 },
                 conversationViewModel.ReportStatus);
         }

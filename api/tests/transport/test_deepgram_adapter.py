@@ -1,5 +1,7 @@
-"""Deepgram adapter (deepgram-sdk 7.8.1) against a fake SDK socket; no network."""
+"""Deepgram adapter and real SDK wire parsing against scripted sockets; no network."""
 
+import asyncio
+import json
 from contextlib import asynccontextmanager
 from types import SimpleNamespace
 
@@ -84,6 +86,69 @@ async def test_finalized_segments_are_joined_into_one_final_after_finish():
         ("explain", False), ("Explain the tab", False), ("Explain the table.", True),
     ]
     assert socket.media == [b"\x01\x00"] and socket.finalized and socket.closed_stream
+
+
+async def test_release_flushes_the_real_sdk_socket_into_one_final_transcript():
+    """Exercise SDK serialization/parsing omitted by the FakeSocket tests.
+
+    The provider's final Results arrive only after release. This is a local
+    wire fixture, not a claim that a microphone or live Deepgram worked.
+    """
+    from deepgram.listen.v1.socket_client import AsyncV1SocketClient
+
+    class WireSocket:
+        def __init__(self):
+            self.incoming = asyncio.Queue()
+            self.sent = []
+
+        async def send(self, data):
+            self.sent.append(data)
+            if isinstance(data, bytes):
+                self._results("Explain the", is_final=False)
+            elif json.loads(data)["type"] == "Finalize":
+                self._results("Explain the table.", is_final=True)
+            elif json.loads(data)["type"] == "CloseStream":
+                self.incoming.put_nowait(json.dumps({"type": "Metadata"}))
+                self.incoming.put_nowait(None)
+
+        def _results(self, text, *, is_final):
+            self.incoming.put_nowait(json.dumps({
+                "type": "Results", "channel_index": [0, 1], "start": 0,
+                "duration": 0.5, "is_final": is_final, "speech_final": is_final,
+                "channel": {"alternatives": [{"transcript": text, "confidence": 0.99, "words": []}]},
+            }))
+
+        async def __aiter__(self):
+            while (message := await self.incoming.get()) is not None:
+                yield message
+
+    wire = WireSocket()
+    client, _ = fake_client(AsyncV1SocketClient(websocket=wire))
+    events = []
+    interim_received = asyncio.Event()
+    async with DeepgramRecognizer(client, model="configured-model").session() as session:
+        async def consume():
+            async for event in session.transcripts():
+                events.append(event)
+                if not event.is_final:
+                    interim_received.set()
+
+        reader = asyncio.create_task(consume())
+        try:
+            await session.send_audio(b"\x01\x00\x02\x00")
+            await asyncio.wait_for(interim_received.wait(), 2)
+            assert not any(event.is_final for event in events)
+            await session.finish()
+            await asyncio.wait_for(reader, 2)
+        finally:
+            reader.cancel()
+            await asyncio.gather(reader, return_exceptions=True)
+
+    assert [(event.text, event.is_final) for event in events] == [
+        ("Explain the", False), ("Explain the table.", True),
+    ]
+    assert wire.sent[0] == b"\x01\x00\x02\x00"
+    assert [json.loads(item)["type"] for item in wire.sent[1:]] == ["Finalize", "CloseStream"]
 
 
 async def test_provider_closing_before_finish_is_a_failure_not_a_final():

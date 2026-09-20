@@ -23,7 +23,7 @@ public sealed class TranscriptReceivedEventArgs : EventArgs
 }
 
 // Whether held push-to-talk can actually produce transcripts: true only
-// after the connected server has accepted a capture (asr.ready), and false
+// after the connected server has returned a transcript, and false
 // again after a rejection or a lost connection.
 public interface IRecognitionAvailability
 {
@@ -90,33 +90,30 @@ public interface IAsrChannel
 // in an accessible status instead of silence.
 public sealed record VoiceInputOptions
 {
-    public TimeSpan ReadyTimeout { get; init; } = TimeSpan.FromSeconds(5);
+    public TimeSpan StartTimeout { get; init; } = TimeSpan.FromSeconds(5);
     public TimeSpan FinalTranscriptTimeout { get; init; } = TimeSpan.FromSeconds(10);
     public TimeSpan MaxCaptureDuration { get; init; } = TimeSpan.FromSeconds(60);
 
-    // Audio held before asr.ready or behind a slow send: 6 s of 16 kHz
+    // Audio held behind a slow send: 6 s of 16 kHz
     // 16-bit mono. Exceeding it stops the capture; audio is never dropped.
     public int MaxBufferedAudioBytes { get; init; } = 6 * 32_000;
 }
 
-// Push-to-talk voice input over the microphone protocol (decision D-MIC;
-// the shared contract C1 is pending Arshad's draft and M5 review):
+// Push-to-talk over the approved D-MIC protocol:
 //   key down -> microphone opens at once; audio is held locally
-//            -> asr.start {capture_id, media_type}
-//   asr.ready {capture_id}          -> held and new audio is streamed as
+//            -> asr.start {capture_id}
+//   asr.start send completes       -> held and new audio is streamed as
 //                                     binary frames (MicrophoneFrame)
 //   key up   -> last frame with end_of_utterance
 //   asr.transcript, is_final: false -> live captioning only
 //   asr.transcript, is_final: true  -> TranscriptReceived; the conversation
 //                                     submits it as a voice turn.submit
-// Nothing is ever sent before asr.ready: today's server closes the socket on
-// any client binary frame, and answers an unknown asr.start with an error,
-// which is reported as "voice input is not available". Voice is therefore
-// only claimed to work once a server has really accepted a capture.
+// There is no asr.ready handshake in D-MIC. The WebSocket preserves start /
+// audio ordering; errors are correlated by the start request id.
 public sealed class MicrophoneCapture : ISpeechInputService, IRecognitionAvailability, IVoiceRequestOwner
 {
-    // Captures remembered after they end, so late asr.ready/asr.transcript
-    // messages for them are recognised and ignored (or closed), not misread.
+    // Captures remembered after they end, so late transcripts and errors
+    // for them are recognised and ignored, not misread.
     private const int RememberedCaptures = 8;
 
     private readonly IAsrChannel _channel;
@@ -124,6 +121,7 @@ public sealed class MicrophoneCapture : ISpeechInputService, IRecognitionAvailab
     private readonly VoiceInputOptions _options;
     private readonly Func<TimeSpan, CancellationToken, Task> _delay;
     private readonly CancellationTokenSource _lifetime = new();
+    private readonly SemaphoreSlim _deviceLock = new(1, 1);
     private readonly object _lock = new();
     private readonly List<Capture> _recent = new();
     private Capture? _current;
@@ -216,11 +214,12 @@ public sealed class MicrophoneCapture : ISpeechInputService, IRecognitionAvailab
         Report(VoiceInputState.Listening, "Listening.", announce: false);
 
         // The microphone opens now so the first words are kept; they wait in
-        // the capture's bounded buffer until the server accepts the capture.
-        capture.CaptureTask = _pcm.CaptureAsync(pcm => Accept(capture, pcm), capture.Release.Token, capture.Abort.Token);
+        // the bounded buffer until asr.start has been sent. A preceding
+        // capture may still be closing its device on the native thread.
+        capture.CaptureTask = CaptureDeviceAsync(capture);
         _ = ObserveCaptureAsync(capture);
         _ = StreamAudioAsync(capture);
-        _ = FailIfNotReadyAsync(capture);
+        _ = FailIfStartNotSentAsync(capture);
         _ = ReleaseAtMaximumDurationAsync(capture);
 
         try
@@ -229,6 +228,15 @@ public sealed class MicrophoneCapture : ISpeechInputService, IRecognitionAvailab
                 capture.RequestId,
                 new AsrStartPayload { CaptureId = capture.CaptureId },
                 cancellationToken).ConfigureAwait(false);
+            capture.IsStartSent = true;
+            if (capture.Ended)
+            {
+                _ = CloseServerStreamAsync(capture);
+            }
+            else
+            {
+                capture.StartCompleted.TrySetResult();
+            }
         }
         catch (Exception)
         {
@@ -279,6 +287,27 @@ public sealed class MicrophoneCapture : ISpeechInputService, IRecognitionAvailab
         return capture.Audio.Writer.TryWrite(pcm.ToArray());
     }
 
+    private async Task CaptureDeviceAsync(Capture capture)
+    {
+        await _deviceLock.WaitAsync(capture.Abort.Token).ConfigureAwait(false);
+        try
+        {
+            // Key-up or focus loss can occur while the previous native
+            // capture closes. Never open the microphone after that release.
+            capture.Abort.Token.ThrowIfCancellationRequested();
+            if (capture.Release.IsCancellationRequested)
+            {
+                return;
+            }
+
+            await _pcm.CaptureAsync(pcm => Accept(capture, pcm), capture.Release.Token, capture.Abort.Token).ConfigureAwait(false);
+        }
+        finally
+        {
+            _deviceLock.Release();
+        }
+    }
+
     private async Task ObserveCaptureAsync(Capture capture)
     {
         try
@@ -305,7 +334,7 @@ public sealed class MicrophoneCapture : ISpeechInputService, IRecognitionAvailab
         var token = capture.Abort.Token;
         try
         {
-            await capture.Ready.Task.WaitAsync(token).ConfigureAwait(false);
+            await capture.StartCompleted.Task.WaitAsync(token).ConfigureAwait(false);
 
             var batch = new byte[MicrophoneFrame.AudioBytesPerFrame];
             var filled = 0;
@@ -397,21 +426,21 @@ public sealed class MicrophoneCapture : ISpeechInputService, IRecognitionAvailab
         }
     }
 
-    private async Task FailIfNotReadyAsync(Capture capture)
+    private async Task FailIfStartNotSentAsync(Capture capture)
     {
         try
         {
-            await _delay(_options.ReadyTimeout, capture.Abort.Token).ConfigureAwait(false);
+            await _delay(_options.StartTimeout, capture.Abort.Token).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {
             return;
         }
 
-        if (!capture.IsReady)
+        if (!capture.IsStartSent)
         {
             SetAvailable(false);
-            Fail(capture, VoiceInputState.Unavailable, "Voice input did not start: Netra did not answer in time. Type your question instead.");
+            Fail(capture, VoiceInputState.Unavailable, "Voice input could not start: the connection stalled. Type your question instead.");
         }
     }
 
@@ -462,9 +491,6 @@ public sealed class MicrophoneCapture : ISpeechInputService, IRecognitionAvailab
         {
             switch (envelope.Type)
             {
-                case ServerMessageType.AsrReady:
-                    OnReady(MessageParser.ParseAsrReady(envelope));
-                    break;
                 case ServerMessageType.AsrTranscript:
                     OnTranscript(MessageParser.ParseAsrTranscript(envelope));
                     break;
@@ -480,26 +506,6 @@ public sealed class MicrophoneCapture : ISpeechInputService, IRecognitionAvailab
         }
     }
 
-    private void OnReady(AsrReadyPayload ready)
-    {
-        var capture = Find(c => c.CaptureId == ready.CaptureId);
-        if (capture is null || capture.IsReady)
-        {
-            return;
-        }
-
-        capture.IsReady = true;
-        if (capture.Ended)
-        {
-            // Cancelled before the server accepted it: close it at once.
-            _ = CloseServerStreamAsync(capture);
-            return;
-        }
-
-        SetAvailable(true);
-        capture.Ready.TrySetResult();
-    }
-
     private void OnTranscript(AsrTranscriptPayload transcript)
     {
         var capture = Find(c => c.CaptureId == transcript.CaptureId);
@@ -507,6 +513,9 @@ public sealed class MicrophoneCapture : ISpeechInputService, IRecognitionAvailab
         {
             return;
         }
+
+        capture.RecognitionConfirmed = true;
+        SetAvailable(true);
 
         // A final before this client ended the utterance cannot be the whole
         // utterance (the student is still speaking): caption only.
@@ -551,7 +560,8 @@ public sealed class MicrophoneCapture : ISpeechInputService, IRecognitionAvailab
         }
 
         var error = MessageParser.ParseError(envelope);
-        if (capture.IsReady)
+        SetAvailable(false);
+        if (capture.RecognitionConfirmed)
         {
             Fail(capture, VoiceInputState.Failed, $"Voice input stopped. {error.Message} Type your question instead.");
             return;
@@ -610,7 +620,7 @@ public sealed class MicrophoneCapture : ISpeechInputService, IRecognitionAvailab
 
         capture.Abort.Cancel();
         capture.Audio.Writer.TryComplete();
-        if (capture.IsReady && !capture.EndSent)
+        if (capture.IsStartSent && !capture.EndSent)
         {
             _ = CloseServerStreamAsync(capture);
         }
@@ -679,7 +689,7 @@ public sealed class MicrophoneCapture : ISpeechInputService, IRecognitionAvailab
         public Guid RequestId { get; } = Guid.NewGuid();
         public CancellationTokenSource Release { get; } = new();
         public CancellationTokenSource Abort { get; } = new();
-        public TaskCompletionSource Ready { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource StartCompleted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public Channel<byte[]> Audio { get; } = Channel.CreateUnbounded<byte[]>(
             new UnboundedChannelOptions { SingleReader = true, SingleWriter = true });
         public SemaphoreSlim SendLock { get; } = new(1, 1);
@@ -687,7 +697,8 @@ public sealed class MicrophoneCapture : ISpeechInputService, IRecognitionAvailab
         public CapturePhase Phase { get; set; } = CapturePhase.Capturing;
         public int BufferedBytes;
         public long NextSequence;
-        public volatile bool IsReady;
+        public volatile bool IsStartSent;
+        public volatile bool RecognitionConfirmed;
         public volatile bool EndSent;
         public volatile bool Ended;
 

@@ -1,6 +1,8 @@
 using System.Collections.ObjectModel;
 using System.Windows.Input;
 using Netra.Desktop.Study;
+using Netra.Desktop.Library;
+using Netra.Desktop.Protocol.Dto;
 
 namespace Netra.Desktop.ViewModels;
 
@@ -18,19 +20,82 @@ public sealed class StudyViewModel : ViewModelBase
     private DetectedObject? _focusedObject;
     private bool _isExploring;
     private string _statusMessage = "Reading. No object selected.";
+    private string _sourceTitle = "Study";
+    private string? _sourceVersionId;
+    private string? _generationId;
+    private readonly HashSet<string> _sentences = new();
 
-    public StudyViewModel()
+    public StudyViewModel(bool isLive = false)
     {
-        foreach (var detectedObject in OhmsLawFixture.DetectedObjects)
+        IsLive = isLive;
+        foreach (var detectedObject in isLive ? Array.Empty<DetectedObject>() : OhmsLawFixture.DetectedObjects)
         {
             DetectedObjects.Add(detectedObject);
         }
 
         ExploreCommand = new RelayCommand(parameter => Explore(parameter as DetectedObject));
         ReturnToReadingCommand = new RelayCommand(_ => ReturnToReading(), _ => IsExploring);
+        if (isLive)
+        {
+            _readingPositionSummary = "No source open.";
+            _statusMessage = "Open a source from Library to start reading.";
+        }
     }
 
     public ObservableCollection<DetectedObject> DetectedObjects { get; } = new();
+    public ObservableCollection<string> ReadingLines { get; } = new();
+    public bool IsLive { get; }
+    public string SourceTitle { get => _sourceTitle; private set => SetField(ref _sourceTitle, value); }
+
+    public void OpenSource(CatalogSource source)
+    {
+        ClearReading();
+        _sourceVersionId = source.ActiveSourceVersionId;
+        SourceTitle = source.Title;
+        StatusMessage = $"Opened {source.Title}. Loading the current passage.";
+    }
+
+    public void ApplySnapshot(SessionSnapshotPayload snapshot)
+    {
+        if (!IsLive) return;
+        if (_sourceVersionId != snapshot.ActiveSourceVersionId)
+        {
+            ClearReading();
+            _sourceVersionId = snapshot.ActiveSourceVersionId;
+            SourceTitle = _sourceVersionId is null ? "Study" : "Opened source";
+        }
+        ReadingPositionSummary = snapshot.CurrentBlockId is null
+            ? "No source open."
+            : $"Block {snapshot.CurrentBlockId}, sentence {snapshot.CurrentSentenceId}.";
+    }
+
+    public void ShowReading(ResponseSegmentPayload segment)
+    {
+        if (!IsLive || _sourceVersionId is null) return;
+        if (_generationId != segment.GenerationId)
+        {
+            ClearReading();
+            _generationId = segment.GenerationId;
+        }
+        if (_sentences.Add(segment.SentenceId)) ReadingLines.Add(segment.Text);
+        StatusMessage = "Source passage. Use the reading controls to navigate, or Conversation to ask a question.";
+    }
+
+    public void ClearForSignOut()
+    {
+        ClearReading();
+        _sourceVersionId = null;
+        SourceTitle = "Study";
+        ReadingPositionSummary = "No source open.";
+        StatusMessage = "Open a source from Library to start reading.";
+    }
+
+    private void ClearReading()
+    {
+        ReadingLines.Clear();
+        _sentences.Clear();
+        _generationId = null;
+    }
 
     public string ReadingPositionSummary
     {

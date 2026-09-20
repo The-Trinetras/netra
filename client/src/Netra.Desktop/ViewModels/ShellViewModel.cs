@@ -19,6 +19,9 @@ public sealed class ShellViewModel : ViewModelBase, IDisposable
         Preferences = preferencesViewModel;
         Lecture = lectureViewModel;
         Library.LecturePlayRequested += OnLecturePlayRequested;
+        Library.SourceOpened += OnSourceOpened;
+        Conversation.SessionSnapshotReceived += OnSessionSnapshot;
+        Conversation.SourceReadingReceived += OnSourceReading;
     }
 
     public LibraryViewModel Library { get; }
@@ -29,6 +32,18 @@ public sealed class ShellViewModel : ViewModelBase, IDisposable
 
     // The window moves to the Lecture tab; the lecture opens there.
     public event EventHandler? ShowLectureRequested;
+    public event EventHandler? ShowStudyRequested;
+
+    private void OnSourceOpened(object? sender, Library.CatalogSource source)
+    {
+        Study.OpenSource(source);
+        Conversation.SetOpenedSource(source);
+        ShowStudyRequested?.Invoke(this, EventArgs.Empty);
+        Conversation.ReadOpenedSource();
+    }
+
+    private void OnSessionSnapshot(object? sender, Protocol.Dto.SessionSnapshotPayload snapshot) => Study.ApplySnapshot(snapshot);
+    private void OnSourceReading(object? sender, Protocol.Dto.ResponseSegmentPayload segment) => Study.ShowReading(segment);
 
     private void OnLecturePlayRequested(object? sender, Library.VideoDiscoveryResult result)
     {
@@ -44,6 +59,9 @@ public sealed class ShellViewModel : ViewModelBase, IDisposable
     public void Dispose()
     {
         Library.LecturePlayRequested -= OnLecturePlayRequested;
+        Library.SourceOpened -= OnSourceOpened;
+        Conversation.SessionSnapshotReceived -= OnSessionSnapshot;
+        Conversation.SourceReadingReceived -= OnSourceReading;
         Conversation.Dispose();
         Lecture?.Dispose();
     }

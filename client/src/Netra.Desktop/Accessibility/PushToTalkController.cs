@@ -59,16 +59,12 @@ public sealed class PushToTalkController
         // network call; if the cancel then cannot be sent (disconnected),
         // the generation is already fenced locally and the student can
         // still speak.
-        if (_playbackController.CurrentSnapshot.Status is State.PlaybackStatus.Playing or State.PlaybackStatus.Loading)
-        {
-            try
-            {
-                await _interruptionController.StopAsync(CancelReason.UserStop, cancellationToken).ConfigureAwait(false);
-            }
-            catch (Exception) when (!cancellationToken.IsCancellationRequested)
-            {
-            }
-        }
+        // StopAsync silences/fences playback synchronously. Its network send
+        // must not delay opening the microphone: the student starts speaking
+        // as soon as they press the key, even on a slow connection.
+        var interrupt = _playbackController.CurrentSnapshot.Status is State.PlaybackStatus.Playing or State.PlaybackStatus.Loading
+            ? InterruptAsync(cancellationToken)
+            : Task.CompletedTask;
 
         // A playing lecture is paused before the microphone opens (the pause
         // command is sent synchronously), so its sound is not recorded and
@@ -76,8 +72,7 @@ public sealed class PushToTalkController
         // only after capture has started, so no first words are lost.
         var lecturePause = _lecture?.PauseForQuestionAsync(cancellationToken);
 
-        // The key may already be up again (a quick tap while the cancel was
-        // being sent); then there is nothing to capture.
+        // Capture begins before awaiting either remote operation.
         if (_isHeld)
         {
             await _speechInputService.StartListeningAsync(cancellationToken).ConfigureAwait(false);
@@ -86,6 +81,21 @@ public sealed class PushToTalkController
         if (lecturePause is not null)
         {
             await lecturePause.ConfigureAwait(false);
+        }
+
+        await interrupt.ConfigureAwait(false);
+    }
+
+    private async Task InterruptAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _interruptionController.StopAsync(CancelReason.UserStop, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception) when (!cancellationToken.IsCancellationRequested)
+        {
+            // The generation is already fenced locally. A failed remote
+            // cancel must not prevent a new capture.
         }
     }
 

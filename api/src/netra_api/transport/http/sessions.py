@@ -125,6 +125,12 @@ async def select_source(services: TransportServices, principal: AuthenticatedPri
         outcome = await services.sessions.handle_request(
             auth, request_id=selection.request_id, payload_fingerprint=_selection_fingerprint(selection),
             expected_version=selection.expected_session_version, decide=decide)
+        if not outcome.replayed:
+            # A successful explicit open supersedes answers/audio from the
+            # previous reading context. Replaying the pin must not cancel a
+            # later turn or generation.
+            services.turns.cancel_session(auth.account_id, auth.session_id, "navigation")
+            services.generations.cancel_speaking(auth.session_id, "navigation")
     except NetraError as exc:
         return error_response(exc)
     return 200, {**outcome.result, "replayed": outcome.replayed}

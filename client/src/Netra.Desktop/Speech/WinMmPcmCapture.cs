@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 namespace Netra.Desktop.Speech;
 
 // Local device boundary only. PCM here is signed 16-bit LITTLE-endian, mono,
-// 16 kHz; MicrophoneFrame encodes the wire form (audio/L16, big-endian).
+// 16 kHz; MicrophoneFrame preserves this byte order for the D-MIC wire form.
 // Eight 20 ms native buffers bound device memory and give the capture thread
 // 160 ms of headroom on a busy machine (screen reader, speech, GC) before
 // WinMM would run out of buffers. The consumer must enqueue without blocking

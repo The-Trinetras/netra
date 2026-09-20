@@ -10,7 +10,7 @@
     <Grid Margin="12">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
@@ -24,9 +24,19 @@
                 HorizontalAlignment="Left" TabIndex="0" Padding="8,4" Margin="0,0,0,8" />
 
         <ListBox Grid.Row="1"
+                 MaxHeight="120"
                  ItemsSource="{Binding Entries}"
                  AutomationProperties.Name="Library entries"
                  TabIndex="1">
+            <ListBox.Style>
+                <Style TargetType="ListBox">
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding Entries.Count}" Value="0">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </ListBox.Style>
             <ListBox.ItemTemplate>
                 <DataTemplate DataType="{x:Type library:LibraryEntry}">
                     <TextBlock>
@@ -40,6 +50,7 @@
 
         <TextBlock x:Name="LibraryStatusRegion" Grid.Row="2" Margin="0,8,0,12"
                    Text="{Binding StatusMessage}"
+                   TextWrapping="Wrap"
                    AutomationProperties.LiveSetting="Polite"
                    AutomationProperties.Name="Library status" />
 
@@ -87,12 +98,18 @@
         </StackPanel>
 
         <Grid Grid.Row="4" Margin="0,0,0,8">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
 
-            <TextBox Grid.Column="0"
+            <TextBlock Grid.Row="0" Grid.ColumnSpan="2" Text="Find a YouTube lecture: topic, title or lecturer"
+                       Margin="0,0,0,4" TextWrapping="Wrap" />
+            <TextBox Grid.Column="0" Grid.Row="1"
                      Text="{Binding VideoSearchQuery, UpdateSourceTrigger=PropertyChanged}"
                      AutomationProperties.Name="Find a lecture: topic, title or lecturer"
                      TabIndex="5" Margin="0,0,8,0" VerticalContentAlignment="Center">
@@ -101,7 +118,7 @@
                 </TextBox.InputBindings>
             </TextBox>
 
-            <Button Grid.Column="1" Content="Search"
+            <Button Grid.Column="1" Grid.Row="1" Content="Search"
                     Command="{Binding SearchVideosCommand}"
                     AutomationProperties.Name="Search for a lecture"
                     TabIndex="6" Padding="8,4" />

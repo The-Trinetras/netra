@@ -30,7 +30,7 @@ public sealed class ConversationViewModelDispatchTests
         await Task.Run(() => socket.RaiseTextMessageReceived(ResponseSegmentJson("gen-1", "Hello.", final: false)));
 
         Assert.True(dispatcher.InvokeCount > 0);
-        Assert.Contains(viewModel.Transcript, line => line.Speaker == "Tutor" && line.Text == "Hello.");
+        Assert.Contains(viewModel.Transcript, line => line.Speaker == "Netra" && line.Text == "Hello.");
     }
 
     [Fact]

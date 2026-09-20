@@ -11,7 +11,7 @@ namespace Netra.Desktop.Tests;
 internal sealed record SentMicrophoneFrame(Guid CaptureId, long Sequence, bool EndOfUtterance, string MediaType, int Version, byte[] Audio);
 
 // Decodes a microphone frame the way a server must: length prefix, strict
-// header, then the audio bytes exactly as sent (big-endian L16).
+// header, then the audio bytes exactly as sent (little-endian PCM).
 internal static class MicrophoneFrameReader
 {
     public static SentMicrophoneFrame Read(ReadOnlySpan<byte> frame)
@@ -34,18 +34,7 @@ internal static class MicrophoneFrameReader
             frame[(4 + headerLength)..].ToArray());
     }
 
-    // Big-endian L16 back to the little-endian PCM the microphone produced.
-    public static byte[] ToLittleEndian(byte[] bigEndian)
-    {
-        var result = new byte[bigEndian.Length];
-        for (var i = 0; i < bigEndian.Length; i += 2)
-        {
-            result[i] = bigEndian[i + 1];
-            result[i + 1] = bigEndian[i];
-        }
 
-        return result;
-    }
 }
 
 internal sealed class FakeAsrChannel : IAsrChannel
@@ -53,6 +42,7 @@ internal sealed class FakeAsrChannel : IAsrChannel
     private readonly object _lock = new();
 
     public bool IsConnected { get; set; } = true;
+    public TaskCompletionSource? StartGate { get; set; }
     public bool FailFrameSends { get; set; }
     public List<(Guid RequestId, AsrStartPayload Payload)> Starts { get; } = new();
     public List<SentMicrophoneFrame> Frames { get; } = new();
@@ -76,7 +66,7 @@ internal sealed class FakeAsrChannel : IAsrChannel
             Starts.Add((requestId, payload));
         }
 
-        return Task.CompletedTask;
+        return StartGate?.Task ?? Task.CompletedTask;
     }
 
     public Task SendMicrophoneFrameAsync(ReadOnlyMemory<byte> frame, CancellationToken cancellationToken)
@@ -111,9 +101,6 @@ internal sealed class FakeAsrChannel : IAsrChannel
             return Starts.Single();
         }
     }
-
-    public void Ready(Guid captureId, Guid requestId) =>
-        Raise(ServerMessageType.AsrReady, requestId, new AsrReadyPayload { CaptureId = captureId });
 
     public void Transcript(Guid captureId, Guid requestId, string text, bool isFinal, Guid? transcriptId = null) =>
         Raise(ServerMessageType.AsrTranscript, requestId, new AsrTranscriptPayload

@@ -1,7 +1,26 @@
 <UserControl x:Class="Netra.Desktop.Views.StudyView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:study="clr-namespace:Netra.Desktop.Study">
+             xmlns:study="clr-namespace:Netra.Desktop.Study"
+             xmlns:accessibility="clr-namespace:Netra.Desktop.Accessibility">
+
+    <UserControl.Resources>
+        <Style x:Key="FixtureOnly" TargetType="FrameworkElement">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsLive}" Value="True">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="LiveOnly" TargetType="FrameworkElement">
+            <Setter Property="Visibility" Value="Collapsed" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsLive}" Value="True">
+                    <Setter Property="Visibility" Value="Visible" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+    </UserControl.Resources>
 
     <Grid Margin="12">
         <Grid.RowDefinitions>
@@ -12,9 +31,22 @@
         </Grid.RowDefinitions>
 
         <TextBlock Grid.Row="0" Text="Detected passages, figures, tables and equations"
+                   Style="{StaticResource FixtureOnly}"
                    FontSize="16" Margin="0,0,0,8" />
+        <TextBlock Grid.Row="0" Text="{Binding SourceTitle}" Style="{StaticResource LiveOnly}"
+                   FontSize="20" TextWrapping="Wrap" Margin="0,0,0,8" />
+
+        <ListBox x:Name="ReadingTextList" Grid.Row="1" Style="{StaticResource LiveOnly}"
+                 ItemsSource="{Binding ReadingLines}" HorizontalContentAlignment="Stretch"
+                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                 AutomationProperties.Name="Current source passage" TabIndex="0">
+            <ListBox.ItemTemplate>
+                <DataTemplate><TextBlock Text="{Binding}" TextWrapping="Wrap" Margin="0,2,0,4" /></DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
 
         <ListBox x:Name="DetectedObjectsList" Grid.Row="1"
+                 Style="{StaticResource FixtureOnly}"
                  ItemsSource="{Binding DetectedObjects}"
                  AutomationProperties.Name="Detected objects in current reading position"
                  TabIndex="0">
@@ -36,8 +68,22 @@
                    AutomationProperties.Name="Study status" />
 
         <Button Grid.Row="3" Content="Back to reading"
+                Style="{StaticResource FixtureOnly}"
                 Command="{Binding ReturnToReadingCommand}"
                 AutomationProperties.Name="Back to reading"
                 TabIndex="1" HorizontalAlignment="Left" Padding="8,4" />
+        <StackPanel Grid.Row="3" Style="{StaticResource LiveOnly}">
+            <TextBlock Text="{Binding DataContext.Conversation.StatusMessage, RelativeSource={RelativeSource AncestorType=Window}}"
+                       TextWrapping="Wrap" Margin="0,0,0,8" AutomationProperties.Name="Reading connection status" />
+            <WrapPanel AutomationProperties.Name="Reading controls">
+                <Button Content="Previous" Command="{x:Static accessibility:KeyboardCommands.Previous}" Padding="8,4" Margin="0,0,4,4" />
+                <Button Content="Repeat" Command="{x:Static accessibility:KeyboardCommands.Repeat}" Padding="8,4" Margin="0,0,4,4" />
+                <Button Content="Next" Command="{x:Static accessibility:KeyboardCommands.Next}" Padding="8,4" Margin="0,0,4,4" />
+                <Button Content="Pause" Command="{x:Static accessibility:KeyboardCommands.Pause}" Padding="8,4" Margin="0,0,4,4" />
+                <Button Content="Continue" Command="{x:Static accessibility:KeyboardCommands.Continue}" Padding="8,4" Margin="0,0,4,4" />
+                <Button Content="Stop (Esc)" Command="{x:Static accessibility:KeyboardCommands.Stop}" Padding="8,4" Margin="0,0,4,4" />
+                <Button Content="Ask a question" Command="{x:Static accessibility:KeyboardCommands.GoToTab}" CommandParameter="3" Padding="8,4" Margin="0,0,4,4" />
+            </WrapPanel>
+        </StackPanel>
     </Grid>
 </UserControl>

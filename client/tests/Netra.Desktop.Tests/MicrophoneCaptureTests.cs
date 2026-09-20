@@ -13,24 +13,29 @@ public sealed class MicrophoneCaptureTests
     private static readonly VoiceInputOptions Options = new();
 
     [Fact]
-    public async Task NothingIsSentBeforeTheServerAcceptsTheCapture()
+    public async Task NothingIsSentBeforeTheStartMessageCompletes()
     {
         var (mic, channel, pcm, _, _, _) = Rig.Create();
 
-        await mic.StartListeningAsync(CancellationToken.None);
+        channel.StartGate = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        var starting = mic.StartListeningAsync(CancellationToken.None);
         Assert.True(pcm.Speak(Pcm.Samples(320, 1)));
         Assert.True(pcm.Speak(Pcm.Samples(320, 400)));
         mic.StopListening();
         await Eventually.SettleAsync();
 
         var start = channel.SingleStart();
-        Assert.Equal("audio/L16;rate=16000", start.Payload.MediaType);
+        Assert.NotEqual(Guid.Empty, start.Payload.CaptureId);
         Assert.Empty(channel.FramesSnapshot());
         Assert.Equal(1, pcm.Opened);
+        channel.StartGate.SetResult();
+        await starting;
+        await Eventually.TrueAsync(() => channel.FramesSnapshot().Any(f => f.EndOfUtterance), "audio follows the start without an acknowledgement");
+        mic.Dispose();
     }
 
     [Fact]
-    public async Task HeldAudioStreamsInOrderAfterReadyAndReleaseEndsTheUtterance()
+    public async Task AudioStreamsInOrderWithoutReadyAndReleaseEndsTheUtterance()
     {
         var (mic, channel, pcm, _, _, _) = Rig.Create();
         var spoken = new List<byte[]>();
@@ -44,7 +49,6 @@ public sealed class MicrophoneCaptureTests
         }
 
         var (requestId, start) = channel.SingleStart();
-        channel.Ready(start.CaptureId, requestId);
         await Eventually.TrueAsync(() => channel.FramesSnapshot().Length == 1, "the first full frame is sent");
 
         pcm.FinalChunk = Pcm.Samples(100, 5000);
@@ -57,9 +61,9 @@ public sealed class MicrophoneCaptureTests
         Assert.Equal(new long[] { 0, 1 }, frames.Select(f => f.Sequence));
         Assert.Equal(new[] { false, true }, frames.Select(f => f.EndOfUtterance));
         Assert.Equal(MicrophoneFrame.AudioBytesPerFrame, frames[0].Audio.Length);
-        var received = frames.SelectMany(f => MicrophoneFrameReader.ToLittleEndian(f.Audio)).ToArray();
+        var received = frames.SelectMany(f => f.Audio).ToArray();
         Assert.Equal(spoken.SelectMany(c => c).ToArray(), received);
-        Assert.True(mic.IsRecognitionAvailable);
+        Assert.False(mic.IsRecognitionAvailable); // only a transcript proves recognition
     }
 
     [Fact]
@@ -74,7 +78,7 @@ public sealed class MicrophoneCaptureTests
         mic.StopListening();
         await Eventually.SettleAsync();
 
-        Assert.Empty(channel.FramesSnapshot());
+        Assert.All(channel.FramesSnapshot(), f => Assert.Empty(f.Audio));
         Assert.True(pcm.Aborted);
         Assert.False(mic.IsRecognitionAvailable);
         Assert.True(mic.OwnsRequest(requestId));
@@ -98,16 +102,18 @@ public sealed class MicrophoneCaptureTests
     }
 
     [Fact]
-    public async Task NoAnswerInTimeEndsTheCaptureWithoutSendingAudio()
+    public async Task AStalledStartEndsTheCaptureWithoutSendingAudio()
     {
         var (mic, channel, pcm, statuses, _, delays) = Rig.Create();
 
-        await mic.StartListeningAsync(CancellationToken.None);
+        channel.StartGate = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        var starting = mic.StartListeningAsync(CancellationToken.None);
         pcm.Speak(Pcm.Samples(320, 1));
-        delays.Elapse(Options.ReadyTimeout);
+        delays.Elapse(Options.StartTimeout);
         await Eventually.TrueAsync(() => statuses.Any(s => s.Announce), "the timeout is announced");
         var (requestId, start) = channel.SingleStart();
-        channel.Ready(start.CaptureId, requestId);
+        channel.StartGate.SetResult();
+        await starting;
         await Eventually.SettleAsync();
 
         Assert.True(pcm.Aborted);
@@ -125,7 +131,6 @@ public sealed class MicrophoneCaptureTests
 
         await mic.StartListeningAsync(CancellationToken.None);
         var (requestId, start) = channel.SingleStart();
-        channel.Ready(start.CaptureId, requestId);
         channel.Transcript(start.CaptureId, requestId, "next", isFinal: false);
         channel.Transcript(start.CaptureId, requestId, "next question", isFinal: true);
 
@@ -170,7 +175,6 @@ public sealed class MicrophoneCaptureTests
 
         await mic.StartListeningAsync(CancellationToken.None);
         var (requestId, start) = channel.SingleStart();
-        channel.Ready(start.CaptureId, requestId);
         pcm.Speak(Pcm.Samples(1600, 1));
         await Eventually.TrueAsync(() => channel.FramesSnapshot().Length == 1, "a full frame is sent");
 
@@ -190,15 +194,17 @@ public sealed class MicrophoneCaptureTests
     }
 
     [Fact]
-    public async Task StopBeforeAcceptanceSendsNoAudioAndClosesALateAcceptance()
+    public async Task StopBeforeStartCompletesSendsNoAudioAndClosesTheStream()
     {
         var (mic, channel, pcm, statuses, _, _) = Rig.Create();
 
-        await mic.StartListeningAsync(CancellationToken.None);
+        channel.StartGate = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        var starting = mic.StartListeningAsync(CancellationToken.None);
         pcm.Speak(Pcm.Samples(1600, 1));
         mic.AbortListening();
         var (requestId, start) = channel.SingleStart();
-        channel.Ready(start.CaptureId, requestId);
+        channel.StartGate.SetResult();
+        await starting;
         await Eventually.TrueAsync(() => channel.FramesSnapshot().Length == 1, "the closing frame is sent");
         await Eventually.SettleAsync();
 
@@ -232,8 +238,9 @@ public sealed class MicrophoneCaptureTests
 
         await mic.StartListeningAsync(CancellationToken.None);
         var (requestId, start) = channel.SingleStart();
-        channel.Ready(start.CaptureId, requestId);
+        channel.Transcript(start.CaptureId, requestId, "listening", isFinal: false);
         Assert.True(mic.IsRecognitionAvailable);
+        transcripts.Clear();
 
         channel.Drop();
         channel.IsConnected = true;
@@ -252,13 +259,15 @@ public sealed class MicrophoneCaptureTests
     {
         var (mic, channel, pcm, statuses, _, _) = Rig.Create(new VoiceInputOptions { MaxBufferedAudioBytes = 1280 });
 
-        await mic.StartListeningAsync(CancellationToken.None);
+        channel.StartGate = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        var starting = mic.StartListeningAsync(CancellationToken.None);
         Assert.True(pcm.Speak(Pcm.Samples(320, 1)));
         Assert.True(pcm.Speak(Pcm.Samples(320, 1)));
         Assert.False(pcm.Speak(Pcm.Samples(320, 1)));
         await Eventually.TrueAsync(() => statuses.Any(s => s.Announce), "the failure is announced");
         var (requestId, start) = channel.SingleStart();
-        channel.Ready(start.CaptureId, requestId);
+        channel.StartGate.SetResult();
+        await starting;
         await Eventually.SettleAsync();
 
         var status = statuses.Last(s => s.Announce);
@@ -279,6 +288,76 @@ public sealed class MicrophoneCaptureTests
         var status = statuses.Last(s => s.Announce);
         Assert.Equal(VoiceInputState.Failed, status.State);
         Assert.StartsWith("The microphone could not open.", status.Message);
+    }
+
+    [Fact]
+    public async Task ASynchronousDeviceFailureIsReportedAndAllowsAnotherPress()
+    {
+        var channel = new FakeAsrChannel();
+        var pcm = new ClosingPcmSource { ThrowOnOpen = true };
+        using var mic = new MicrophoneCapture(channel, pcm);
+        var statuses = new List<VoiceInputStatus>();
+        mic.StatusChanged += (_, status) => statuses.Add(status);
+
+        await mic.StartListeningAsync(CancellationToken.None);
+
+        Assert.False(mic.IsListening);
+        Assert.Contains(statuses, s => s.State == VoiceInputState.Failed && s.Message.Contains("device unavailable"));
+        pcm.ThrowOnOpen = false;
+        await mic.StartListeningAsync(CancellationToken.None);
+        Assert.True(mic.IsListening);
+        Assert.Equal(2, pcm.Opened);
+        mic.AbortListening();
+        pcm.CloseFirst.TrySetResult();
+    }
+
+    [Fact]
+    public async Task AQuickNewPressWaitsForThePreviousDeviceToCloseAndThenTranscribes()
+    {
+        var channel = new FakeAsrChannel();
+        var pcm = new ClosingPcmSource();
+        using var mic = new MicrophoneCapture(channel, pcm);
+        var final = new TaskCompletionSource<TranscriptReceivedEventArgs>(TaskCreationOptions.RunContinuationsAsynchronously);
+        mic.TranscriptReceived += (_, transcript) => { if (transcript.IsFinal) final.TrySetResult(transcript); };
+
+        await mic.StartListeningAsync(CancellationToken.None);
+        mic.StopListening();
+        await mic.StartListeningAsync(CancellationToken.None);
+        Assert.Equal(1, pcm.Opened);
+        pcm.CloseFirst.SetResult();
+        await pcm.SecondOpened.Task.WaitAsync(TimeSpan.FromSeconds(3));
+
+        var (request, start) = channel.Starts.Last();
+        channel.OnFrameSending = frame =>
+        {
+            if (frame.CaptureId == start.CaptureId && frame.EndOfUtterance)
+                channel.Transcript(start.CaptureId, request, "my second question", isFinal: true);
+        };
+        mic.StopListening();
+
+        Assert.Equal("my second question", (await final.Task.WaitAsync(TimeSpan.FromSeconds(3))).Text);
+        Assert.Equal(2, pcm.Opened);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ReleasingOrAbortingAQueuedPressNeverReopensTheMicrophone(bool abort)
+    {
+        var channel = new FakeAsrChannel();
+        var pcm = new ClosingPcmSource();
+        using var mic = new MicrophoneCapture(channel, pcm);
+        await mic.StartListeningAsync(CancellationToken.None);
+        mic.StopListening();
+        await mic.StartListeningAsync(CancellationToken.None);
+        if (abort) mic.AbortListening();
+        else mic.StopListening();
+
+        pcm.CloseFirst.SetResult();
+        await Eventually.SettleAsync();
+
+        Assert.Equal(1, pcm.Opened);
+        Assert.False(mic.IsListening);
     }
 
     [Fact]
@@ -314,7 +393,6 @@ public sealed class MicrophoneCaptureTests
 
         await mic.StartListeningAsync(CancellationToken.None);
         var (requestId, start) = channel.SingleStart();
-        channel.Ready(start.CaptureId, requestId);
         pcm.Speak(Pcm.Samples(320, 1));
         delays.Elapse(Options.MaxCaptureDuration);
         await Eventually.TrueAsync(() => channel.FramesSnapshot().Any(f => f.EndOfUtterance), "the utterance ends");
@@ -347,7 +425,6 @@ public sealed class MicrophoneCaptureTests
         await mic.StartListeningAsync(CancellationToken.None);
         var (requestId, start) = channel.SingleStart();
         channel.FailFrameSends = true;
-        channel.Ready(start.CaptureId, requestId);
         pcm.Speak(Pcm.Samples(1600, 1));
         await Eventually.TrueAsync(() => statuses.Any(s => s.Announce), "the failure is announced");
 
@@ -370,7 +447,6 @@ public sealed class MicrophoneCaptureTests
                 channel.Transcript(start.CaptureId, requestId, "fast answer", isFinal: true);
             }
         };
-        channel.Ready(start.CaptureId, requestId);
 
         mic.StopListening();
         await Eventually.TrueAsync(() => transcripts.Any(t => t.IsFinal), "the final is accepted");
@@ -407,10 +483,53 @@ public sealed class MicrophoneCaptureTests
     {
         await mic.StartListeningAsync(CancellationToken.None);
         var (requestId, start) = channel.Starts.Last();
-        channel.Ready(start.CaptureId, requestId);
         mic.StopListening();
         await Eventually.TrueAsync(() => channel.FramesSnapshot().Any(f => f.CaptureId == start.CaptureId && f.EndOfUtterance), "the utterance ends");
         return (requestId, start.CaptureId);
+    }
+
+    // Models WinMM's exclusive handle: cancellation starts asynchronous
+    // cleanup, but the device remains busy until CloseFirst completes.
+    private sealed class ClosingPcmSource : IPcmSource
+    {
+        private int _active;
+        public int Opened { get; private set; }
+        public bool ThrowOnOpen { get; set; }
+        public TaskCompletionSource CloseFirst { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource SecondOpened { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public Task CaptureAsync(Func<ReadOnlyMemory<byte>, bool> acceptFrame, CancellationToken stop, CancellationToken abort)
+        {
+            Opened++;
+            if (ThrowOnOpen) throw new InvalidOperationException("Microphone device unavailable.");
+            if (Interlocked.Exchange(ref _active, 1) != 0)
+                throw new InvalidOperationException("Microphone capture is already running.");
+            return RunAsync();
+
+            async Task RunAsync()
+            {
+                try
+                {
+                    if (Opened == 1)
+                    {
+                        await CloseFirst.Task;
+                        abort.ThrowIfCancellationRequested();
+                    }
+                    else
+                    {
+                        var released = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                        using var stopRegistration = stop.Register(() => released.TrySetResult());
+                        using var abortRegistration = abort.Register(() => released.TrySetCanceled(abort));
+                        SecondOpened.TrySetResult();
+                        await released.Task;
+                    }
+                }
+                finally
+                {
+                    Volatile.Write(ref _active, 0);
+                }
+            }
+        }
     }
 
     private sealed record Rig(

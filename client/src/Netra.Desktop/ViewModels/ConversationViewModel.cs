@@ -58,6 +58,11 @@ public sealed class ConversationViewModel : ViewModelBase, IDisposable
     private string _interimTranscript = string.Empty;
     private string _statusMessage = string.Empty;
     private string _voiceStatus = "Voice input off.";
+    private string _voiceTranscript = string.Empty;
+    private string _activeSourceSummary = "Open a source from Library to ask about your material.";
+    private string? _namedSourceVersionId;
+    private readonly HashSet<Guid> _staleRequests = new();
+    private readonly Queue<Guid> _staleRequestOrder = new();
 
     public ConversationViewModel(
         ClientSessionState sessionState,
@@ -124,9 +129,43 @@ public sealed class ConversationViewModel : ViewModelBase, IDisposable
         private set => SetField(ref _voiceStatus, value);
     }
 
+    // Kept after release so the student can see what was heard from any tab,
+    // even after a response replaces the general status message.
+    public string VoiceTranscript
+    {
+        get => _voiceTranscript;
+        private set => SetField(ref _voiceTranscript, value);
+    }
+
+    public string ActiveSourceSummary
+    {
+        get => _activeSourceSummary;
+        private set => SetField(ref _activeSourceSummary, value);
+    }
+
+    public void SetOpenedSource(Library.CatalogSource source)
+    {
+        _namedSourceVersionId = source.ActiveSourceVersionId;
+        ActiveSourceSummary = $"Studying: {source.Title}. Ask about this source, or choose another in Library.";
+    }
+
     public ICommand SubmitCommand { get; }
     public ICommand StopCommand { get; }
     public ICommand NavigationCommandRequest { get; }
+    public event EventHandler<SessionSnapshotPayload>? SessionSnapshotReceived;
+    public event EventHandler<ResponseSegmentPayload>? SourceReadingReceived;
+
+    public void ReadOpenedSource() => FireAndForget(async () =>
+    {
+        _speechInputService.AbortListening();
+        await _interruptionController.StopAsync(CancelReason.Navigation, CancellationToken.None).ConfigureAwait(false);
+        await _connectionManager.SendNavigationCommandAsync(new NavigationCommandPayload
+        {
+            Command = NavigationCommandType.Repeat,
+            NavigationUnit = NavigationUnit.Block,
+            ExpectedSessionVersion = _sessionState.SessionVersion,
+        }, CancellationToken.None).ConfigureAwait(false);
+    }, "read the opened source");
 
     private bool CanSubmit() => !string.IsNullOrWhiteSpace(InputText);
 
@@ -238,7 +277,11 @@ public sealed class ConversationViewModel : ViewModelBase, IDisposable
             // navigation or be submitted as a turn. An interim "next"
             // followed by a final "next question" must therefore not
             // navigate on the interim.
-            _dispatcher.Invoke(() => InterimTranscript = e.Text);
+            _dispatcher.Invoke(() =>
+            {
+                InterimTranscript = e.Text;
+                VoiceTranscript = e.Text;
+            });
             return;
         }
 
@@ -256,6 +299,7 @@ public sealed class ConversationViewModel : ViewModelBase, IDisposable
         _dispatcher.Invoke(() =>
         {
             InterimTranscript = string.Empty;
+            VoiceTranscript = $"Heard: {e.Text}";
             // Read back what was heard so a misrecognition can be caught.
             StatusMessage = $"Heard: {e.Text}";
         });
@@ -267,9 +311,10 @@ public sealed class ConversationViewModel : ViewModelBase, IDisposable
         _dispatcher.Invoke(() =>
         {
             VoiceStatus = status.Message;
-            if (status.State is VoiceInputState.Unavailable or VoiceInputState.Failed)
+            if (status.State is VoiceInputState.Listening or VoiceInputState.Unavailable or VoiceInputState.Failed or VoiceInputState.Off)
             {
                 InterimTranscript = string.Empty;
+                VoiceTranscript = string.Empty;
             }
 
             if (status.Announce)
@@ -304,6 +349,7 @@ public sealed class ConversationViewModel : ViewModelBase, IDisposable
 
     private void HandleResponseSegment(ServerToClientEnvelope envelope)
     {
+        if (_staleRequests.Contains(envelope.RequestId)) return;
         var segment = MessageParser.ParseResponseSegment(envelope);
         _timeline?.LinkGeneration(envelope.RequestId.ToString(), segment.GenerationId);
         _timeline?.Record(PlaybackMilestone.SegmentTextReceived, segment.GenerationId, segment.SegmentId);
@@ -331,7 +377,14 @@ public sealed class ConversationViewModel : ViewModelBase, IDisposable
                 // segment's text before its frames, and the queue refuses
                 // audio it cannot acknowledge by this sentence id.
                 _playbackQueue?.RegisterSegment(segment.GenerationId, segment.SegmentId, segment.SentenceId);
-                Transcript.Add(new TranscriptLine { Speaker = "Tutor", Text = segment.Text });
+                var isReading = segment.Kind is null
+                    && _sessionState.ActiveSourceVersionId is not null
+                    && segment.SegmentId == _sessionState.CurrentBlockId;
+                Transcript.Add(new TranscriptLine { Speaker = isReading ? "Source" : "Netra", Text = segment.Text });
+                if (isReading)
+                {
+                    SourceReadingReceived?.Invoke(this, segment);
+                }
             }
         });
     }
@@ -350,7 +403,20 @@ public sealed class ConversationViewModel : ViewModelBase, IDisposable
             // for accepting a freshly-reconciled snapshot on connect —
             // Initialize() is the right primitive here (SnapshotReconciler),
             // shared with the HTTP source-selection path.
-            SnapshotReconciler.Apply(_sessionState, snapshot);
+            if (!SnapshotReconciler.ApplyUnlessOlder(_sessionState, snapshot))
+            {
+                if (_staleRequests.Add(envelope.RequestId)) _staleRequestOrder.Enqueue(envelope.RequestId);
+                while (_staleRequestOrder.Count > 128) _staleRequests.Remove(_staleRequestOrder.Dequeue());
+                return;
+            }
+            if (_namedSourceVersionId != snapshot.ActiveSourceVersionId)
+            {
+                _namedSourceVersionId = snapshot.ActiveSourceVersionId;
+                ActiveSourceSummary = snapshot.ActiveSourceVersionId is null
+                    ? "Open a source from Library to ask about your material."
+                    : "A source is open. Ask about it here, or choose another in Library.";
+            }
+            SessionSnapshotReceived?.Invoke(this, snapshot);
 
             // Snapshots also answer navigation; only the one answering a
             // resume restores anything, and only a place worth telling about
@@ -418,9 +484,14 @@ public sealed class ConversationViewModel : ViewModelBase, IDisposable
     {
         _speechInputService.AbortListening();
         Transcript.Clear();
+        VoiceTranscript = string.Empty;
         InputText = string.Empty;
         InterimTranscript = string.Empty;
         _lastAdmittedGenerationId = null;
+        _namedSourceVersionId = null;
+        ActiveSourceSummary = "Open a source from Library to ask about your material.";
+        _staleRequests.Clear();
+        _staleRequestOrder.Clear();
     });
 
     // Accessible status from services that are not view models (playback

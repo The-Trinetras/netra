@@ -47,12 +47,6 @@ public enum ServerMessageType
     [JsonStringEnumMemberName("error")]
     Error,
 
-    // Microphone protocol, pending C1 (see ClientMessageType.AsrStart).
-    // asr.ready is the client's review requirement: the server's explicit
-    // acceptance of one capture before any audio frame is sent.
-    [JsonStringEnumMemberName("asr.ready")]
-    AsrReady,
-
     [JsonStringEnumMemberName("asr.transcript")]
     AsrTranscript,
 }

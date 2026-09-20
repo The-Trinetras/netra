@@ -13,15 +13,21 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <TextBlock Grid.Row="0" Text="Netra Study Session" FontSize="20" Margin="0,0,0,8" />
+        <StackPanel Grid.Row="0" Margin="0,0,0,8">
+            <TextBlock Text="Netra Study Session" FontSize="20" />
+            <TextBlock Text="{Binding ActiveSourceSummary}" TextWrapping="Wrap" Margin="0,4,0,0"
+                       AutomationProperties.Name="Current study source" />
+        </StackPanel>
 
         <ListBox x:Name="TranscriptList" Grid.Row="1"
                  ItemsSource="{Binding Transcript}"
+                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                 HorizontalContentAlignment="Stretch"
                  AutomationProperties.Name="Conversation transcript"
                  TabIndex="0">
             <ListBox.ItemTemplate>
                 <DataTemplate>
-                    <TextBlock>
+                    <TextBlock TextWrapping="Wrap" Margin="0,2,0,4">
                         <Run Text="{Binding Speaker, Mode=OneWay}" FontWeight="Bold" />
                         <Run Text=": " />
                         <Run Text="{Binding Text, Mode=OneWay}" />
@@ -32,6 +38,7 @@
 
         <TextBlock x:Name="StatusRegion" Grid.Row="2" Margin="0,8,0,0"
                    Text="{Binding StatusMessage}"
+                   TextWrapping="Wrap"
                    AutomationProperties.LiveSetting="Polite"
                    AutomationProperties.Name="Status" />
 

@@ -44,7 +44,7 @@ public sealed record PlaybackAckPayload
 }
 
 // asr.start (D-MIC): opens one push-to-talk capture. Audio frames for
-// capture_id follow only after the server answers asr.ready.
+// capture_id follow the start message, with no acknowledgement handshake.
 //
 // capture_id is the ONLY field. client_to_server.schema.json declares
 // "additionalProperties": false for AsrStart and the server's wire models

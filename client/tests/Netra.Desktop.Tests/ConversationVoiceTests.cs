@@ -41,6 +41,12 @@ public sealed class ConversationVoiceTests
         Assert.Equal("You (voice)", line.Speaker);
         Assert.Equal("What is Ohm's law?", line.Text);
         Assert.Equal("Heard: What is Ohm's law?", rig.ViewModel.StatusMessage);
+        Assert.Equal("Heard: What is Ohm's law?", rig.ViewModel.VoiceTranscript);
+        rig.ViewModel.ReportStatus("Netra is answering.");
+        Assert.Equal("Heard: What is Ohm's law?", rig.ViewModel.VoiceTranscript);
+        await rig.Mic.StartListeningAsync(CancellationToken.None);
+        Assert.Empty(rig.ViewModel.VoiceTranscript);
+        rig.Mic.AbortListening();
     }
 
     [Fact]
@@ -53,6 +59,7 @@ public sealed class ConversationVoiceTests
         await Eventually.SettleAsync();
 
         Assert.Equal("what is", rig.ViewModel.InterimTranscript);
+        Assert.Equal("what is", rig.ViewModel.VoiceTranscript);
         Assert.Empty(rig.Socket.Sent("turn.submit"));
         Assert.Equal(string.Empty, rig.ViewModel.StatusMessage);
     }
@@ -79,7 +86,8 @@ public sealed class ConversationVoiceTests
         rig.Socket.Receive(Error(requestId, "INVALID_REQUEST", "invalid message"));
 
         Assert.Equal("Voice input is not available on this Netra server yet. Type your question instead.", rig.ViewModel.StatusMessage);
-        Assert.Empty(rig.Socket.BinarySent);
+        Assert.Equal(rig.ViewModel.StatusMessage, rig.ViewModel.VoiceStatus);
+        Assert.All(rig.Socket.BinarySent, f => Assert.Empty(MicrophoneFrameReader.Read(f).Audio));
     }
 
     [Fact]
@@ -162,7 +170,6 @@ public sealed class ConversationVoiceTests
             var start = Assert.Single(Socket.Sent("asr.start"));
             var requestId = Guid.Parse(start.GetProperty("request_id").GetString()!);
             var captureId = start.GetProperty("payload").GetProperty("capture_id").GetGuid();
-            Socket.Receive(Envelope("asr.ready", requestId, new { capture_id = captureId }));
             return (requestId, captureId);
         }
     }

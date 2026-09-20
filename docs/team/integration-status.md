@@ -546,7 +546,7 @@ Gaps found while reading the Terraform (20 September):
 | D-BACKUP | RDS automated backups are off | Set a retention period (for example 7 days) before real student data | Production data |
 | D-TFSTATE | Terraform state exists only on M2's machine | An S3 backend with state locking | Anyone but M2 changing infrastructure |
 | D-OTEL-PINS | Exact OpenTelemetry versions (D-AX) | M2 review under the lock cutoff | AX exporter |
-| D-MODAL-PINS | 7 pins in `evaluation/deploy/prometheus_modal.py` are `PENDING_M2_REVIEW` | M2 review; fix OPT-7/OPT-8 before GPU use | Modal judge |
+| D-MODAL-PINS | 7 pins in `evaluation/deploy/prometheus_modal.py` are `PENDING_M2_REVIEW` | M2 review. **OPT-7 and OPT-8 are now fixed** (the HTTP surface is a CPU function, so `GET /result` never wakes the A100; replies carry `cold_start_seconds` and the run allowance charges and reserves for it). The pins remain the only code blocker; the module still refuses to import while any is pending. Nothing deployed, no GPU has run, Modal SDK not installed. | Modal judge |
 | INT-11b / INT-11c | ElevenLabs output media type; total audio frame size limit | **C3 drafted** on `arshad/C3-speech-wire`: `audio/mpeg` (mp3_44100_128); 64 KiB audio per frame, 81,924 bytes per message, sender splits, receiver drops the rest of the segment's audio and keeps text and connection. Awaiting Arun's review; client check is Arun's | Speech output |
 | M3-MATHML-1 | MathML fidelity for `render_mathml` | Accept the proposal in the M5 handoff (presentation MathML only; symbols not spoken text; units kept; structure checked, never repaired; verified trees only) | F6 MathML (not NVDA-critical: the spoken equation tree already serves screen readers) |
 
